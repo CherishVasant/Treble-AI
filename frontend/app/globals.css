@@ -1,29 +1,219 @@
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+@import 'tailwindcss';
+@config '../tailwind.config.ts';
+@import 'tw-animate-css';
+
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist';
+  src: url('/fonts/geist-bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('/fonts/geist-mono-regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --font-geist: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-geist-mono: 'Geist Mono', 'Courier New', monospace;
+  
+  color-scheme: dark;
+}
+
+* {
+  @apply border-border outline-ring/50;
 }
 
 html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
+  @apply bg-background;
 }
 
 body {
-  background: #0c0d10;
-  color: #e8e9f0;
-  min-height: 100vh;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  @apply bg-background text-foreground font-sans antialiased;
 }
 
-img, svg, video {
-  display: block;
-  max-width: 100%;
+@layer base {
+  /* Glass effect utility */
+  .glass {
+    @apply bg-card/40 backdrop-blur-glass border border-border/30;
+  }
+  
+  /* Glow effect utility */
+  .glow {
+    @apply shadow-glow;
+  }
+  
+  .glow-lg {
+    @apply shadow-glow-lg;
+  }
+  
+  /* Smooth transitions */
+  .transition-smooth {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  /* Music theory interactive states */
+  button, a {
+    @apply transition-all duration-300 ease-out;
+  }
+  
+  button:hover:not(:disabled) {
+    @apply scale-105;
+  }
+  
+  button:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
 }
 
-button {
+/* Markdown Prose styling inside chats */
+.prose-chat {
+  @apply text-sm leading-relaxed text-foreground/90 space-y-3;
+}
+.prose-chat p {
+  @apply mb-2 last:mb-0;
+}
+.prose-chat h1 {
+  @apply text-lg font-bold text-foreground mt-4 mb-2 first:mt-0;
+}
+.prose-chat h2 {
+  @apply text-base font-bold text-foreground mt-3 mb-1.5 first:mt-0;
+}
+.prose-chat h3 {
+  @apply text-sm font-semibold text-foreground mt-2 mb-1 first:mt-0;
+}
+.prose-chat ul {
+  @apply list-disc pl-5 mb-3 space-y-1 text-foreground/90;
+}
+.prose-chat ol {
+  @apply list-decimal pl-5 mb-3 space-y-1 text-foreground/90;
+}
+.prose-chat li {
+  @apply text-sm mb-0.5;
+}
+.prose-chat strong {
+  @apply font-bold text-foreground;
+}
+.prose-chat em {
+  @apply italic;
+}
+.prose-chat blockquote {
+  @apply border-l-4 border-primary bg-muted/10 px-4 py-2 italic rounded-r my-3 text-muted-foreground;
+}
+.prose-chat table {
+  @apply w-full border-collapse my-3 text-xs text-left rounded-lg overflow-hidden border border-border/30;
+}
+.prose-chat thead {
+  @apply bg-card/60 border-b border-border/30;
+}
+.prose-chat th {
+  @apply px-3 py-2 font-semibold text-foreground border-r border-border/20 last:border-0;
+}
+.prose-chat td {
+  @apply px-3 py-2 border-b border-border/20 border-r border-border/20 last:border-r-0 last:border-b-0;
+}
+.prose-chat tr {
+  @apply hover:bg-card/20 transition-colors;
+}
+.prose-chat a {
+  @apply text-primary hover:underline font-medium;
+}
+.prose-chat code {
+  @apply bg-muted/50 text-accent font-mono text-xs px-1.5 py-0.5 rounded border border-border/20 font-semibold;
+}
+.prose-chat pre {
+  @apply bg-black/45 p-4 rounded-xl border border-border/30 my-3 overflow-x-auto text-xs font-mono shadow-inner;
+}
+.prose-chat pre code {
+  @apply bg-transparent text-foreground p-0 border-0 text-xs font-normal;
+}
+
+/* Visible, draggable range thumbs for the music player */
+.music-player-seek {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 20px;
+  border-radius: 9999px;
+  background: transparent;
   cursor: pointer;
-  border: none;
-  background: none;
+  --range-track: hsl(240 10% 25%);
+  --range-fill: hsl(220 90% 56%);
+  --range-progress: 0%;
+}
+
+.music-player-seek:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.music-player-seek::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    to right,
+    var(--range-fill) 0%,
+    var(--range-fill) var(--range-progress),
+    var(--range-track) var(--range-progress),
+    var(--range-track) 100%
+  );
+}
+
+.music-player-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -5px;
+  border-radius: 9999px;
+  border: 2px solid hsl(240 10% 8%);
+  background: hsl(220 90% 56%);
+  box-shadow: 0 0 0 1px hsl(220 90% 56% / 0.35), 0 2px 6px hsl(220 90% 56% / 0.45);
+  cursor: pointer;
+}
+
+.music-player-seek:disabled::-webkit-slider-thumb {
+  background: hsl(240 10% 35%);
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+.music-player-seek::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--range-track);
+}
+
+.music-player-seek::-moz-range-progress {
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--range-fill);
+}
+
+.music-player-seek::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 2px solid hsl(240 10% 8%);
+  border-radius: 9999px;
+  background: hsl(220 90% 56%);
+  box-shadow: 0 0 0 1px hsl(220 90% 56% / 0.35), 0 2px 6px hsl(220 90% 56% / 0.45);
+  cursor: pointer;
+}
+
+.music-player-seek:disabled::-moz-range-thumb {
+  background: hsl(240 10% 35%);
+  box-shadow: none;
+  cursor: not-allowed;
 }

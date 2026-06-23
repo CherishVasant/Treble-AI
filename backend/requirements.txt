@@ -1,0 +1,22 @@
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+python-multipart>=0.0.9
+sqlalchemy>=2.0.36
+python-dotenv>=1.0.1
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+
+# Theory assistant (configure provider via env; OpenAI is default)
+langchain>=0.3.13
+langchain-core>=0.3.28
+langchain-openai>=0.2.14
+
+# PostgreSQL driver (optional — only if DATABASE_URL uses PostgreSQL)
+psycopg[binary]>=3.2.0
+
+# Sheet music → audio pipeline
+music21>=9.1.0
+
+# Image/PDF enhancement before Audiveris OMR
+opencv-python-headless>=4.10.0
+pymupdf>=1.24.0

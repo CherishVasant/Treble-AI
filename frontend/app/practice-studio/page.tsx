@@ -79,6 +79,28 @@ function PracticeStudioContent() {
 
   const playerRef = useRef<MusicPlayerRef>(null);
 
+  // Refs to avoid stale state in asynchronous event handlers
+  const sessionRef = useRef(sessionId);
+  const uploadedFileRef = useRef(uploadedFileData);
+  const processedMetaRef = useRef(processedMetadata);
+  const messagesRef = useRef(messages);
+
+  useEffect(() => {
+    sessionRef.current = sessionId;
+  }, [sessionId]);
+
+  useEffect(() => {
+    uploadedFileRef.current = uploadedFileData;
+  }, [uploadedFileData]);
+
+  useEffect(() => {
+    processedMetaRef.current = processedMetadata;
+  }, [processedMetadata]);
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   // Load session from localStorage on sessionId change
   useEffect(() => {
     if (sessionId) {
@@ -90,11 +112,17 @@ function PracticeStudioContent() {
           setUploadedFileData(session.uploadedFileData || null);
           setProcessedMetadata(session.processedMetadata || null);
           setMessages(session.messages || []);
+          uploadedFileRef.current = session.uploadedFileData || null;
+          processedMetaRef.current = session.processedMetadata || null;
+          messagesRef.current = session.messages || [];
         } else {
           // Fallback if session ID is invalid/not found
           setUploadedFileData(null);
           setProcessedMetadata(null);
           setMessages([]);
+          uploadedFileRef.current = null;
+          processedMetaRef.current = null;
+          messagesRef.current = [];
         }
       } catch (e) {
         console.error('Failed to load practice session:', e);
@@ -104,6 +132,9 @@ function PracticeStudioContent() {
       setUploadedFileData(null);
       setProcessedMetadata(null);
       setMessages([]);
+      uploadedFileRef.current = null;
+      processedMetaRef.current = null;
+      messagesRef.current = [];
     }
     // Reset playback status when switching sessions
     setCurrentTime(0);
@@ -127,6 +158,10 @@ function PracticeStudioContent() {
       setLoopStartMeasure(1);
       setLoopEndMeasure(8);
       setIsLooping(false);
+      uploadedFileRef.current = null;
+      processedMetaRef.current = null;
+      messagesRef.current = [];
+      sessionRef.current = '';
     };
     window.addEventListener('treble_new_chat_practice', handleNewChat);
     return () => {
@@ -145,11 +180,12 @@ function PracticeStudioContent() {
       const sessionsRaw = localStorage.getItem('treble_practice_sessions');
       let sessions = sessionsRaw ? JSON.parse(sessionsRaw) : [];
       
-      let targetId = activeId;
+      let targetId = sessionRef.current || activeId;
       let isNew = false;
       
       if (!targetId) {
         targetId = `practice_session_${Date.now()}`;
+        sessionRef.current = targetId;
         isNew = true;
       }
       
@@ -194,19 +230,22 @@ function PracticeStudioContent() {
 
   const handleFileUpload = (file: { id: string; name: string }) => {
     const nextFile = file.id ? file : null;
+    uploadedFileRef.current = nextFile;
     setUploadedFileData(nextFile);
-    savePracticeSession(sessionId, nextFile, processedMetadata, messages);
+    savePracticeSession(sessionRef.current, nextFile, processedMetaRef.current, messagesRef.current);
   };
 
   const handleMetadataUpdate = (meta: any) => {
-    const nextMeta = meta ? { ...processedMetadata, ...meta } : null;
+    const nextMeta = meta ? { ...processedMetaRef.current, ...meta } : null;
+    processedMetaRef.current = nextMeta;
     setProcessedMetadata(nextMeta);
-    savePracticeSession(sessionId, uploadedFileData, nextMeta, messages);
+    savePracticeSession(sessionRef.current, uploadedFileRef.current, nextMeta, messagesRef.current);
   };
 
   const handleNewMessages = (newMessages: Message[]) => {
+    messagesRef.current = newMessages;
     setMessages(newMessages);
-    savePracticeSession(sessionId, uploadedFileData, processedMetadata, newMessages);
+    savePracticeSession(sessionRef.current, uploadedFileRef.current, processedMetaRef.current, newMessages);
   };
 
   // Parse tempo and time signature from metadata or musicalInfo to compute measure timings

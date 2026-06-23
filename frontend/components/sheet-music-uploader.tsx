@@ -311,15 +311,22 @@ export default function SheetMusicUploader({
   };
 
   const stepsList = [
-    { key: 'upload', label: 'File Uploaded' },
-    { key: 'omr', label: 'OMR Processing Complete' },
-    { key: 'musicxml', label: 'MusicXML Generated' },
-    { key: 'midi', label: 'MIDI Generated' },
-    { key: 'audio', label: 'Audio Synthesized' },
-    { key: 'analysis', label: 'Analysis & Playback Ready' }
+    { key: 'upload', label: activeFile ? 'File Upload' : 'Waiting for file' },
+    { key: 'omr', label: 'OMR Processing' },
+    { key: 'musicxml', label: 'MusicXML Processing' },
+    { key: 'midi', label: 'Analysis' },
+    { key: 'audio', label: 'Playback Generation' },
+    { key: 'analysis', label: 'Complete' }
   ];
 
   const getConvertButtonState = () => {
+    if (!activeFile) {
+      return {
+        label: 'Convert to Audio',
+        disabled: true,
+        icon: <Music className="w-4 h-4" />,
+      };
+    }
     const isUploading = conversionSteps.upload === 'processing';
     const isUploadFailed = conversionSteps.upload === 'failed';
     const isProcessing =
@@ -423,12 +430,12 @@ export default function SheetMusicUploader({
         </div>
       </div>
 
-      {/* Active File, Stepper and Action Button Details */}
-      {activeFile && (
-        <div className="p-4 rounded-xl bg-card/40 border border-border/30 animate-slide-up shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-2xl rounded-full pointer-events-none" />
+      {/* Stepper and Action Button Details (Always visible) */}
+      <div className="p-4 rounded-xl bg-card/40 border border-border/30 animate-slide-up shadow-sm relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-2xl rounded-full pointer-events-none" />
 
-          {/* Active File Details Header */}
+        {/* Active File Details Header */}
+        {activeFile ? (
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="min-w-0 flex-1">
               <h5 className="text-sm font-semibold text-foreground truncate" title={activeFile.name}>
@@ -448,100 +455,109 @@ export default function SheetMusicUploader({
               <X className="w-4 h-4 text-muted-foreground hover:text-red-400" />
             </button>
           </div>
-
-          {/* Stepper progress stages */}
-          <div className="space-y-2 border-t border-border/20 pt-3">
-            <h6 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
-              Processing Progress
-            </h6>
-            <div className="grid grid-cols-1 gap-2.5">
-              {stepsList.map((step, idx) => {
-                const stepStatus = conversionSteps[step.key] || 'pending';
-
-                return (
-                  <div key={step.key} className="flex items-center gap-2.5 text-xs">
-                    <div className="flex-shrink-0">
-                      {stepStatus === 'completed' && (
-                        <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
-                          <Check className="w-3 h-3" />
-                        </div>
-                      )}
-                      {stepStatus === 'processing' && (
-                        <div className="w-5 h-5 rounded-full bg-primary/20 text-primary border border-primary/30 flex items-center justify-center">
-                          <Loader2 className="w-3 h-3 animate-spin" />
-                        </div>
-                      )}
-                      {stepStatus === 'pending' && (
-                        <div className="w-5 h-5 rounded-full bg-muted/10 text-muted border border-border/30 flex items-center justify-center text-[10px] font-mono font-bold">
-                          {idx + 1}
-                        </div>
-                      )}
-                      {stepStatus === 'failed' && (
-                        <div className="w-5 h-5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center">
-                          <AlertCircle className="w-3 h-3" />
-                        </div>
-                      )}
-                    </div>
-                    <span
-                      className={`font-medium ${
-                        stepStatus === 'completed'
-                          ? 'text-foreground/80'
-                          : stepStatus === 'processing'
-                            ? 'text-primary animate-pulse font-semibold'
-                            : stepStatus === 'failed'
-                              ? 'text-red-400 font-semibold'
-                              : 'text-muted-foreground/60'
-                      }`}
-                    >
-                      {step.label}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+        ) : (
+          <div className="mb-4">
+            <h5 className="text-sm font-semibold text-muted-foreground/60 italic">
+              No score file loaded
+            </h5>
           </div>
+        )}
 
-          {/* Action Trigger Convert Button (Always rendered when file exists) */}
-          <div className="mt-4">
+        {/* Stepper progress stages */}
+        <div className="space-y-3 border-t border-border/20 pt-4">
+          <h6 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-3">
+            Processing Progress
+          </h6>
+          <div className="relative pl-1 space-y-4">
+            {/* Vertical timeline connector line linking all step circles */}
+            <div className="absolute left-[9px] top-2.5 bottom-2.5 w-[2px] bg-border/20 rounded" />
+            
+            {stepsList.map((step, idx) => {
+              const stepStatus = conversionSteps[step.key] || 'pending';
+
+              return (
+                <div key={step.key} className="flex items-center gap-3 text-xs relative z-10 transition-all duration-300">
+                  <div className="flex-shrink-0 relative">
+                    {stepStatus === 'completed' && (
+                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center bg-card shadow-glow/10 scale-100 transition-all duration-300 animate-[scale-in_0.2s_ease-out]">
+                        <Check className="w-3 h-3" />
+                      </div>
+                    )}
+                    {stepStatus === 'processing' && (
+                      <div className="w-5 h-5 rounded-full bg-primary/20 text-primary border border-primary/30 flex items-center justify-center bg-card shadow-glow/20 scale-110 transition-all duration-300 animate-pulse">
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      </div>
+                    )}
+                    {stepStatus === 'pending' && (
+                      <div className="w-5 h-5 rounded-full bg-muted/10 text-muted border border-border/30 flex items-center justify-center bg-card text-[10px] font-mono font-bold transition-all duration-300">
+                        {idx + 1}
+                      </div>
+                    )}
+                    {stepStatus === 'failed' && (
+                      <div className="w-5 h-5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center bg-card transition-all duration-300">
+                        <AlertCircle className="w-3 h-3" />
+                      </div>
+                    )}
+                  </div>
+                  <span
+                    className={`font-medium transition-colors duration-300 ${
+                      stepStatus === 'completed'
+                        ? 'text-foreground/80'
+                        : stepStatus === 'processing'
+                          ? 'text-primary animate-pulse font-semibold'
+                          : stepStatus === 'failed'
+                            ? 'text-red-400 font-semibold'
+                            : 'text-muted-foreground/60'
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Action Trigger Convert Button (Always rendered) */}
+        <div className="mt-4">
+          <Button
+            type="button"
+            onClick={handleConvert}
+            disabled={btnState.disabled}
+            className="w-full bg-gradient-primary hover:shadow-glow text-white font-semibold transition-all duration-200 py-2.5 h-10 flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            {btnState.icon}
+            {btnState.label}
+          </Button>
+        </div>
+
+        {conversionError && (
+          <div className="mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-[11px] text-red-400 flex flex-col gap-2">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold block mb-0.5">Conversion Failed</span>
+                {conversionError}
+              </div>
+            </div>
             <Button
               type="button"
               onClick={handleConvert}
-              disabled={btnState.disabled}
-              className="w-full bg-gradient-primary hover:shadow-glow text-white font-semibold transition-all duration-200 py-2.5 h-10 flex items-center justify-center gap-1.5 disabled:opacity-50"
+              variant="ghost"
+              className="w-full border border-red-500/30 text-[10px] h-7 bg-red-500/5 hover:bg-red-500/25 text-red-400 font-bold"
             >
-              {btnState.icon}
-              {btnState.label}
+              Retry Conversion
             </Button>
           </div>
+        )}
 
-          {conversionError && (
-            <div className="mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-[11px] text-red-400 flex flex-col gap-2">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                <div>
-                  <span className="font-semibold block mb-0.5">Conversion Failed</span>
-                  {conversionError}
-                </div>
-              </div>
-              <Button
-                type="button"
-                onClick={handleConvert}
-                variant="ghost"
-                className="w-full border border-red-500/30 text-[10px] h-7 bg-red-500/5 hover:bg-red-500/25 text-red-400 font-bold"
-              >
-                Retry Conversion
-              </Button>
-            </div>
-          )}
-
-          {conversionSteps.analysis === 'completed' && !isConvertingLocal && (
-            <div className="mt-3 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 flex items-center gap-1.5 font-semibold">
-              <Check className="w-4 h-4 shrink-0 text-emerald-400" />
-              Score converted! Audio is ready for playback.
-            </div>
-          )}
-        </div>
-      )}
+        {conversionSteps.analysis === 'completed' && !isConvertingLocal && activeFile && (
+          <div className="mt-3 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 flex items-center gap-1.5 font-semibold">
+            <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+            Score converted! Audio is ready for playback.
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -19,6 +19,7 @@ class TheoryChatResponse(BaseModel):
     suggested_follow_up_questions: list[str] | None = None
     related_concepts: list[str] | None = None
     citations: list[str] | None = None
+    agent_steps: list[str] | None = None
 
 
 class ReferenceEntryOut(BaseModel):

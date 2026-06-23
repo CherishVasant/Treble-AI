@@ -16,6 +16,7 @@ export interface Message {
   suggested_follow_up_questions?: string[];
   related_concepts?: string[];
   citations?: string[];
+  agent_steps?: string[];
 }
 
 interface AIChatProps {
@@ -31,6 +32,78 @@ interface AIChatProps {
   onNewMessages?: (messages: Message[]) => void;
   isLoading?: boolean;
   className?: string;
+}
+
+interface AgentActivityPanelProps {
+  steps: string[];
+  isExpanded: boolean;
+  onToggle: () => void;
+  isLoading?: boolean;
+  currentStepIndex?: number;
+}
+
+function AgentActivityPanel({
+  steps,
+  isExpanded,
+  onToggle,
+  isLoading = false,
+  currentStepIndex = 0,
+}: AgentActivityPanelProps) {
+  if (!steps || steps.length === 0) return null;
+
+  return (
+    <div className="border border-border/20 rounded-lg bg-background/40 overflow-hidden text-xs max-w-full my-1 transition-all">
+      <button
+        type="button"
+        onClick={onToggle}
+        className="w-full px-3 py-1.5 flex items-center justify-between font-semibold text-muted-foreground/80 hover:text-foreground hover:bg-card/30 transition-colors"
+      >
+        <span className="flex items-center gap-1.5">
+          <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
+          Agent Activity
+        </span>
+        {isLoading && <Loader2 className="w-3 h-3 animate-spin text-primary shrink-0" />}
+      </button>
+
+      {isExpanded && (
+        <div className="px-4 py-2 border-t border-border/10 bg-card/10 space-y-1.5 animate-slide-up">
+          {steps.map((step, idx) => {
+            let state: 'completed' | 'loading' | 'pending' = 'completed';
+            if (isLoading) {
+              if (idx < currentStepIndex) state = 'completed';
+              else if (idx === currentStepIndex) state = 'loading';
+              else state = 'pending';
+            }
+
+            return (
+              <div key={idx} className="flex items-center gap-2 text-[11px] text-muted-foreground/80 transition-all duration-300">
+                {state === 'completed' && (
+                  <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                )}
+                {state === 'loading' && (
+                  <Loader2 className="w-3.5 h-3.5 text-primary animate-spin shrink-0" />
+                )}
+                {state === 'pending' && (
+                  <div className="w-3.5 h-3.5 rounded-full border border-border/40 shrink-0" />
+                )}
+                <span
+                  className={
+                    state === 'completed'
+                      ? 'text-foreground/80'
+                      : state === 'loading'
+                        ? 'text-primary font-semibold animate-pulse'
+                        : 'text-muted-foreground/30'
+                  }
+                >
+                  {step}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AIChat({
@@ -54,6 +127,21 @@ export default function AIChat({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  
+  const [agentActivityExpanded, setAgentActivityExpanded] = useState<Record<string, boolean>>({});
+  const [isLoadingExpanded, setIsLoadingExpanded] = useState(false);
+  const [loadingStepIndex, setLoadingStepIndex] = useState(0);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (loading) {
+      setLoadingStepIndex(0);
+      interval = setInterval(() => {
+        setLoadingStepIndex(prev => (prev < 3 ? prev + 1 : prev));
+      }, 2000);
+    }
+    return () => clearInterval(interval);
+  }, [loading]);
   
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -127,6 +215,7 @@ export default function AIChat({
         suggested_follow_up_questions: data.suggested_follow_up_questions,
         related_concepts: data.related_concepts,
         citations: data.citations,
+        agent_steps: data.agent_steps,
       };
 
       setMessages((prev) => [...prev, assistantMessage]);
@@ -240,23 +329,35 @@ export default function AIChat({
                         {message.content}
                       </p>
                     ) : (
-                      <div className="prose-chat">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkGfm]}
-                          components={{
-                            code: ({ node, inline, className, children, ...props } : any) => {
-                              return inline ? (
-                                <code className="bg-muted/70 px-1 py-0.5 rounded text-xs font-mono font-semibold" {...props}>{children}</code>
-                              ) : (
-                                <pre className="bg-background/85 p-3 rounded-xl border border-border/30 my-1 overflow-x-auto text-xs font-mono">
-                                  <code className={className} {...props}>{children}</code>
-                                </pre>
-                              );
-                            }
-                          }}
-                        >
-                          {message.content}
-                        </ReactMarkdown>
+                      <div className="flex flex-col gap-2">
+                        {message.agent_steps && message.agent_steps.length > 0 && (
+                          <AgentActivityPanel
+                            steps={message.agent_steps}
+                            isExpanded={agentActivityExpanded[message.id] || false}
+                            onToggle={() => setAgentActivityExpanded(prev => ({
+                              ...prev,
+                              [message.id]: !prev[message.id]
+                            }))}
+                          />
+                        )}
+                        <div className="prose-chat">
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              code: ({ node, inline, className, children, ...props } : any) => {
+                                return inline ? (
+                                  <code className="bg-muted/70 px-1 py-0.5 rounded text-xs font-mono font-semibold" {...props}>{children}</code>
+                                ) : (
+                                  <pre className="bg-background/85 p-3 rounded-xl border border-border/30 my-1 overflow-x-auto text-xs font-mono">
+                                    <code className={className} {...props}>{children}</code>
+                                  </pre>
+                                );
+                              }
+                            }}
+                          >
+                            {message.content}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     )}
                   </div>
@@ -343,10 +444,21 @@ export default function AIChat({
                 <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
                   <Music className="w-4 h-4 text-white" />
                 </div>
-                <div className="max-w-[85%] px-4 py-3 rounded-2xl bg-card text-foreground rounded-bl-none border border-border/30">
-                  <div className="flex gap-2 items-center">
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    <span className="text-xs font-medium animate-pulse text-muted-foreground">Treble is composing response...</span>
+                <div className="max-w-[85%] w-full flex flex-col space-y-2">
+                  <div className="px-4 py-3.5 rounded-2xl bg-card text-foreground rounded-bl-none border border-border/30">
+                    <div className="flex flex-col gap-2">
+                      <div className="flex gap-2 items-center">
+                        <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                        <span className="text-xs font-medium animate-pulse text-muted-foreground">Treble is thinking...</span>
+                      </div>
+                      <AgentActivityPanel
+                        steps={["Thinking", "Searching music references", "Reviewing results", "Generating answer"]}
+                        isExpanded={isLoadingExpanded}
+                        onToggle={() => setIsLoadingExpanded(prev => !prev)}
+                        isLoading={true}
+                        currentStepIndex={loadingStepIndex}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

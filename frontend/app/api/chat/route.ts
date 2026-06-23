@@ -46,6 +46,7 @@ export async function POST(request: NextRequest) {
       suggested_follow_up_questions?: string[];
       related_concepts?: string[];
       citations?: string[];
+      agent_steps?: string[];
     };
     return NextResponse.json({
       response: data.response,
@@ -53,6 +54,7 @@ export async function POST(request: NextRequest) {
       suggested_follow_up_questions: data.suggested_follow_up_questions ?? [],
       related_concepts: data.related_concepts ?? [],
       citations: data.citations ?? [],
+      agent_steps: data.agent_steps ?? [],
     });
   } catch (error) {
     console.error('[chat] proxy error:', error);

@@ -8,9 +8,8 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.tools import tool
 from config import get_settings
-from database import SessionLocal
-from models import ReferenceEntry, ReferenceSection
-from sqlalchemy import select, or_
+from reference_library import search_library
+
 
 # Define local reference library search tool
 @tool
@@ -19,38 +18,24 @@ def search_local_reference_library(query: str) -> str:
     Search the local music reference library database for scales, keys, intervals, definitions, or formulas.
     Use this to get local reference details.
     """
-    db = SessionLocal()
     try:
-        stmt = (
-            select(ReferenceEntry)
-            .join(ReferenceEntry.section)
-            .where(
-                or_(
-                    ReferenceEntry.title.like(f"%{query}%"),
-                    ReferenceEntry.description.like(f"%{query}%"),
-                    ReferenceSection.title.like(f"%{query}%")
-                )
-            )
-        )
-        entries = db.execute(stmt).scalars().all()
-        if not entries:
+        results = search_library(query)
+        if not results:
             return f"No entries found in local reference library matching '{query}'."
             
         formatted = []
-        for ent in entries[:5]:
-            sect_title = ent.section.title if ent.section else "General"
+        for ent in results[:5]:
+            sect_title = ent["section_title"]
             formatted.append(
-                f"[{sect_title}] {ent.title}\n"
-                f"Description: {ent.description or 'N/A'}\n"
-                f"Formula: {ent.formula or 'N/A'}\n"
-                f"Notes: {ent.notes_json or []}\n"
-                f"Intervals: {ent.intervals_json or []}\n"
+                f"[{sect_title}] {ent['title']}\n"
+                f"Description: {ent['description'] or 'N/A'}\n"
+                f"Formula: {ent['formula'] or 'N/A'}\n"
+                f"Notes: {ent['notes']}\n"
+                f"Intervals: {ent['intervals']}\n"
             )
         return "\n".join(formatted)
     except Exception as e:
         return f"Failed to query local reference library: {str(e)}"
-    finally:
-        db.close()
 
 # DuckDuckGo fallback search
 def search_ddg(query: str) -> str:
@@ -226,9 +211,17 @@ class AgentService:
             "}"
         )
         
-        system_parts = [system_prompt.strip(), json_instructions]
+        instruction_directive = (
+            "CRITICAL INSTRUCTIONS:\n"
+            "- You have access to a deterministic, algorithmically generated music analysis report for the active piece.\n"
+            "- DO NOT attempt to compute keys, scales, chords, Roman numerals, intervals, cadences, or fingerings from scratch.\n"
+            "- Use the provided report as the absolute source of truth. If the user asks for analysis details, refer to the report.\n"
+            "- Your primary role is to act as a supportive music tutor: explain the concepts behind the analysis, answer follow-up questions, teach theory in relation to the piece, and generate structured practice advice."
+        )
+        
+        system_parts = [system_prompt.strip(), json_instructions, instruction_directive]
         if context.strip():
-            system_parts.append(f"Context from the app:\n{context.strip()}")
+            system_parts.append(f"Context from the app (Music Analysis Report):\n{context.strip()}")
         system_content = "\n\n".join(system_parts)
 
         messages = [SystemMessage(content=system_content)]

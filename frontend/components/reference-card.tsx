@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Play, Square, Star, BookOpen } from 'lucide-react';
+import { Play, Square, Star } from 'lucide-react';
 import { SCALES_REGISTRY } from '@/lib/scales-data';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -92,8 +92,7 @@ const SECTION_GRADIENT: Record<string, string> = {
   notation_slurs: 'from-cyan-600 to-blue-600',
   notation_ties: 'from-blue-600 to-indigo-600',
   notation_tuplets: 'from-indigo-600 to-purple-600',
-  
-  saved_cards: 'from-purple-600 to-fuchsia-700'
+
 };
 
 interface ReferenceCardProps {
@@ -105,6 +104,8 @@ interface ReferenceCardProps {
   description?: string;
   formula?: string;
   image?: string;
+  rightHandFingering?: string;
+  leftHandFingering?: string;
   onFavoriteToggle?: () => void;
 }
 
@@ -117,12 +118,15 @@ export default function ReferenceCard({
   description,
   formula,
   image,
+  rightHandFingering,
+  leftHandFingering,
   onFavoriteToggle,
 }: ReferenceCardProps) {
   const gradient = SECTION_GRADIENT[sectionSlug] ?? 'from-primary to-secondary';
   
   const [isFavorited, setIsFavorited] = useState(false);
   const [isPlayingScale, setIsPlayingScale] = useState(false);
+  const [currentPlayingNoteIndex, setCurrentPlayingNoteIndex] = useState<number | null>(null);
   
   const audioCtxRef = useRef<AudioContext | null>(null);
   const playTimerRef = useRef<any>(null);
@@ -204,11 +208,115 @@ export default function ReferenceCard({
     } catch (e) {}
   };
 
-
-
   // Scale data lookup
-  const isScale = sectionSlug.includes('scales') || sectionSlug.includes('mode');
-  const scaleInfo = isScale ? SCALES_REGISTRY[title] : null;
+  const isScale = sectionSlug.includes('scales') || sectionSlug.includes('mode') || sectionSlug.includes('arpeggios') || sectionSlug.includes('chords');
+  
+  // Normalization helper
+  const normalizeNoteName = (n: string) => {
+    return n.trim()
+            .replace('Db', 'C#')
+            .replace('Eb', 'D#')
+            .replace('Gb', 'F#')
+            .replace('Ab', 'G#')
+            .replace('Bb', 'A#')
+            .replace('Cb', 'B')
+            .replace('Fb', 'E')
+            .replace('E#', 'F')
+            .replace('B#', 'C')
+            .replace('♮', '')
+            .replace('♯', '#')
+            .replace('♭', 'b')
+            .replace('𝄪', '##');
+  };
+
+  const getPitchValue = (noteName: string) => {
+    const name = noteName.replace(/[0-9#b♮♯♭]/g, '');
+    const order = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+    return order.indexOf(name);
+  };
+
+  const generatePlayNotes = (notesList: string[]) => {
+    let octave = 4;
+    const result: string[] = [];
+    let lastVal = -1;
+    
+    notesList.forEach((note) => {
+      const val = getPitchValue(note);
+      if (lastVal !== -1 && val <= lastVal) {
+        octave++;
+      }
+      result.push(`${note}${octave}`);
+      lastVal = val;
+    });
+    
+    if (notesList.length > 0 && notesList[0] !== notesList[notesList.length - 1]) {
+      const root = notesList[0];
+      const val = getPitchValue(root);
+      if (val <= lastVal) {
+        octave++;
+      }
+      result.push(`${root}${octave}`);
+    }
+    
+    return result;
+  };
+
+  const getDegreesAndNames = (notesList: string[]) => {
+    const degrees: string[] = [];
+    const degreeNames: string[] = [];
+    const standardNames = ['Tonic', 'Supertonic', 'Mediant', 'Subdominant', 'Dominant', 'Submediant', 'Leading Tone'];
+    
+    notesList.forEach((_, idx) => {
+      const degNum = idx + 1;
+      if (idx === notesList.length - 1 && notesList[idx] === notesList[0]) {
+        degrees.push('1');
+        degreeNames.push('Tonic');
+      } else {
+        degrees.push(degNum.toString());
+        degreeNames.push(standardNames[idx % 7] || 'Degree');
+      }
+    });
+    return { degrees, degreeNames };
+  };
+
+  let scaleInfo = isScale ? SCALES_REGISTRY[title] : null;
+
+  if (isScale && !scaleInfo) {
+    const defaultNotes = notes.length > 0 ? notes : [title.split(' ')[0]];
+    const generatedPlayNotes = generatePlayNotes(defaultNotes);
+    const { degrees: gDeg, degreeNames: gNames } = getDegreesAndNames(defaultNotes);
+    scaleInfo = {
+      name: title,
+      keySignature: 'N/A',
+      notes: defaultNotes,
+      relativeMinor: 'N/A',
+      formula: formula || 'W-W-H-W-W-W-H',
+      degrees: gDeg,
+      degreeNames: gNames,
+      rightHandFingering: rightHandFingering || '1-2-3-1-2-3-4-5',
+      leftHandFingering: leftHandFingering || '5-4-3-2-1-3-2-1',
+      difficulty: 'Intermediate',
+      relatedChords: [],
+      relatedArpeggios: [],
+      playNotes: generatedPlayNotes
+    };
+  }
+
+  const safeScaleInfo = scaleInfo ? {
+    name: scaleInfo.name || title,
+    keySignature: scaleInfo.keySignature || 'N/A',
+    notes: scaleInfo.notes || notes,
+    relativeMinor: scaleInfo.relativeMinor || 'N/A',
+    formula: scaleInfo.formula || formula || '',
+    degrees: scaleInfo.degrees || [],
+    degreeNames: scaleInfo.degreeNames || [],
+    rightHandFingering: scaleInfo.rightHandFingering || rightHandFingering || '1-2-3-1-2-3-4-5',
+    leftHandFingering: scaleInfo.leftHandFingering || leftHandFingering || '5-4-3-2-1-3-2-1',
+    difficulty: scaleInfo.difficulty || 'Intermediate',
+    relatedChords: scaleInfo.relatedChords || [],
+    relatedArpeggios: scaleInfo.relatedArpeggios || [],
+    playNotes: scaleInfo.playNotes || []
+  } : null;
 
   const playScaleAudio = () => {
     if (isPlayingScale) {
@@ -216,16 +324,16 @@ export default function ReferenceCard({
       return;
     }
 
-    const scale = scaleInfo || SCALES_REGISTRY[title];
-    if (!scale) return;
+    if (!safeScaleInfo) return;
 
     logInteraction();
     setIsPlayingScale(true);
+    setCurrentPlayingNoteIndex(0);
 
     try {
       const notesToPlay = title.includes('Melodic Minor')
-        ? scale.playNotes
-        : [...scale.playNotes, ...[...scale.playNotes].reverse().slice(1)];
+        ? safeScaleInfo.playNotes
+        : [...safeScaleInfo.playNotes, ...[...safeScaleInfo.playNotes].reverse().slice(1)];
 
       const queryNotes = notesToPlay.join(',');
       const audioUrl = `/api/reference/audio?notes=${encodeURIComponent(queryNotes)}`;
@@ -236,18 +344,31 @@ export default function ReferenceCard({
       audio.play().catch((err) => {
         console.error('[ReferenceCard] playback error:', err);
         setIsPlayingScale(false);
+        setCurrentPlayingNoteIndex(null);
       });
+
+      audio.ontimeupdate = () => {
+        const idx = Math.floor(audio.currentTime / 0.4);
+        if (idx >= 0 && idx < notesToPlay.length) {
+          setCurrentPlayingNoteIndex(idx);
+        } else {
+          setCurrentPlayingNoteIndex(null);
+        }
+      };
 
       audio.onended = () => {
         setIsPlayingScale(false);
+        setCurrentPlayingNoteIndex(null);
       };
 
       audio.onerror = () => {
         setIsPlayingScale(false);
+        setCurrentPlayingNoteIndex(null);
       };
     } catch (e) {
       console.error(e);
       setIsPlayingScale(false);
+      setCurrentPlayingNoteIndex(null);
     }
   };
 
@@ -259,12 +380,319 @@ export default function ReferenceCard({
       } catch (e) {}
     }
     setIsPlayingScale(false);
+    setCurrentPlayingNoteIndex(null);
   };
 
+  const activeNotes = safeScaleInfo?.notes || notes;
 
+  if (isScale && safeScaleInfo) {
+    const scaleNotesList = safeScaleInfo.notes.includes(safeScaleInfo.notes[0]) && safeScaleInfo.notes.lastIndexOf(safeScaleInfo.notes[0]) > 0
+      ? safeScaleInfo.notes
+      : [...safeScaleInfo.notes, safeScaleInfo.notes[0]];
 
-  const activeNotes = scaleInfo?.notes || notes;
+    const cleanedFormula = safeScaleInfo.formula.split('-').join(' - ');
 
+    const degreesList = safeScaleInfo.degrees.length === scaleNotesList.length
+      ? safeScaleInfo.degrees
+      : [...safeScaleInfo.degrees, '1'];
+
+    const degreeNamesList = safeScaleInfo.degreeNames.length === scaleNotesList.length
+      ? safeScaleInfo.degreeNames
+      : [...safeScaleInfo.degreeNames, 'Tonic'];
+
+    const getScaleType = () => {
+      const lower = title.toLowerCase();
+      if (lower.includes('pentatonic')) return 'Pentatonic';
+      if (lower.includes('blues')) return 'Blues';
+      if (lower.includes('whole tone')) return 'Whole Tone';
+      if (lower.includes('diminished')) return 'Diminished';
+      if (lower.includes('bebop')) return 'Bebop';
+      if (lower.includes('chromatic')) return 'Chromatic';
+      return 'Diatonic';
+    };
+
+    const getScaleCharacter = () => {
+      const lower = title.toLowerCase();
+      if (lower.includes('harmonic minor')) return 'Exotic, Mystical, Tension';
+      if (lower.includes('melodic minor')) return 'Expressive, Classical, Elegant';
+      if (lower.includes('minor')) return 'Sad, Dark, Serious';
+      if (lower.includes('major')) return 'Bright, Clear, Stable';
+      if (lower.includes('blues')) return 'Expressive, Soulful, Gritty';
+      if (lower.includes('whole tone')) return 'Dreamy, Floating, Suspended';
+      if (lower.includes('diminished')) return 'Tense, Symmetrical, Suspense';
+      return 'Mysterious, Evocative, Unique';
+    };
+
+    const difficultyColors = {
+      Beginner: 'bg-emerald-950/20 border-emerald-500/40 text-emerald-400',
+      Intermediate: 'bg-amber-950/20 border-amber-500/40 text-amber-400',
+      Advanced: 'bg-rose-950/20 border-rose-500/40 text-rose-400',
+    };
+
+    const isKeyActive = (keyNote: string, altNote?: string) => {
+      const activePlayNotes = safeScaleInfo.playNotes.map(n => normalizeNoteName(n));
+      const normKey = normalizeNoteName(keyNote);
+      const normAlt = altNote ? normalizeNoteName(altNote) : '';
+      return activePlayNotes.includes(normKey) || (normAlt && activePlayNotes.includes(normAlt));
+    };
+
+    const isKeyPlaying = (keyNote: string, altNote?: string) => {
+      if (currentPlayingNoteIndex === null) return false;
+      const notesToPlay = title.includes('Melodic Minor')
+        ? safeScaleInfo.playNotes
+        : [...safeScaleInfo.playNotes, ...[...safeScaleInfo.playNotes].reverse().slice(1)];
+        
+      if (currentPlayingNoteIndex >= notesToPlay.length) return false;
+      const currentNote = normalizeNoteName(notesToPlay[currentPlayingNoteIndex]);
+      const normKey = normalizeNoteName(keyNote);
+      const normAlt = altNote ? normalizeNoteName(altNote) : '';
+      return currentNote === normKey || (normAlt && currentNote === normAlt);
+    };
+
+    const relativeTitle = safeScaleInfo.relativeMinor.toLowerCase().includes('major') ? 'Relative Major' : 'Relative Minor';
+
+    const WHITE_KEYS = [
+      { note: 'C4', label: 'C4' },
+      { note: 'D4' },
+      { note: 'E4' },
+      { note: 'F4' },
+      { note: 'G4' },
+      { note: 'A4' },
+      { note: 'B4' },
+      { note: 'C5', label: 'C5' },
+      { note: 'D5' },
+      { note: 'E5' },
+      { note: 'F5' },
+      { note: 'G5' },
+      { note: 'A5' },
+      { note: 'B5' },
+      { note: 'C6', label: 'C6' }
+    ];
+
+    const BLACK_KEYS = [
+      { note: 'C#4', altNote: 'Db4', index: 0 },
+      { note: 'D#4', altNote: 'Eb4', index: 1 },
+      { note: 'F#4', altNote: 'Gb4', index: 3 },
+      { note: 'G#4', altNote: 'Ab4', index: 4 },
+      { note: 'A#4', altNote: 'Bb4', index: 5 },
+      { note: 'C#5', altNote: 'Db5', index: 7 },
+      { note: 'D#5', altNote: 'Eb5', index: 8 },
+      { note: 'F#5', altNote: 'Gb5', index: 10 },
+      { note: 'G#5', altNote: 'Ab5', index: 11 },
+      { note: 'A#5', altNote: 'Bb5', index: 12 }
+    ];
+
+    const renderCompactFingering = (rightFingers: string[], leftFingers: string[]) => {
+      return (
+        <div className="glass p-4 rounded-xl border border-border/25 flex flex-col space-y-3">
+          <div className="flex flex-col space-y-1">
+            <span className="text-[10px] font-bold text-muted-foreground tracking-widest">Right Hand Fingering</span>
+            <div className="flex flex-wrap gap-3 text-sm font-semibold text-purple-300 font-mono">
+              {rightFingers.map((f, i) => (
+                <span key={i} className="w-4 text-center">{f}</span>
+              ))}
+            </div>
+          </div>
+          <div className="border-t border-border/15 my-2" />
+          <div className="flex flex-col space-y-1">
+            <span className="text-[10px] font-bold text-muted-foreground tracking-widest">Left Hand Fingering</span>
+            <div className="flex flex-wrap gap-3 text-sm font-semibold text-purple-300 font-mono">
+              {leftFingers.map((f, i) => (
+                <span key={i} className="w-4 text-center">{f}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div
+        onClick={logInteraction}
+        className="bg-[#0b0c11] border border-border/30 rounded-3xl p-6 relative flex flex-col space-y-5 overflow-hidden shadow-glow/5 hover:border-primary/40 hover:shadow-glow transition-all duration-300 group select-none"
+      >
+        {/* Radial top glow */}
+        <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-purple-500/10 via-transparent to-transparent pointer-events-none z-0" />
+
+        {/* 1. Header Section */}
+        <div className="relative flex justify-between items-start z-10">
+          <div>
+            <h3 className="text-3xl font-extrabold text-white tracking-tight mb-0.5">
+              {safeScaleInfo.name}
+            </h3>
+          </div>
+          
+          {/* Controls: Play & Bookmark */}
+          <div className="flex items-center gap-2">
+            {/* Play Button */}
+            <button
+              onClick={playScaleAudio}
+              className="p-2.5 rounded-xl bg-gradient-primary hover:shadow-glow flex items-center justify-center text-white transition-all hover:scale-105 shrink-0"
+              title={isPlayingScale ? 'Stop scale' : 'Play scale'}
+            >
+              {isPlayingScale ? (
+                <Square className="w-4 h-4 fill-white" />
+              ) : (
+                <Play className="w-4 h-4 fill-white translate-x-0.5" />
+              )}
+            </button>
+
+            {/* Star Bookmark Button */}
+            <button
+              onClick={handleFavorite}
+              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors shrink-0"
+              title={isFavorited ? 'Remove bookmark' : 'Bookmark card'}
+            >
+              <Star className={`w-4 h-4 ${isFavorited ? 'fill-purple-400 text-purple-400' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* 3. Virtual Piano Keyboard Section */}
+        <div className="relative z-10 flex flex-col">
+          <div className="w-full bg-[#07080c] border border-border/40 p-4 rounded-2xl relative flex flex-col space-y-2">
+            <div className="relative h-28 w-full rounded-xl overflow-hidden border border-black/60 bg-[#16171e] select-none">
+              {/* White keys container */}
+              <div className="absolute inset-0 flex">
+                {WHITE_KEYS.map((key) => {
+                  const active = isKeyActive(key.note);
+                  const playing = isKeyPlaying(key.note);
+                  return (
+                    <div
+                      key={key.note}
+                      className={`relative flex-1 border-r border-black/10 last:border-0 h-full transition-all duration-150 flex flex-col justify-end pb-3 items-center ${
+                        playing
+                          ? 'bg-purple-600 shadow-[0_0_15px_rgba(168,85,247,0.8)] z-10 text-white'
+                          : active
+                          ? 'bg-[#f3efff] border-b-4 border-b-purple-500'
+                          : 'bg-white hover:bg-neutral-100 text-neutral-800'
+                      }`}
+                      style={{ borderRadius: '0 0 4px 4px' }}
+                    >
+                      {active && (
+                        <div className={`w-2 h-2 rounded-full transition-all duration-150 ${playing ? 'bg-white scale-125 shadow-[0_0_6px_white]' : 'bg-purple-300/85'}`} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Black keys container */}
+              {BLACK_KEYS.map((key) => {
+                const active = isKeyActive(key.note, key.altNote);
+                const playing = isKeyPlaying(key.note, key.altNote);
+                const leftPos = `calc((${key.index + 1} * 100% / 15) - 1.9%)`;
+                return (
+                  <div
+                    key={key.note}
+                    className={`absolute top-0 h-[60%] w-[3.8%] transition-all duration-150 border border-black/80 shadow-md ${
+                      playing
+                        ? 'bg-purple-600 shadow-[0_0_15px_rgba(168,85,247,0.8)] z-30 text-white'
+                        : active
+                        ? 'bg-[#2a1b4d] border border-purple-500/50 border-b-4 border-b-purple-400 z-25'
+                        : 'bg-[#181920] hover:bg-neutral-800 z-20'
+                    }`}
+                    style={{
+                      left: leftPos,
+                      borderRadius: '0 0 3px 3px'
+                    }}
+                  >
+                    {active && (
+                      <div className={`absolute bottom-1.5 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 rounded-full transition-all duration-150 ${playing ? 'bg-white scale-125 shadow-[0_0_6px_white]' : 'bg-purple-300'}`} />
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            
+            {/* Key Labels */}
+            <div className="relative flex text-[9px] font-mono text-muted-foreground/60 select-none">
+              {WHITE_KEYS.map((key, idx) => (
+                <div key={idx} className="flex-1 text-center font-bold">
+                  {key.label ? key.label : ''}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Notes, Key Signature, Relative Minor AND Compact Fingering Section side-by-side */}
+        <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Notes, Key Signature, Relative Minor info section */}
+          <div className="glass p-5 rounded-2xl border border-border/25 flex flex-col justify-between space-y-4">
+            <div>
+              <h4 className="text-xs font-bold text-muted-foreground tracking-wide mb-1.5">
+                Notes
+              </h4>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-base font-bold text-foreground select-none">
+                {scaleNotesList.map((n, idx) => (
+                  <span key={idx} className="text-purple-300">{n}</span>
+                ))}
+              </div>
+            </div>
+
+            <div className="border-t border-border/15 pt-3 grid grid-cols-2 gap-4 text-xs">
+              <div>
+                <span className="text-[10px] font-bold text-muted-foreground block">
+                  Key Signature
+                </span>
+                <span className="font-bold text-foreground mt-0.5 block">{safeScaleInfo.keySignature}</span>
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-muted-foreground block">
+                  {relativeTitle}
+                </span>
+                <span className="font-bold text-foreground mt-0.5 block">
+                  {safeScaleInfo.relativeMinor.replace(' (Relative Major)', '').replace(' Natural Minor', ' Minor')}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Compact Fingering Section */}
+          <div>
+            {renderCompactFingering(
+              safeScaleInfo.rightHandFingering.split('-'),
+              safeScaleInfo.leftHandFingering.split('-')
+            )}
+          </div>
+        </div>
+
+        {/* 6. Related section */}
+        <div className="relative z-10 border-t border-border/25 pt-4 grid grid-cols-2 gap-4">
+          {/* Related Chords */}
+          <div className="flex flex-col space-y-1 border-r border-border/15 pr-2">
+            <span className="text-[10px] font-bold text-muted-foreground">Related Chords</span>
+            <div className="flex flex-col space-y-0.5 text-xs text-white/80 select-none">
+              {safeScaleInfo.relatedChords.length > 0 ? (
+                safeScaleInfo.relatedChords.slice(0, 3).map((chord, idx) => (
+                  <span key={idx} className="font-semibold truncate">{chord}</span>
+                ))
+              ) : (
+                <span className="text-muted-foreground italic text-[10px]">No chord data</span>
+              )}
+            </div>
+          </div>
+
+          {/* Related Arpeggios */}
+          <div className="flex flex-col space-y-1 pl-2">
+            <span className="text-[10px] font-bold text-muted-foreground">Related Arpeggios</span>
+            <div className="flex flex-col space-y-0.5 text-xs text-white/80 select-none">
+              {safeScaleInfo.relatedArpeggios.length > 0 ? (
+                safeScaleInfo.relatedArpeggios.slice(0, 3).map((arpeggio, idx) => (
+                  <span key={idx} className="font-semibold truncate">{arpeggio}</span>
+                ))
+              ) : (
+                <span className="text-muted-foreground italic text-[10px]">No arpeggio data</span>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback / Original reference card layout for non-scales (Chords, Intervals, Notation, etc)
   return (
     <div
       onClick={logInteraction}
@@ -276,9 +704,6 @@ export default function ReferenceCard({
           <h3 className="font-bold text-white text-base truncate mb-0.5" title={title}>
             {title}
           </h3>
-          <p className="text-[10px] text-white/80 font-bold uppercase tracking-wider">
-            {categoryLabel || sectionSlug.replace(/_/g, ' ')}
-          </p>
         </div>
         
         {/* Star Button */}
@@ -301,67 +726,6 @@ export default function ReferenceCard({
               <p className="text-xs text-foreground/90 leading-relaxed">
                 {description}
               </p>
-            </div>
-          )}
-
-          {/* Scale Specific Stats */}
-          {scaleInfo && (
-            <div className="grid grid-cols-2 gap-2 bg-black/15 p-2 rounded-lg border border-border/20 text-xs">
-              <div>
-                <span className="text-[9px] font-bold text-muted-foreground block uppercase">
-                  Key Signature
-                </span>
-                <span className="font-semibold text-foreground">{scaleInfo.keySignature}</span>
-              </div>
-              <div>
-                <span className="text-[9px] font-bold text-muted-foreground block uppercase">
-                  Relative Minor
-                </span>
-                <span className="font-semibold text-foreground/80">{scaleInfo.relativeMinor}</span>
-              </div>
-              <div>
-                <span className="text-[9px] font-bold text-muted-foreground block uppercase">
-                  RH Fingering
-                </span>
-                <span className="font-mono text-primary font-semibold">{scaleInfo.rightHandFingering}</span>
-              </div>
-              <div>
-                <span className="text-[9px] font-bold text-muted-foreground block uppercase">
-                  LH Fingering
-                </span>
-                <span className="font-mono text-primary font-semibold">{scaleInfo.leftHandFingering}</span>
-              </div>
-              {scaleInfo.enharmonicEquivalent && (
-                <div className="col-span-2 border-t border-border/10 pt-1.5 mt-0.5">
-                  <span className="text-[9px] font-bold text-muted-foreground block uppercase">
-                    Enharmonic Equivalent
-                  </span>
-                  <span className="font-semibold text-primary/95">{scaleInfo.enharmonicEquivalent}</span>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Scale Degrees */}
-          {scaleInfo && (
-            <div>
-              <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                Scale Degrees
-              </h4>
-              <div className="flex flex-wrap gap-1">
-                {scaleInfo.degrees.map((deg, dIdx) => (
-                  <span
-                    key={dIdx}
-                    className="inline-flex flex-col items-center justify-center p-1 px-2 rounded bg-card/65 border border-border/20 text-[10px] font-medium"
-                    title={scaleInfo.degreeNames[dIdx]}
-                  >
-                    <span className="font-mono font-bold text-primary">{deg}</span>
-                    <span className="text-[8px] text-muted-foreground scale-95 mt-0.5">
-                      {scaleInfo.degreeNames[dIdx].slice(0, 5)}
-                    </span>
-                  </span>
-                ))}
-              </div>
             </div>
           )}
 
@@ -396,33 +760,8 @@ export default function ReferenceCard({
             </div>
           )}
 
-          {/* Playback Controls (Scales only) */}
-          {(scaleInfo || title.includes('Scale')) && (
-            <div className="pt-1">
-              <Button
-                onClick={playScaleAudio}
-                className="w-full h-8 text-xs font-semibold bg-gradient-primary hover:shadow-glow text-white"
-                size="sm"
-              >
-                {isPlayingScale ? (
-                  <>
-                    <Square className="w-3.5 h-3.5 mr-1.5 fill-white" />
-                    Stop Playback
-                  </>
-                ) : (
-                  <>
-                    <Play className="w-3.5 h-3.5 mr-1.5 fill-white" />
-                    Play Scale
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-
-
-
           {/* Intervals */}
-          {!isScale && intervals.length > 0 && (
+          {intervals.length > 0 && (
             <div>
               <h4 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1.5">
                 Interval Structure
@@ -450,20 +789,6 @@ export default function ReferenceCard({
                 alt={title}
                 className="max-w-full max-h-full object-contain"
               />
-            </div>
-          </div>
-        )}
-
-        {/* Display related items for Scales */}
-        {scaleInfo && (
-          <div className="pt-2 border-t border-border/25 text-[10px] space-y-1.5">
-            <div>
-              <span className="font-bold text-muted-foreground block uppercase text-[8px]">Related Chords</span>
-              <span className="text-foreground/75 font-medium">{scaleInfo.relatedChords.join(', ')}</span>
-            </div>
-            <div>
-              <span className="font-bold text-muted-foreground block uppercase text-[8px]">Related Arpeggios</span>
-              <span className="text-foreground/75 font-medium">{scaleInfo.relatedArpeggios.join(', ')}</span>
             </div>
           </div>
         )}

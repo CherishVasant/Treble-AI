@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useState, useEffect } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import PageHeader from '@/components/ui/page-header';
 import type { Message } from '@/components/ai-chat';
@@ -13,12 +13,24 @@ const AIChat = dynamic(() => import('@/components/ai-chat'), {
   ),
 });
 
+import { useChat } from '@/context/chat-context';
+
 function TheoryTutorContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionId = searchParams.get('sessionId') || '';
   
-  const [messages, setMessages] = useState<Message[]>([]);
+  const { theorySessions, loadingSessions, sendChatMessage, setLastActiveSession } = useChat();
+
+  const activeSessionIdRef = useRef(sessionId);
+  useEffect(() => {
+    activeSessionIdRef.current = sessionId;
+    setLastActiveSession('theory', sessionId);
+  }, [sessionId, setLastActiveSession]);
+
+  const activeSession = theorySessions.find(s => s.id === sessionId);
+  const messages = activeSession ? activeSession.messages : [];
+  const isLoading = loadingSessions[sessionId] || false;
 
   const suggestedPrompts = [
     'What are the notes in a C major scale?',
@@ -29,86 +41,17 @@ function TheoryTutorContent() {
     'Explain music notation symbols',
   ];
 
-  useEffect(() => {
-    if (sessionId) {
-      try {
-        const sessionsRaw = localStorage.getItem('treble_theory_sessions');
-        const sessions = sessionsRaw ? JSON.parse(sessionsRaw) : [];
-        const session = sessions.find((s: any) => s.id === sessionId);
-        if (session) {
-          setMessages(session.messages || []);
-        } else {
-          setMessages([]);
-        }
-      } catch (e) {
-        console.error('Failed to load theory session:', e);
-        setMessages([]);
-      }
-    } else {
-      setMessages([]);
-    }
-  }, [sessionId]);
+  const handleSendMessage = async (messageText: string) => {
+    const currentSessionId = activeSessionIdRef.current;
+    const newSessionId = await sendChatMessage(currentSessionId || null, messageText, {
+      type: 'theory',
+      apiPath: '/api/theory-chat',
+      systemPrompt: "You are Treble, your AI music learning companion inside TrebleAI. Always refer to yourself as Treble. If the user asks 'Who are you?', you must respond exactly with: 'I'm Treble, your AI music learning companion inside TrebleAI.' You are an expert music theory tutor with deep knowledge of all aspects of music theory. Your role is to help students understand scales and modes, chords and progressions, intervals and harmony, rhythm and time signatures, music notation, classical and modern music theory, and practical applications for musicians. Be thorough but accessible. Use examples when helpful. Encourage learning and practice."
+    });
 
-  useEffect(() => {
-    const handleNewChat = () => {
-      setMessages([]);
-    };
-    window.addEventListener('treble_new_chat_theory', handleNewChat);
-    return () => {
-      window.removeEventListener('treble_new_chat_theory', handleNewChat);
-    };
-  }, []);
-
-  const handleNewMessages = (newMessages: Message[]) => {
-    setMessages(newMessages);
-
-    try {
-      const sessionsRaw = localStorage.getItem('treble_theory_sessions');
-      let sessions = sessionsRaw ? JSON.parse(sessionsRaw) : [];
-      
-      let activeId = sessionId;
-      let isNew = false;
-      
-      if (!activeId) {
-        activeId = `theory_session_${Date.now()}`;
-        isNew = true;
-      }
-      
-      const firstUserMsg = newMessages.find(m => m.role === 'user');
-      const title = firstUserMsg 
-        ? (firstUserMsg.content.slice(0, 30) + (firstUserMsg.content.length > 30 ? '...' : ''))
-        : 'Theory Chat';
-
-      const sessionObj = {
-        id: activeId,
-        title,
-        timestamp: new Date().toISOString(),
-        messages: newMessages
-      };
-
-      if (isNew) {
-        sessions.unshift(sessionObj);
-      } else {
-        const index = sessions.findIndex((s: any) => s.id === activeId);
-        if (index !== -1) {
-          sessions[index] = {
-            ...sessions[index],
-            messages: newMessages,
-            timestamp: new Date().toISOString()
-          };
-        } else {
-          sessions.unshift(sessionObj);
-        }
-      }
-
-      localStorage.setItem('treble_theory_sessions', JSON.stringify(sessions));
-      window.dispatchEvent(new Event('treble_sessions_updated'));
-
-      if (isNew) {
-        router.replace(`/theory-tutor?sessionId=${activeId}`, { scroll: false });
-      }
-    } catch (e) {
-      console.error('Failed to save theory session:', e);
+    if (!currentSessionId && newSessionId) {
+      activeSessionIdRef.current = newSessionId;
+      router.replace(`/theory-tutor?sessionId=${newSessionId}`, { scroll: false });
     }
   };
 
@@ -128,7 +71,8 @@ function TheoryTutorContent() {
           context=""
           systemPrompt="You are Treble, your AI music learning companion inside TrebleAI. Always refer to yourself as Treble. If the user asks 'Who are you?', you must respond exactly with: 'I'm Treble, your AI music learning companion inside TrebleAI.' You are an expert music theory tutor with deep knowledge of all aspects of music theory. Your role is to help students understand scales and modes, chords and progressions, intervals and harmony, rhythm and time signatures, music notation, classical and modern music theory, and practical applications for musicians. Be thorough but accessible. Use examples when helpful. Encourage learning and practice."
           messages={messages}
-          onNewMessages={handleNewMessages}
+          onSendMessage={handleSendMessage}
+          isLoading={isLoading}
           className="h-[650px] max-h-[calc(100vh-250px)] min-h-[450px]"
         />
       </div>

@@ -9,6 +9,12 @@ interface SheetMusicUploaderProps {
   fileId?: string;
   fileName?: string;
   hasAudio?: boolean;
+  conversionState?: {
+    jobId?: string;
+    steps?: Record<string, 'pending' | 'processing' | 'completed' | 'failed'>;
+    error?: string | null;
+    status?: 'pending' | 'processing' | 'completed' | 'failed';
+  } | null;
   onFileUpload?: (file: { id: string; name: string }) => void;
   onProcessing?: (metadata: any) => void;
   onConvertingChange?: (converting: boolean) => void;
@@ -34,6 +40,7 @@ export default function SheetMusicUploader({
   fileId,
   fileName,
   hasAudio = false,
+  conversionState,
   onFileUpload,
   onProcessing,
   onConvertingChange,
@@ -56,30 +63,69 @@ export default function SheetMusicUploader({
 
   // Sync state from parent session when loading
   useEffect(() => {
-    if (fileId) {
-      setActiveFile({ id: fileId, name: fileName || 'Loaded Score', size: 0 });
-      setConversionSteps({
-        upload: 'completed',
-        omr: hasAudio ? 'completed' : 'pending',
-        musicxml: hasAudio ? 'completed' : 'pending',
-        midi: hasAudio ? 'completed' : 'pending',
-        audio: hasAudio ? 'completed' : 'pending',
-        analysis: hasAudio ? 'completed' : 'pending'
-      });
-      setConversionError(null);
+    if (conversionState) {
+      if (fileId) {
+        setActiveFile({ id: fileId, name: fileName || 'Loaded Score', size: 0 });
+      } else {
+        setActiveFile(null);
+      }
+      if (conversionState.steps) {
+        setConversionSteps(conversionState.steps);
+      }
+      setConversionError(conversionState.error || null);
+      const isProcessing = conversionState.status === 'processing';
+      setIsConvertingLocal(isProcessing);
+      onConvertingChange?.(isProcessing);
+
+      // Start/Resume status polling if needed
+      if (isProcessing && conversionState.jobId) {
+        if (!pollingIntervalRef.current) {
+          startStatusPolling(conversionState.jobId);
+        }
+      } else {
+        if (!isProcessing && pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      }
     } else {
-      setActiveFile(null);
-      setConversionSteps({
-        upload: 'pending',
-        omr: 'pending',
-        musicxml: 'pending',
-        midi: 'pending',
-        audio: 'pending',
-        analysis: 'pending'
-      });
-      setConversionError(null);
+      if (fileId) {
+        setActiveFile({ id: fileId, name: fileName || 'Loaded Score', size: 0 });
+        setConversionSteps({
+          upload: 'completed',
+          omr: hasAudio ? 'completed' : 'pending',
+          musicxml: hasAudio ? 'completed' : 'pending',
+          midi: hasAudio ? 'completed' : 'pending',
+          audio: hasAudio ? 'completed' : 'pending',
+          analysis: hasAudio ? 'completed' : 'pending'
+        });
+        setConversionError(null);
+        setIsConvertingLocal(false);
+        onConvertingChange?.(false);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      } else {
+        setActiveFile(null);
+        setConversionSteps({
+          upload: 'pending',
+          omr: 'pending',
+          musicxml: 'pending',
+          midi: 'pending',
+          audio: 'pending',
+          analysis: 'pending'
+        });
+        setConversionError(null);
+        setIsConvertingLocal(false);
+        onConvertingChange?.(false);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+      }
     }
-  }, [fileId, fileName, hasAudio]);
+  }, [fileId, fileName, hasAudio, conversionState]);
 
   // Cleanup polling interval on unmount
   useEffect(() => {
@@ -194,14 +240,15 @@ export default function SheetMusicUploader({
     if (!activeFile || activeFile.id.startsWith('temp_')) return;
 
     setConversionError(null);
-    setConversionSteps(prev => ({
-      ...prev,
-      omr: 'processing',
-      musicxml: 'pending',
-      midi: 'pending',
-      audio: 'pending',
-      analysis: 'pending'
-    }));
+    const initialSteps = {
+      upload: 'completed' as const,
+      omr: 'processing' as const,
+      musicxml: 'pending' as const,
+      midi: 'pending' as const,
+      audio: 'pending' as const,
+      analysis: 'pending' as const
+    };
+    setConversionSteps(initialSteps);
     onConvertingChange?.(true);
     setIsConvertingLocal(true);
 
@@ -219,17 +266,40 @@ export default function SheetMusicUploader({
       }
 
       const jobId = convertData.jobId;
+      onProcessing?.({
+        conversionState: {
+          jobId,
+          steps: initialSteps,
+          error: null,
+          status: 'processing'
+        }
+      });
       startStatusPolling(jobId);
     } catch (error: any) {
       console.error('[SheetMusicUploader] convert error:', error);
+      const failedSteps = {
+        upload: 'completed' as const,
+        omr: 'failed' as const,
+        musicxml: 'pending' as const,
+        midi: 'pending' as const,
+        audio: 'pending' as const,
+        analysis: 'pending' as const
+      };
       setConversionError(error.message || 'Failed to start conversion');
-      setConversionSteps(prev => ({ ...prev, omr: 'failed' }));
+      setConversionSteps(failedSteps);
       onConvertingChange?.(false);
       setIsConvertingLocal(false);
+      onProcessing?.({
+        conversionState: {
+          steps: failedSteps,
+          error: error.message || 'Failed to start conversion',
+          status: 'failed'
+        }
+      });
     }
   };
 
-  const startStatusPolling = (jobId: string) => {
+  function startStatusPolling(jobId: string) {
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
 
     pollingIntervalRef.current = setInterval(async () => {
@@ -255,6 +325,23 @@ export default function SheetMusicUploader({
           setConversionError(data.error || 'Conversion pipeline failed');
           onConvertingChange?.(false);
           setIsConvertingLocal(false);
+          onProcessing?.({
+            conversionState: {
+              jobId,
+              steps: data.steps,
+              error: data.error || 'Conversion pipeline failed',
+              status: 'failed'
+            }
+          });
+        } else {
+          onProcessing?.({
+            conversionState: {
+              jobId,
+              steps: data.steps,
+              error: null,
+              status: 'processing'
+            }
+          });
         }
       } catch (error: any) {
         console.error('[SheetMusicUploader] status polling error:', error);
@@ -263,11 +350,19 @@ export default function SheetMusicUploader({
         setConversionError(error.message || 'Status polling failed');
         onConvertingChange?.(false);
         setIsConvertingLocal(false);
+        onProcessing?.({
+          conversionState: {
+            jobId,
+            steps: conversionSteps,
+            error: error.message || 'Status polling failed',
+            status: 'failed'
+          }
+        });
       }
     }, 1500);
-  };
+  }
 
-  const fetchConversionResults = async (jobId: string) => {
+  async function fetchConversionResults(jobId: string) {
     try {
       const res = await fetch(`/api/convert-sheet/result?jobId=${jobId}&fileId=${activeFile?.id}`, {
         cache: 'no-store'
@@ -278,16 +373,46 @@ export default function SheetMusicUploader({
       }
 
       const resultData = await res.json();
-      onProcessing?.(resultData);
+      onProcessing?.({
+        ...resultData,
+        conversionState: {
+          jobId,
+          steps: {
+            upload: 'completed',
+            omr: 'completed',
+            musicxml: 'completed',
+            midi: 'completed',
+            audio: 'completed',
+            analysis: 'completed'
+          },
+          error: null,
+          status: 'completed'
+        }
+      });
       toast.success('Conversion complete! Playback is now ready.');
     } catch (error: any) {
       console.error('[SheetMusicUploader] result retrieval error:', error);
       setConversionError(error.message || 'Failed to load converted assets');
+      onProcessing?.({
+        conversionState: {
+          jobId,
+          steps: {
+            upload: 'completed',
+            omr: 'completed',
+            musicxml: 'completed',
+            midi: 'completed',
+            audio: 'completed',
+            analysis: 'completed'
+          },
+          error: error.message || 'Failed to load converted assets',
+          status: 'failed'
+        }
+      });
     } finally {
       onConvertingChange?.(false);
       setIsConvertingLocal(false);
     }
-  };
+  }
 
   const handleRemoveFile = () => {
     setActiveFile(null);
@@ -313,10 +438,10 @@ export default function SheetMusicUploader({
   const stepsList = [
     { key: 'upload', label: activeFile ? 'File Upload' : 'Waiting for file' },
     { key: 'omr', label: 'OMR Processing' },
-    { key: 'musicxml', label: 'MusicXML Processing' },
-    { key: 'midi', label: 'Analysis' },
-    { key: 'audio', label: 'Playback Generation' },
-    { key: 'analysis', label: 'Complete' }
+    { key: 'musicxml', label: 'MusicXML Generation' },
+    { key: 'midi', label: 'MusicXML Validation' },
+    { key: 'audio', label: 'MusicXML → MIDI Conversion' },
+    { key: 'analysis', label: 'MIDI → Audio Rendering' }
   ];
 
   const getConvertButtonState = () => {
@@ -484,7 +609,7 @@ export default function SheetMusicUploader({
                       </div>
                     )}
                     {stepStatus === 'processing' && (
-                      <div className="w-5 h-5 rounded-full bg-primary/20 text-primary border border-primary/30 flex items-center justify-center bg-card shadow-glow/20 scale-110 transition-all duration-300 animate-pulse">
+                      <div className="w-5 h-5 rounded-full bg-primary/20 text-primary border border-primary/30 flex items-center justify-center bg-card shadow-glow/20 scale-110 transition-all duration-300">
                         <Loader2 className="w-3 h-3 animate-spin" />
                       </div>
                     )}
@@ -504,7 +629,7 @@ export default function SheetMusicUploader({
                       stepStatus === 'completed'
                         ? 'text-foreground/80'
                         : stepStatus === 'processing'
-                          ? 'text-primary animate-pulse font-semibold'
+                          ? 'text-primary'
                           : stepStatus === 'failed'
                             ? 'text-red-400 font-semibold'
                             : 'text-muted-foreground/60'
@@ -548,13 +673,6 @@ export default function SheetMusicUploader({
             >
               Retry Conversion
             </Button>
-          </div>
-        )}
-
-        {conversionSteps.analysis === 'completed' && !isConvertingLocal && activeFile && (
-          <div className="mt-3 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[10px] text-emerald-400 flex items-center gap-1.5 font-semibold">
-            <Check className="w-4 h-4 shrink-0 text-emerald-400" />
-            Score converted! Audio is ready for playback.
           </div>
         )}
       </div>

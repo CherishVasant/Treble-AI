@@ -3,9 +3,10 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
-import { Music, Star, BookOpen, ChevronRight, Settings, Plus, Search, MessageSquare, Menu, X } from 'lucide-react';
+import { Music, Star, BookOpen, ChevronRight, Settings, Plus, Search, MessageSquare, Menu, X, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useChat } from '@/context/chat-context';
 
 const CATEGORY_GROUPS = [
   {
@@ -118,21 +119,62 @@ const CATEGORY_GROUPS = [
   }
 ];
 
+const MUSIC_LIBRARY_GROUPS = [
+  {
+    name: 'Scales',
+    defaultSlug: 'major_scales',
+    slugs: ['major_scales', 'natural_minor_scales', 'harmonic_minor_scales', 'melodic_minor_scales', 'chromatic_scales', 'major_pentatonic_scales', 'minor_pentatonic_scales', 'blues_scales', 'whole_tone_scales', 'diminished_scales', 'bebop_scales']
+  },
+  {
+    name: 'Modes',
+    defaultSlug: 'ionian_mode',
+    slugs: ['ionian_mode', 'dorian_mode', 'phrygian_mode', 'lydian_mode', 'mixolydian_mode', 'aeolian_mode', 'locrian_mode']
+  },
+  {
+    name: 'Chords',
+    defaultSlug: 'major_chords',
+    slugs: ['major_chords', 'minor_chords', 'diminished_chords', 'augmented_chords', 'suspended_chords', 'dominant_seventh_chords', 'major_seventh_chords', 'minor_seventh_chords', 'half_diminished_chords', 'fully_diminished_chords', 'sixth_chords', 'ninth_chords', 'eleventh_chords', 'thirteenth_chords', 'altered_chords']
+  },
+  {
+    name: 'Arpeggios',
+    defaultSlug: 'major_arpeggios',
+    slugs: ['major_arpeggios', 'minor_arpeggios', 'diminished_arpeggios', 'augmented_arpeggios', 'dominant_seventh_arpeggios', 'major_seventh_arpeggios', 'minor_seventh_arpeggios']
+  },
+  {
+    name: 'Intervals',
+    defaultSlug: 'interval_unison',
+    slugs: ['interval_unison', 'interval_minor_second', 'interval_major_second', 'interval_minor_third', 'interval_major_third', 'interval_perfect_fourth', 'interval_tritone', 'interval_perfect_fifth', 'interval_minor_sixth', 'interval_major_sixth', 'interval_minor_seventh', 'interval_major_seventh', 'interval_octave']
+  },
+  {
+    name: 'Notation',
+    defaultSlug: 'notation_clefs',
+    slugs: ['notation_clefs', 'notation_dynamics', 'notation_articulations', 'notation_tempo_markings', 'notation_repeats', 'notation_endings', 'notation_pedal_markings', 'notation_ornaments', 'notation_slurs', 'notation_ties', 'notation_tuplets']
+  },
+  {
+    name: 'Music History',
+    defaultSlug: 'circle_of_fifths',
+    slugs: ['circle_of_fifths', 'key_signatures', 'time_signatures', 'scale_degrees', 'chord_functions', 'harmonic_progressions', 'cadences', 'modes_theory', 'voice_leading']
+  }
+];
+
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const searchParams = useSearchParams();
   
   const [isOpen, setIsOpen] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   
-  // Page specific data states
-  const [practiceSessions, setPracticeSessions] = useState<any[]>([]);
-  const [theorySessions, setTheorySessions] = useState<any[]>([]);
+  const { theorySessions, practiceSessions, clearAllSessions, lastActiveTheorySessionId, lastActivePracticeSessionId } = useChat();
   const [theorySearch, setTheorySearch] = useState('');
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   // Music Library Specific states
   const [favoritesCount, setFavoritesCount] = useState(0);
-  const [savedCardsCount, setSavedCardsCount] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
     'Modes': true,
     'Arpeggios': true,
@@ -163,39 +205,22 @@ export default function Sidebar() {
     setIsOpen(false);
   }, [pathname, searchParams]);
 
-  // Load Sessions and Books from localStorage
-  const loadData = () => {
+  // Load Bookmarks from localStorage
+  const loadFavorites = () => {
     try {
-      // Practice Studio sessions
-      const practice = localStorage.getItem('treble_practice_sessions');
-      if (practice) setPracticeSessions(JSON.parse(practice));
-      else setPracticeSessions([]);
-
-      // Theory Tutor sessions
-      const theory = localStorage.getItem('treble_theory_sessions');
-      if (theory) setTheorySessions(JSON.parse(theory));
-      else setTheorySessions([]);
-
-      // Bookmarks counts
       const favs = localStorage.getItem('treble_favorites');
       if (favs) setFavoritesCount((JSON.parse(favs) as string[]).length);
       else setFavoritesCount(0);
-
-      const saved = localStorage.getItem('treble_custom_references');
-      if (saved) setSavedCardsCount((JSON.parse(saved) as any[]).length);
-      else setSavedCardsCount(0);
     } catch (e) {
-      console.error('Failed to load sessions in sidebar:', e);
+      console.error('Failed to load favorites in sidebar:', e);
     }
   };
 
   useEffect(() => {
-    loadData();
-    window.addEventListener('treble_sessions_updated', loadData);
-    window.addEventListener('treble_recents_updated', loadData);
+    loadFavorites();
+    window.addEventListener('treble_recents_updated', loadFavorites);
     return () => {
-      window.removeEventListener('treble_sessions_updated', loadData);
-      window.removeEventListener('treble_recents_updated', loadData);
+      window.removeEventListener('treble_recents_updated', loadFavorites);
     };
   }, []);
 
@@ -254,7 +279,28 @@ export default function Sidebar() {
     window.dispatchEvent(new Event('treble_new_chat_theory'));
   };
 
+  const handleClearAllChats = () => {
+    if (pathname === '/practice-studio') {
+      clearAllSessions('practice');
+      router.push('/practice-studio');
+      toast.success('Cleared all practice chats.');
+    } else if (pathname === '/theory-tutor') {
+      clearAllSessions('theory');
+      router.push('/theory-tutor');
+      toast.success('Cleared all theory chats.');
+    }
+    setShowClearConfirm(false);
+  };
+
   const renderContextualSection = () => {
+    if (!isMounted) {
+      return (
+        <div className="flex-1 flex items-center justify-center p-4">
+          <Loader2 className="w-5 h-5 animate-spin text-primary/50" />
+        </div>
+      );
+    }
+
     if (pathname === '/practice-studio') {
       return (
         <div className="space-y-4 flex-1 flex flex-col min-h-0">
@@ -275,10 +321,10 @@ export default function Sidebar() {
                   <button
                     key={session.id}
                     onClick={() => router.push(`/practice-studio?sessionId=${session.id}`)}
-                    className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-left text-xs truncate transition-all duration-200 ${
+                    className={`w-full flex items-center gap-2 rounded-lg text-left text-xs truncate transition-all duration-200 border ${
                       currentSessionId === session.id
-                        ? 'bg-primary/10 text-primary font-semibold border border-primary/15'
-                        : 'text-muted-foreground hover:bg-card/45 hover:text-foreground'
+                        ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
+                        : 'text-muted-foreground hover:bg-card/45 hover:text-foreground border-transparent px-3 py-1.5'
                     }`}
                   >
                     <MessageSquare className="w-3.5 h-3.5 shrink-0" />
@@ -295,10 +341,10 @@ export default function Sidebar() {
                   <button
                     key={session.id}
                     onClick={() => router.push(`/practice-studio?sessionId=${session.id}`)}
-                    className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-left text-xs truncate transition-all duration-200 ${
+                    className={`w-full flex items-center gap-2 rounded-lg text-left text-xs truncate transition-all duration-200 border ${
                       currentSessionId === session.id
-                        ? 'bg-primary/10 text-primary font-semibold border border-primary/15'
-                        : 'text-muted-foreground hover:bg-card/45 hover:text-foreground'
+                        ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
+                        : 'text-muted-foreground hover:bg-card/45 hover:text-foreground border-transparent px-3 py-1.5'
                     }`}
                   >
                     <MessageSquare className="w-3.5 h-3.5 shrink-0" />
@@ -315,10 +361,10 @@ export default function Sidebar() {
                   <button
                     key={session.id}
                     onClick={() => router.push(`/practice-studio?sessionId=${session.id}`)}
-                    className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-left text-xs truncate transition-all duration-200 ${
+                    className={`w-full flex items-center gap-2 rounded-lg text-left text-xs truncate transition-all duration-200 border ${
                       currentSessionId === session.id
-                        ? 'bg-primary/10 text-primary font-semibold border border-primary/15'
-                        : 'text-muted-foreground hover:bg-card/45 hover:text-foreground'
+                        ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
+                        : 'text-muted-foreground hover:bg-card/45 hover:text-foreground border-transparent px-3 py-1.5'
                     }`}
                   >
                     <MessageSquare className="w-3.5 h-3.5 shrink-0" />
@@ -369,10 +415,10 @@ export default function Sidebar() {
               <button
                 key={session.id}
                 onClick={() => router.push(`/theory-tutor?sessionId=${session.id}`)}
-                className={`w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-left text-xs truncate transition-all duration-200 ${
+                className={`w-full flex items-center gap-2 rounded-lg text-left text-xs truncate transition-all duration-200 border ${
                   currentSessionId === session.id
-                    ? 'bg-primary/10 text-primary font-semibold border border-primary/15'
-                    : 'text-muted-foreground hover:bg-card/45 hover:text-foreground'
+                    ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
+                    : 'text-muted-foreground hover:bg-card/45 hover:text-foreground border-transparent px-3 py-1.5'
                 }`}
               >
                 <MessageSquare className="w-3.5 h-3.5 shrink-0" />
@@ -397,7 +443,7 @@ export default function Sidebar() {
         <div className="space-y-4 flex-1 flex flex-col min-h-0">
           {/* Favorites & Saved Cards quick actions */}
           <div className="space-y-1 shrink-0">
-            <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">Saved & Bookmarks</h5>
+            <h5 className="text-[10px] font-bold text-muted-foreground tracking-wider px-3 mb-1.5">Saved & Bookmarks</h5>
             <button
               onClick={() => router.push('/music-library?category=favorites')}
               className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left text-xs transition-all duration-200 ${
@@ -414,64 +460,27 @@ export default function Sidebar() {
                 {favoritesCount}
               </span>
             </button>
-
-            <button
-              onClick={() => router.push('/music-library?category=saved_cards')}
-              className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left text-xs transition-all duration-200 ${
-                activeCategory === 'saved_cards'
-                  ? 'bg-primary/10 text-primary font-semibold border border-primary/15 shadow-sm'
-                  : 'text-muted-foreground hover:bg-card/40 hover:text-foreground'
-              }`}
-            >
-              <span className="flex items-center gap-2">
-                <BookOpen className="w-3.5 h-3.5 text-primary shrink-0" />
-                Saved AI Cards
-              </span>
-              <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/20 text-muted-foreground">
-                {savedCardsCount}
-              </span>
-            </button>
           </div>
 
           {/* Categories List tree */}
           <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
-            <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-3">Catalog Categories</h5>
-            <div className="space-y-2">
-              {CATEGORY_GROUPS.map((group) => {
-                const isCollapsed = collapsedGroups[group.name];
+            <h5 className="text-[10px] font-bold text-muted-foreground tracking-wider px-3">Catalog Categories</h5>
+            <div className="space-y-1">
+              {MUSIC_LIBRARY_GROUPS.map((group) => {
+                const isActive = group.slugs.includes(activeCategory);
                 
                 return (
-                  <div key={group.name} className="space-y-0.5">
-                    <button
-                      onClick={() => toggleGroupCollapse(group.name)}
-                      className="w-full flex items-center justify-between px-3 py-1 text-xs font-bold text-foreground/85 hover:text-foreground text-left"
-                    >
-                      <span>{group.name}</span>
-                      <ChevronRight className={`w-3 h-3 text-muted-foreground transition-transform duration-200 ${!isCollapsed ? 'rotate-90' : ''}`} />
-                    </button>
-                    
-                    {!isCollapsed && (
-                      <div className="pl-2 border-l border-border/20 ml-3.5 space-y-0.5 animate-fade-in">
-                        {group.items.map((item) => {
-                          const isActive = activeCategory === item.slug;
-
-                          return (
-                            <button
-                              key={item.slug}
-                              onClick={() => router.push(`/music-library?category=${item.slug}`)}
-                              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-xs transition-all duration-200 ${
-                                isActive
-                                  ? 'bg-primary/10 text-primary font-semibold border border-primary/15'
-                                  : 'text-muted-foreground hover:bg-card/50 hover:text-foreground'
-                              }`}
-                            >
-                              <span className="truncate">{item.label}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    key={group.name}
+                    onClick={() => router.push(`/music-library?category=${group.defaultSlug}`)}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-left text-xs transition-all duration-200 ${
+                      isActive
+                        ? 'bg-primary/10 text-primary font-semibold border border-primary/15'
+                        : 'text-muted-foreground hover:bg-card/50 hover:text-foreground'
+                    }`}
+                  >
+                    <span>{group.name}</span>
+                  </button>
                 );
               })}
             </div>
@@ -530,10 +539,16 @@ export default function Sidebar() {
 
         {/* Global Pages list */}
         <div className="space-y-1 md:hidden">
-          <Link href="/practice-studio" className={getLinkClass('/practice-studio')}>
+          <Link 
+            href={isMounted && lastActivePracticeSessionId ? `/practice-studio?sessionId=${lastActivePracticeSessionId}` : "/practice-studio"} 
+            className={getLinkClass('/practice-studio')}
+          >
             Practice Studio
           </Link>
-          <Link href="/theory-tutor" className={getLinkClass('/theory-tutor')}>
+          <Link 
+            href={isMounted && lastActiveTheorySessionId ? `/theory-tutor?sessionId=${lastActiveTheorySessionId}` : "/theory-tutor"} 
+            className={getLinkClass('/theory-tutor')}
+          >
             Theory Tutor
           </Link>
           <Link href="/music-library" className={getLinkClass('/music-library')}>
@@ -552,9 +567,20 @@ export default function Sidebar() {
       <div className="my-4 border-t border-border/25 w-full shrink-0" />
 
       {/* Settings Footer */}
-      <div className="shrink-0">
+      <div className="shrink-0 space-y-1">
+        {(pathname === '/practice-studio' || pathname === '/theory-tutor') && (
+          <button
+            onClick={() => setShowClearConfirm(true)}
+            suppressHydrationWarning={true}
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-red-400/80 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all text-sm font-semibold mb-1"
+          >
+            <Trash2 className="w-4 h-4" />
+            Clear All Chats
+          </button>
+        )}
         <button
           onClick={handleSettingsClick}
+          suppressHydrationWarning={true}
           className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-card/45 transition-all text-sm font-semibold"
         >
           <Settings className="w-4 h-4" />
@@ -583,6 +609,35 @@ export default function Sidebar() {
           <aside className="relative w-72 h-full z-10 animate-slide-right flex flex-col">
             {sidebarContent}
           </aside>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-card border border-border/40 p-6 rounded-xl max-w-sm w-full mx-4 shadow-glow/20 space-y-4 animate-scale-in">
+            <div className="space-y-2">
+              <h4 className="text-sm font-bold text-foreground">Clear Chat History</h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Are you sure you want to delete all conversations? This action cannot be undone.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 text-xs">
+              <Button
+                variant="ghost"
+                onClick={() => setShowClearConfirm(false)}
+                className="hover:bg-card/75 border border-border/10 text-foreground"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleClearAllChats}
+                className="bg-red-500 hover:bg-red-600 text-white font-semibold shadow-md"
+              >
+                Delete All
+              </Button>
+            </div>
+          </div>
         </div>
       )}
     </>

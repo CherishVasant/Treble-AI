@@ -17,10 +17,9 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # SQLAlchemy URL. Examples:
-    #   sqlite:///./treble.db
-    #   postgresql+psycopg://user:password@localhost:5432/treble
-    database_url: str = "sqlite:///./treble.db"
+    # SQLAlchemy URL. Example:
+    #   postgresql+psycopg://username:password@localhost:5432/treble
+    database_url: str | None = None
 
     # LangChain / OpenAI (swap model when you pick a provider)
     openai_api_key: str | None = None

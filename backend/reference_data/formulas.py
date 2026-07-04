@@ -1,0 +1,55 @@
+FORMULAS: dict[str, list[int]] = {
+    # Scale Formulas (relative offsets from root)
+    "major_scale": [0, 2, 4, 5, 7, 9, 11],
+    "natural_minor_scale": [0, 2, 3, 5, 7, 8, 10],
+    "harmonic_minor_scale": [0, 2, 3, 5, 7, 8, 11],
+    "melodic_minor_scale": [0, 2, 3, 5, 7, 9, 11, 12, 10, 8, 7, 5, 3, 2, 0],
+    "chromatic_scale": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    "major_pentatonic_scale": [0, 2, 4, 7, 9, 12],
+    "minor_pentatonic_scale": [0, 3, 5, 7, 10, 12],
+    "blues_scale": [0, 3, 5, 6, 7, 10, 12],
+    "whole_tone_scale": [0, 2, 4, 6, 8, 10, 12],
+    "diminished_scale": [0, 1, 3, 4, 6, 7, 9, 10, 12],
+    "bebop_scale": [0, 2, 4, 5, 7, 9, 10, 11, 12],
+
+    # Modes of Major Scale Formulas
+    "ionian_mode": [0, 2, 4, 5, 7, 9, 11],
+    "dorian_mode": [0, 2, 3, 5, 7, 9, 10],
+    "phrygian_mode": [0, 1, 3, 5, 7, 8, 10],
+    "lydian_mode": [0, 2, 4, 6, 7, 9, 11],
+    "mixolydian_mode": [0, 2, 4, 5, 7, 9, 10],
+    "aeolian_mode": [0, 2, 3, 5, 7, 8, 10],
+    "locrian_mode": [0, 1, 3, 5, 6, 8, 10],
+
+    # Chord & Arpeggio Formulas
+    "major_triad": [0, 4, 7],
+    "minor_triad": [0, 3, 7],
+    "diminished_triad": [0, 3, 6],
+    "augmented_triad": [0, 4, 8],
+    "suspended_fourth": [0, 5, 7],
+    "dominant_seventh": [0, 4, 7, 10],
+    "major_seventh": [0, 4, 7, 11],
+    "minor_seventh": [0, 3, 7, 10],
+    "half_diminished_seventh": [0, 3, 6, 10],
+    "fully_diminished_seventh": [0, 3, 6, 9],
+    "sixth_chord": [0, 4, 7, 9],
+    "ninth_chord": [0, 4, 7, 10, 14],
+    "eleventh_chord": [0, 7, 10, 14, 17],
+    "thirteenth_chord": [0, 4, 10, 14, 21],
+    "altered_chord": [0, 4, 6, 8, 10],
+
+    # Diatonic Interval Step Formulas
+    "interval_unison": [0],
+    "interval_minor_second": [0, 1],
+    "interval_major_second": [0, 2],
+    "interval_minor_third": [0, 3],
+    "interval_major_third": [0, 4],
+    "interval_perfect_fourth": [0, 5],
+    "interval_tritone": [0, 6],
+    "interval_perfect_fifth": [0, 7],
+    "interval_minor_sixth": [0, 8],
+    "interval_major_sixth": [0, 9],
+    "interval_minor_seventh": [0, 10],
+    "interval_major_seventh": [0, 11],
+    "interval_octave": [0, 12]
+}

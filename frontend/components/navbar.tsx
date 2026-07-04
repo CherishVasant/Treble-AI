@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { Music, Menu, X, Search, ChevronRight } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
+import { useChat } from '@/context/chat-context';
 
 // Static catalog of terms for header typeahead search suggestions
 const SEARCHABLE_ITEMS = [
@@ -102,6 +103,12 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
+  const { lastActiveTheorySessionId, lastActivePracticeSessionId } = useChat();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Global header search states
   const [searchQuery, setSearchQuery] = useState('');
@@ -224,7 +231,7 @@ export default function Navbar() {
           {/* Desktop Navigation Links */}
           <div className="hidden md:flex items-center gap-6 flex-shrink-0">
             <Link
-              href="/practice-studio"
+              href={isMounted && lastActivePracticeSessionId ? `/practice-studio?sessionId=${lastActivePracticeSessionId}` : "/practice-studio"}
               className={`relative py-1 text-sm font-semibold transition-colors duration-300 ${
                 pathname.startsWith('/practice-studio')
                   ? 'text-primary font-bold'
@@ -239,7 +246,7 @@ export default function Navbar() {
               />
             </Link>
             <Link
-              href="/theory-tutor"
+              href={isMounted && lastActiveTheorySessionId ? `/theory-tutor?sessionId=${lastActiveTheorySessionId}` : "/theory-tutor"}
               className={`relative py-1 text-sm font-semibold transition-colors duration-300 ${
                 pathname.startsWith('/theory-tutor')
                   ? 'text-primary font-bold'

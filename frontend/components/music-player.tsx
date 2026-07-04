@@ -62,7 +62,7 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [volume, setVolume] = useState(80);
+  const [volume, setVolume] = useState(100);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   
   // Uploader & Stepper State
@@ -87,10 +87,32 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
   volumeRef.current = volume;
   playbackSpeedRef.current = playbackSpeed;
 
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+  const onDurationChangeRef = useRef(onDurationChange);
+  const onIsPlayingChangeRef = useRef(onIsPlayingChange);
+
+  const currentTimeRef = useRef(currentTime);
+  const durationRef = useRef(duration);
+  currentTimeRef.current = currentTime;
+  durationRef.current = duration;
+
+  useEffect(() => {
+    onTimeUpdateRef.current = onTimeUpdate;
+  }, [onTimeUpdate]);
+
+  useEffect(() => {
+    onDurationChangeRef.current = onDurationChange;
+  }, [onDurationChange]);
+
+  useEffect(() => {
+    onIsPlayingChangeRef.current = onIsPlayingChange;
+  }, [onIsPlayingChange]);
+
   const hasAudio = Boolean(audioUrl);
 
   const syncDuration = useCallback((audio: HTMLAudioElement) => {
-    if (Number.isFinite(audio.duration) && audio.duration > 0) {
+    if (Number.isFinite(audio.duration) && audio.duration > 0 && Math.abs(durationRef.current - audio.duration) >= 0.01) {
+      durationRef.current = audio.duration;
       setDuration(audio.duration);
     }
   }, []);
@@ -98,10 +120,18 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
   const syncCurrentTime = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || isSeekingRef.current) return;
-    setCurrentTime(audio.currentTime);
+    
+    const newTime = audio.currentTime;
+    if (Math.abs(currentTimeRef.current - newTime) >= 0.01) {
+      currentTimeRef.current = newTime;
+      setCurrentTime(newTime);
+      onTimeUpdateRef.current?.(newTime);
+    }
 
-    if (Number.isFinite(audio.duration) && audio.duration > 0) {
-      setDuration((prev) => (prev !== audio.duration ? audio.duration : prev));
+    if (Number.isFinite(audio.duration) && audio.duration > 0 && Math.abs(durationRef.current - audio.duration) >= 0.01) {
+      durationRef.current = audio.duration;
+      setDuration(audio.duration);
+      onDurationChangeRef.current?.(audio.duration);
     }
   }, []);
 
@@ -118,18 +148,10 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
     },
   }));
 
-  // Trigger callbacks
+  // Trigger callbacks using stable refs to prevent render loops
   useEffect(() => {
-    onIsPlayingChange?.(isPlaying);
-  }, [isPlaying, onIsPlayingChange]);
-
-  useEffect(() => {
-    onTimeUpdate?.(currentTime);
-  }, [currentTime, onTimeUpdate]);
-
-  useEffect(() => {
-    onDurationChange?.(duration);
-  }, [duration, onDurationChange]);
+    onIsPlayingChangeRef.current?.(isPlaying);
+  }, [isPlaying]);
 
   // Handle active file ID sync from parent
   useEffect(() => {
@@ -162,12 +184,16 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
     const audio = audioRef.current;
     if (!audio || !audioUrl) {
       setIsPlaying(false);
+      currentTimeRef.current = 0;
+      durationRef.current = 0;
       setCurrentTime(0);
       setDuration(0);
       return;
     }
 
     setIsPlaying(false);
+    currentTimeRef.current = 0;
+    durationRef.current = 0;
     setCurrentTime(0);
     setDuration(0);
 
@@ -178,7 +204,6 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
 
     audio.volume = volumeRef.current / 100;
     audio.playbackRate = playbackSpeedRef.current;
-    audio.load();
 
     audio.addEventListener('loadedmetadata', handleDuration);
     audio.addEventListener('durationchange', handleDuration);
@@ -188,6 +213,8 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
+
+    audio.load();
 
     syncDuration(audio);
 
@@ -257,6 +284,7 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
     const maxTime = duration > 0 ? duration : audio.duration;
     const clamped = Math.max(0, Math.min(time, maxTime || 0));
     audio.currentTime = clamped;
+    currentTimeRef.current = clamped;
     setCurrentTime(clamped);
   };
 
@@ -569,14 +597,6 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <button
-            disabled
-            className="p-2 rounded-lg hover:bg-card/60 transition-colors disabled:opacity-50"
-            aria-label="Previous Track"
-          >
-            <SkipBack className="w-5 h-5" />
-          </button>
-
-          <button
             onClick={handlePlayPause}
             disabled={!hasAudio || isConverting}
             className="p-3 rounded-lg bg-gradient-primary hover:shadow-glow text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none"
@@ -587,14 +607,6 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
             ) : (
               <Play className="w-5 h-5 ml-0.5" />
             )}
-          </button>
-
-          <button
-            disabled
-            className="p-2 rounded-lg hover:bg-card/60 transition-colors disabled:opacity-50"
-            aria-label="Next Track"
-          >
-            <SkipForward className="w-5 h-5" />
           </button>
         </div>
 

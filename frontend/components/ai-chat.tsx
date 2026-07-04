@@ -30,6 +30,7 @@ interface AIChatProps {
   systemPrompt?: string;
   messages?: Message[];
   onNewMessages?: (messages: Message[]) => void;
+  onSendMessage?: (text: string) => Promise<void> | void;
   isLoading?: boolean;
   className?: string;
 }
@@ -56,7 +57,7 @@ function AgentActivityPanel({
       <button
         type="button"
         onClick={onToggle}
-        className="w-full px-3 py-1.5 flex items-center justify-between font-semibold text-muted-foreground/80 hover:text-foreground hover:bg-card/30 transition-colors"
+        className="w-full px-3 py-1.5 flex items-center justify-between font-semibold text-muted-foreground/80 hover:text-foreground hover:bg-card/30 transition-colors hover:scale-100 active:scale-100"
       >
         <span className="flex items-center gap-1.5">
           <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
@@ -120,6 +121,7 @@ export default function AIChat({
   systemPrompt = "You are Treble, your AI music learning companion inside TrebleAI. Always refer to yourself as Treble. If the user asks 'Who are you?', you must respond exactly with: 'I'm Treble, your AI music learning companion inside TrebleAI.'",
   messages: externalMessages,
   onNewMessages,
+  onSendMessage,
   isLoading = false,
   className = '',
 }: AIChatProps) {
@@ -147,9 +149,15 @@ export default function AIChat({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const messages = externalMessages !== undefined ? externalMessages : internalMessages;
+
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  });
+
   const setMessages = (updateFn: (prev: Message[]) => Message[]) => {
     if (externalMessages !== undefined) {
-      onNewMessages?.(updateFn(externalMessages));
+      onNewMessages?.(updateFn(messagesRef.current));
     } else {
       setInternalMessages(updateFn);
     }
@@ -167,6 +175,12 @@ export default function AIChat({
 
   const handleSendMessage = async (messageText: string) => {
     if (!messageText.trim()) return;
+
+    if (onSendMessage) {
+      setInput('');
+      await onSendMessage(messageText);
+      return;
+    }
 
     // Add user message
     const userMessage: Message = {
@@ -251,6 +265,13 @@ export default function AIChat({
     setTimeout(() => setCopiedId(null), 2000);
   };
 
+  const shouldShowActivity = (steps?: string[]) => {
+    if (!steps || steps.length === 0) return false;
+    return steps.some(step =>
+      step.includes('Searching') || step.includes('Analyzing')
+    );
+  };
+
   return (
     <div className={`flex flex-col h-full bg-card/10 rounded-xl border border-border/30 overflow-hidden shadow-glow/10 ${className}`}>
       {/* Header */}
@@ -330,9 +351,9 @@ export default function AIChat({
                       </p>
                     ) : (
                       <div className="flex flex-col gap-2">
-                        {message.agent_steps && message.agent_steps.length > 0 && (
+                        {shouldShowActivity(message.agent_steps) && (
                           <AgentActivityPanel
-                            steps={message.agent_steps}
+                            steps={message.agent_steps!}
                             isExpanded={agentActivityExpanded[message.id] || false}
                             onToggle={() => setAgentActivityExpanded(prev => ({
                               ...prev,
@@ -401,19 +422,7 @@ export default function AIChat({
                         </div>
                       )}
 
-                      {/* Display Related Concepts */}
-                      {message.related_concepts && message.related_concepts.length > 0 && (
-                        <div className="flex flex-wrap gap-1">
-                          {message.related_concepts.map((concept, rcIdx) => (
-                            <span
-                              key={rcIdx}
-                              className="inline-flex items-center text-[10px] font-semibold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20"
-                            >
-                              💡 {concept}
-                            </span>
-                          ))}
-                        </div>
-                      )}
+
 
                       {/* Display Suggested Follow-Ups */}
                       {message.suggested_follow_up_questions && message.suggested_follow_up_questions.length > 0 && (
@@ -439,7 +448,7 @@ export default function AIChat({
               </div>
             ))}
 
-            {loading && (
+            {(loading || isLoading) && (
               <div className="flex gap-3 animate-fade-in">
                 <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
                   <Music className="w-4 h-4 text-white" />
@@ -451,13 +460,6 @@ export default function AIChat({
                         <Loader2 className="w-4 h-4 animate-spin text-primary" />
                         <span className="text-xs font-medium animate-pulse text-muted-foreground">Treble is thinking...</span>
                       </div>
-                      <AgentActivityPanel
-                        steps={["Thinking", "Searching music references", "Reviewing results", "Generating answer"]}
-                        isExpanded={isLoadingExpanded}
-                        onToggle={() => setIsLoadingExpanded(prev => !prev)}
-                        isLoading={true}
-                        currentStepIndex={loadingStepIndex}
-                      />
                     </div>
                   </div>
                 </div>

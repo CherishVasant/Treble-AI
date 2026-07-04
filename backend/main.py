@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
+from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from database import get_db
+from sqlalchemy.orm import Session
 import shutil
 import os
 import uuid
@@ -13,11 +15,18 @@ from config import settings
 from routers.reference import router as reference_router
 from routers.theory import router as theory_router
 from seed import run_startup_seed
+from database import SessionLocal
+from reference_library import initialize_cache
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     run_startup_seed()
+    db = SessionLocal()
+    try:
+        initialize_cache(db)
+    finally:
+        db.close()
     yield
 
 
@@ -41,9 +50,24 @@ def safe_folder_name(filename: str) -> str:
     return name
 
 
+from sqlalchemy import text
+
+
 @app.get("/")
 def root():
     return {"message": "TrebleAI backend is running"}
+
+
+@app.get("/health")
+def health_check(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "connected"}
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail={"status": "error", "database": "disconnected", "error": str(exc)}
+        )
 
 
 def _get_pipeline_runner():
@@ -182,6 +206,17 @@ def get_musicxml(job_id: str):
 
 
 def extract_musical_info(mxl_path: Path) -> dict:
+    # 1. Try to load from cached analysis_report.json in the same directory
+    report_path = mxl_path.parent / "analysis_report.json"
+    if report_path.exists():
+        try:
+            with open(report_path, "r", encoding="utf-8") as f:
+                report = json.load(f)
+            if "error" not in report or len(report) > 1:
+                return report
+        except Exception as err:
+            print(f"[extract_musical_info] Error reading cached analysis report: {err}")
+
     from music21 import converter, key, meter, tempo, note, chord
     
     info = {
@@ -250,6 +285,35 @@ def extract_musical_info(mxl_path: Path) -> dict:
         
         if note_sequence:
             info["note_summary"] = ", ".join(note_sequence)
+            
+        # Extract precise note timing events for interactive visualization
+        note_events = []
+        try:
+            flat_score = score.flatten()
+            for entry in flat_score.secondsMap:
+                el = entry.get('element')
+                offset_sec = entry.get('offsetSeconds')
+                dur_sec = entry.get('durationSeconds')
+                start_val = float(offset_sec) if offset_sec is not None else 0.0
+                dur_val = float(dur_sec) if dur_sec is not None else 0.0
+                
+                if isinstance(el, note.Note):
+                    note_events.append({
+                        "start": start_val,
+                        "duration": dur_val,
+                        "midi": int(el.pitch.midi)
+                    })
+                elif isinstance(el, chord.Chord):
+                    for p in el.pitches:
+                        note_events.append({
+                            "start": start_val,
+                            "duration": dur_val,
+                            "midi": int(p.midi)
+                        })
+        except Exception as se:
+            print(f"[extract_musical_info] Error calculating secondsMap: {se}")
+            
+        info["notes"] = note_events
             
     except Exception as e:
         info["error"] = f"Failed to parse musical details: {str(e)}"

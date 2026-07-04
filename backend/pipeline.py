@@ -147,7 +147,22 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
         current_step = "analysis"
         _set_status(output_dir, "analysis", "processing")
 
-        # Mark analysis completed
+        try:
+            from music.analysis import analyze_score
+            report = analyze_score(str(input_mxl))
+            report_path = output_dir_path / "analysis_report.json"
+            with open(report_path, "w", encoding="utf-8") as f:
+                json.dump(report, f, indent=2)
+        except Exception as ae:
+            print(f"[pipeline] Analysis failed: {ae}")
+            # Write a minimal analysis report so we don't break subsequent steps
+            report_path = output_dir_path / "analysis_report.json"
+            try:
+                with open(report_path, "w", encoding="utf-8") as f:
+                    json.dump({"error": str(ae)}, f)
+            except Exception:
+                pass
+
         _set_status(output_dir, "analysis", "completed")
 
         return {

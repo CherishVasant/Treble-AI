@@ -1,49 +1,19 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import FileResponse
-from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
 import hashlib
 import subprocess
 from pathlib import Path
 from music21 import stream, note, tempo
 
-from database import get_db
-from models import ReferenceSection
 from pipeline import FLUIDSYNTH_PATH, SOUNDFONT
+from reference_library import get_reference_library as load_cached_library
 
 router = APIRouter(prefix="/reference", tags=["reference"])
 
 
 @router.get("/library")
-def get_reference_library(db: Session = Depends(get_db)) -> dict:
-    stmt = (
-        select(ReferenceSection)
-        .options(selectinload(ReferenceSection.entries))
-        .order_by(ReferenceSection.sort_order)
-    )
-    sections = db.execute(stmt).scalars().all()
-
-    return {
-        "sections": [
-            {
-                "slug": sec.slug,
-                "title": sec.title,
-                "description": sec.description,
-                "entries": [
-                    {
-                        "id": ent.id,
-                        "title": ent.title,
-                        "description": ent.description,
-                        "formula": ent.formula,
-                        "notes": ent.notes_json or [],
-                        "intervals": ent.intervals_json or [],
-                    }
-                    for ent in sec.entries
-                ],
-            }
-            for sec in sections
-        ]
-    }
+def get_reference_library() -> dict:
+    return load_cached_library()
 
 
 @router.get("/scale-audio")

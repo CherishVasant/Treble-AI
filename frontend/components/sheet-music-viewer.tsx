@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Loader2, Music2, Maximize2, Minimize2, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -25,6 +25,47 @@ interface SheetMusicViewerProps {
   onLoopEndChange?: (val: number) => void;
 }
 
+const getFractionRealValue = (fraction: any): number => {
+  if (!fraction) return 0;
+  if (typeof fraction.RealValue === 'number') return fraction.RealValue;
+  if (typeof fraction.realValue === 'number') return fraction.realValue;
+  if (typeof fraction === 'number') return fraction;
+  return 0;
+};
+
+/**
+ * OSMD's cursor has two visibility bugs we must fix after every show()/update():
+ * 
+ * 1. Z-INDEX: OSMD sets cursor z-index to -1 by default (wantedZIndex).
+ *    adjustToBackgroundColor() resets it on every show() call.
+ *    Fix: force z-index to 5 after every show().
+ * 
+ * 2. HEIGHT COLLAPSE: cursor.update() recalculates the cursor height from
+ *    the staff line bounding box (10 * staffHeight * zoom). After cursor.next()
+ *    advances, the ParentMusicSystem can return degenerate staff heights,
+ *    causing the cursor <img> to render at 1px tall.
+ *    Fix: capture the first valid height and enforce it as a minimum.
+ */
+const forceCursorVisible = (cursor: any) => {
+  const el = cursor?.cursorElement;
+  if (!el) return;
+  
+  // Fix z-index
+  el.style.zIndex = '5';
+  
+  // Fix Tailwind height: auto override by copying the dynamically calculated HTML attributes to inline styles
+  const attrHeight = el.getAttribute('height');
+  const attrWidth = el.getAttribute('width');
+  
+  if (attrHeight) {
+    el.style.height = attrHeight + 'px';
+  }
+  if (attrWidth) {
+    el.style.width = attrWidth + 'px';
+  }
+};
+
+
 export default function SheetMusicViewer({
   xmlData,
   musicXmlUrl,
@@ -48,6 +89,8 @@ export default function SheetMusicViewer({
   const [error, setError] = useState<string | null>(null);
   const [osmdFailed, setOsmdFailed] = useState(false);
   const osmdRef = useRef<any>(null);
+  const timelineRef = useRef<number[]>([]);
+
 
   // Reset fallback state when xml inputs change
   useEffect(() => {
@@ -66,6 +109,8 @@ export default function SheetMusicViewer({
     if (!showOsmd) return;
     if (!xmlData && !musicXmlUrl) return;
 
+    let active = true;
+
     const initializeOSMD = async () => {
       setLoading(true);
       setError(null);
@@ -77,42 +122,179 @@ export default function SheetMusicViewer({
           throw new Error('Container not found');
         }
 
+        if (!active) return;
         containerRef.current.innerHTML = '';
 
         const osmd = new OpenSheetMusicDisplay(containerRef.current, {
-          backend: 'canvas',
+          backend: 'svg',
           autoResize: true,
+          cursorsOptions: [{
+            color: '#3b82f6', // Premium blue highlight
+            alpha: 0.5,       // Visible overlay opacity
+            type: 0,          // Standard highlighting current notes
+            follow: true
+          }]
         });
+
+        // Tell OSMD a background color is set so adjustToBackgroundColor()
+        // uses z-index: 1 instead of the default -1 that hides cursors.
+        try {
+          const osmdAny = osmd as any;
+          if (osmdAny.drawingParameters?.Rules) {
+            osmdAny.drawingParameters.Rules.PageBackgroundColor = '#ffffff';
+          } else if (osmdAny.rules) {
+            osmdAny.rules.PageBackgroundColor = '#ffffff';
+          }
+        } catch (_) { /* best effort */ }
 
         try {
           if (xmlData) {
-            await osmd.load(xmlData);
-          } else if (musicXmlUrl) {
-            const response = await fetch(musicXmlUrl);
-            if (!response.ok) {
-              throw new Error(`Failed to fetch MusicXML: ${response.statusText}`);
+            try {
+              await osmd.load(xmlData);
+            } catch (err) {
+              console.error('[SheetMusicViewer] Error parsing inline XML:', err);
+              throw new Error('Invalid MusicXML structure or failed to parse notation file.');
             }
-            const xmlText = await response.text();
-            await osmd.load(xmlText);
+          } else if (musicXmlUrl) {
+            let response: Response;
+            try {
+              response = await fetch(musicXmlUrl);
+            } catch (fetchErr) {
+              throw new Error('Failed to download notation file.');
+            }
+
+            if (!response.ok) {
+              throw new Error(`Failed to fetch MusicXML: ${response.statusText} (${response.status})`);
+            }
+            
+            let arrayBuffer: ArrayBuffer;
+            try {
+              arrayBuffer = await response.arrayBuffer();
+            } catch (bufErr) {
+              throw new Error('Failed to read notation file data.');
+            }
+
+            const uint8Array = new Uint8Array(arrayBuffer);
+            if (uint8Array.length === 0) {
+              throw new Error('Notation file is empty.');
+            }
+            
+            const isMxl = uint8Array.length >= 4 &&
+                          uint8Array[0] === 0x50 && // 'P'
+                          uint8Array[1] === 0x4B && // 'K'
+                          uint8Array[2] === 0x03 &&
+                          uint8Array[3] === 0x04;
+                          
+            try {
+              if (isMxl) {
+                await osmd.load(new Blob([uint8Array]));
+              } else {
+                const decoder = new TextDecoder('utf-8');
+                const xmlText = decoder.decode(uint8Array);
+                
+                // Quick validation of XML content
+                if (!xmlText.trim().startsWith('<')) {
+                  throw new Error('Unsupported file format');
+                }
+                
+                await osmd.load(xmlText);
+              }
+            } catch (loadError: any) {
+              console.error('[SheetMusicViewer] OSMD load error:', loadError);
+              const errMsg = loadError?.message || '';
+              if (isMxl) {
+                if (errMsg.includes('corrupted') || errMsg.includes('missing') || errMsg.includes('zip') || errMsg.includes('bytes')) {
+                  throw new Error('Corrupted MXL archive or invalid zip file.');
+                }
+                throw new Error('OpenSheetMusicDisplay: Invalid MXL file structure.');
+              } else {
+                if (errMsg.includes('parse') || errMsg.includes('XML')) {
+                  throw new Error('Invalid MusicXML structure.');
+                }
+                throw new Error('Failed to parse notation file.');
+              }
+            }
           }
 
+          if (!active) return;
           osmd.Zoom = zoom;
           osmd.render();
           osmdRef.current = osmd;
-        } catch (loadError) {
-          console.error('[SheetMusicViewer] OSMD load error:', loadError);
-          throw new Error('Failed to load sheet music XML');
+
+          try {
+            osmd.enableOrDisableCursors(true);
+          } catch (cursorErr) {
+            console.warn('[SheetMusicViewer] Failed to enable cursors:', cursorErr);
+          }
+
+          // Build repeat measure timeline
+          const measures = osmd.Sheet?.SourceMeasures || [];
+          const tl: number[] = [];
+          let idx = 0;
+          let lastRepeatStart = 0;
+          const repeatEndsSeen = new Set<number>();
+          const maxSteps = measures.length * 5;
+          let steps = 0;
+
+          while (idx < measures.length && steps < maxSteps) {
+            steps++;
+            const m = measures[idx];
+            const isRepeatStart = m.beginsWithLineRepetition?.() || m.beginsWithWordRepetition?.();
+            if (isRepeatStart) {
+              lastRepeatStart = idx;
+            }
+
+            tl.push(idx);
+
+            const isRepeatEnd = m.endsWithLineRepetition?.() || m.endsWithWordRepetition?.();
+            if (isRepeatEnd && !repeatEndsSeen.has(idx)) {
+              repeatEndsSeen.add(idx);
+              idx = lastRepeatStart;
+            } else {
+              idx++;
+            }
+          }
+
+          if (tl.length === 0) {
+            for (let k = 0; k < measures.length; k++) {
+              tl.push(k);
+            }
+          }
+          timelineRef.current = tl;
+
+          try {
+            osmd.cursor.show();
+            forceCursorVisible(osmd.cursor);
+            osmd.cursor.reset();
+          } catch (e) {
+            console.warn('[SheetMusicViewer] Initial cursor show failed:', e);
+          }
+        } catch (loadError: any) {
+          console.error('[SheetMusicViewer] OSMD load pipeline error:', loadError);
+          throw loadError;
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('[SheetMusicViewer] OSMD init error:', err);
-        setOsmdFailed(true);
-        setError(err instanceof Error ? err.message : 'Failed to initialize sheet music viewer');
+        if (active) {
+          setOsmdFailed(true);
+          setError(err instanceof Error ? err.message : 'Failed to initialize sheet music viewer');
+        }
       } finally {
-        setLoading(false);
+        if (active) {
+          setLoading(false);
+        }
       }
     };
 
     initializeOSMD();
+
+    return () => {
+      active = false;
+      osmdRef.current = null;
+      if (containerRef.current) {
+        containerRef.current.innerHTML = '';
+      }
+    };
   }, [xmlData, musicXmlUrl, showOsmd]);
 
   // Handle zoom changes
@@ -127,34 +309,85 @@ export default function SheetMusicViewer({
     }
   }, [zoom]);
 
-  // Sync cursor highlight with currentTime
+  // Sync cursor highlight with currentTime (Continuous Note-Level Tracking)
+  // === DIAGNOSTIC VERSION ===
   useEffect(() => {
-    if (!osmdRef.current || secondsPerMeasure <= 0) return;
+    const osmd = osmdRef.current;
+    if (!osmd || !osmd.cursor || secondsPerMeasure <= 0) return;
 
-    const activeMeasure = Math.floor(currentTime / secondsPerMeasure) + 1;
-    const maxMeasure = osmdRef.current.Sheet?.SourceMeasures?.length || 100;
-    const clampedMeasure = Math.max(1, Math.min(activeMeasure, maxMeasure));
+    const tl = timelineRef.current;
+    const elapsedMeasures = Math.floor(currentTime / secondsPerMeasure);
+    const physicalIndex = tl.length > 0
+      ? (tl[Math.min(elapsedMeasures, tl.length - 1)] ?? elapsedMeasures)
+      : elapsedMeasures;
+
+    const measures = osmd.Sheet?.SourceMeasures || [];
+    const measure = measures[physicalIndex];
+    if (!measure) return;
 
     try {
-      if (isPlaying) {
-        osmdRef.current.cursor.show();
-        osmdRef.current.cursor.goToMeasure(clampedMeasure);
+      const measureStart = getFractionRealValue(measure.AbsoluteTimestamp);
+      
+      const nextMeasure = measures[physicalIndex + 1];
+      const nextStart = nextMeasure 
+        ? getFractionRealValue(nextMeasure.AbsoluteTimestamp) 
+        : (measureStart + 1.0);
+        
+      const measureDuration = nextStart - measureStart;
+      const fractionalMeasure = (currentTime / secondsPerMeasure) % 1;
+      
+      // Target timestamp in whole notes since beginning of sheet
+      const targetTimestamp = measureStart + (fractionalMeasure * measureDuration);
+      
+      const cursor = osmd.cursor;
+      let iterator = cursor.iterator || cursor.Iterator;
+      if (!iterator) return;
+
+      const beforeRealValue = getFractionRealValue(iterator.currentTimeStamp);
+
+      // If targetTimestamp is behind current cursor position, reset first
+      if (targetTimestamp < beforeRealValue) {
+        cursor.reset();
+        iterator = cursor.iterator || cursor.Iterator;
+        if (!iterator) return;
       }
+
+      let currentRealValue = getFractionRealValue(iterator.currentTimeStamp);
+
+      // Incrementally advance cursor forward to match targetTimestamp
+      let steps = 0;
+      const maxSteps = 5000;
+
+      while (steps < maxSteps) {
+        const endReached = iterator.endReached || iterator.EndReached || false;
+        if (endReached) break;
+
+        if (currentRealValue >= targetTimestamp) break;
+
+        cursor.next();
+        steps++;
+
+        const newRealValue = getFractionRealValue(iterator.currentTimeStamp);
+        if (newRealValue === currentRealValue) break;
+        currentRealValue = newRealValue;
+      }
+
+      cursor.show();
+      forceCursorVisible(cursor);
     } catch (e) {
-      console.warn('[SheetMusicViewer] Cursor sync error:', e);
+      console.warn('[SheetMusicViewer] Cursor note-level sync error:', e);
     }
-  }, [currentTime, isPlaying, secondsPerMeasure]);
+  }, [currentTime, secondsPerMeasure]);
 
-  // Hide cursor when paused
-  useEffect(() => {
-    if (!isPlaying && osmdRef.current) {
-      try {
-        osmdRef.current.cursor.hide();
-      } catch (e) {}
-    }
-  }, [isPlaying]);
-
-  const activeMeasure = secondsPerMeasure > 0 ? Math.floor(currentTime / secondsPerMeasure) + 1 : 1;
+  const activeMeasure = useMemo(() => {
+    if (secondsPerMeasure <= 0) return 1;
+    const tl = timelineRef.current;
+    const elapsedMeasures = Math.floor(currentTime / secondsPerMeasure);
+    const physicalIndex = tl.length > 0
+      ? (tl[Math.min(elapsedMeasures, tl.length - 1)] ?? elapsedMeasures)
+      : elapsedMeasures;
+    return physicalIndex + 1;
+  }, [currentTime, secondsPerMeasure]);
 
   const empty = !showRasterOrPdf && !showOsmd && !loading && !error;
 
@@ -216,7 +449,7 @@ export default function SheetMusicViewer({
       {showOsmd && (
         <div
           ref={containerRef}
-          className={`w-full overflow-auto p-4 flex-1 ${!loading && !error ? 'bg-white rounded-lg' : ''}`}
+          className={`w-full overflow-auto p-4 flex-1 relative ${!loading && !error ? 'bg-white rounded-lg' : ''}`}
         />
       )}
     </div>
@@ -231,7 +464,7 @@ export default function SheetMusicViewer({
         <div className="px-6 py-4 border-b border-border/30 flex flex-wrap items-center justify-between gap-4 bg-card/10">
           <div className="flex items-center gap-3">
             <Music2 className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground">Score Viewer</h2>
+            <h2 className="text-lg font-semibold text-foreground">Sheet Music Viewer</h2>
             {showOsmd && (
               <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                 Measure {activeMeasure}
@@ -320,7 +553,7 @@ export default function SheetMusicViewer({
           <div className="flex items-center justify-between border-b border-border/30 pb-4 mb-4">
             <div className="flex items-center gap-3">
               <Music2 className="w-6 h-6 text-primary" />
-              <h2 className="text-xl font-bold text-foreground">Score Viewer (Fullscreen)</h2>
+              <h2 className="text-xl font-bold text-foreground">Sheet Music Viewer (Fullscreen)</h2>
               {showOsmd && (
                 <span className="text-sm px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                   Measure {activeMeasure}

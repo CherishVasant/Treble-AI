@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { Message } from '@/components/ai-chat';
+import { toast } from 'sonner';
 
 export interface ChatSession {
   id: string;
@@ -18,7 +19,7 @@ interface ChatContextType {
   loadingSessions: Record<string, boolean>;
   lastActiveTheorySessionId: string;
   lastActivePracticeSessionId: string;
-  loadSessions: () => void;
+  loadSessions: () => Promise<void>;
   setLastActiveSession: (type: 'theory' | 'practice', id: string) => void;
   sendChatMessage: (
     sessionId: string | null,
@@ -42,9 +43,22 @@ interface ChatContextType {
     fileData: { id: string; name: string } | null,
     metadata: any | null
   ) => string;
+  renameSession: (type: 'theory' | 'practice', id: string, newTitle: string) => Promise<boolean>;
+  deleteSession: (type: 'theory' | 'practice', id: string) => Promise<boolean>;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
+
+function generateUUID() {
+  if (typeof window !== 'undefined' && window.crypto && window.crypto.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [theorySessions, setTheorySessions] = useState<ChatSession[]>([]);
@@ -53,122 +67,137 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [lastActiveTheorySessionId, setLastActiveTheorySessionId] = useState<string>('');
   const [lastActivePracticeSessionId, setLastActivePracticeSessionId] = useState<string>('');
 
-  const loadSessions = useCallback(() => {
+  const loadSessions = useCallback(async () => {
     try {
-      const theory = localStorage.getItem('treble_theory_sessions');
-      if (theory) setTheorySessions(JSON.parse(theory));
-      else setTheorySessions([]);
+      const [theoryRes, practiceRes] = await Promise.all([
+        fetch('/api/chats/theory'),
+        fetch('/api/chats/practice')
+      ]);
 
-      const practice = localStorage.getItem('treble_practice_sessions');
-      if (practice) setPracticeSessions(JSON.parse(practice));
-      else setPracticeSessions([]);
+      if (theoryRes.ok) {
+        const theoryData = await theoryRes.json();
+        setTheorySessions(theoryData);
+      }
+      if (practiceRes.ok) {
+        const practiceData = await practiceRes.json();
+        setPracticeSessions(practiceData);
+      }
 
       const activeTheory = localStorage.getItem('treble_last_active_theory_session_id');
       if (activeTheory) setLastActiveTheorySessionId(activeTheory);
-      else setLastActiveTheorySessionId('');
 
       const activePractice = localStorage.getItem('treble_last_active_practice_session_id');
       if (activePractice) setLastActivePracticeSessionId(activePractice);
-      else setLastActivePracticeSessionId('');
     } catch (e) {
-      console.error('Failed to load chat sessions from localStorage:', e);
+      console.error('Failed to load chat sessions from backend:', e);
     }
   }, []);
 
-  // Initial load
+  // Initial load on mount
   useEffect(() => {
     loadSessions();
-    
-    // Listen for storage updates
-    window.addEventListener('treble_sessions_updated', loadSessions);
-    return () => {
-      window.removeEventListener('treble_sessions_updated', loadSessions);
-    };
   }, [loadSessions]);
 
   const setLastActiveSession = useCallback((type: 'theory' | 'practice', id: string) => {
-    try {
-      if (type === 'theory') {
-        setLastActiveTheorySessionId(id);
-        if (id) {
-          localStorage.setItem('treble_last_active_theory_session_id', id);
-        } else {
-          localStorage.removeItem('treble_last_active_theory_session_id');
-        }
+    if (type === 'theory') {
+      setLastActiveTheorySessionId(id);
+      if (id) {
+        localStorage.setItem('treble_last_active_theory_session_id', id);
       } else {
-        setLastActivePracticeSessionId(id);
-        if (id) {
-          localStorage.setItem('treble_last_active_practice_session_id', id);
-        } else {
-          localStorage.removeItem('treble_last_active_practice_session_id');
-        }
+        localStorage.removeItem('treble_last_active_theory_session_id');
       }
-    } catch (e) {
-      console.error('Failed to save last active session to localStorage:', e);
+    } else {
+      setLastActivePracticeSessionId(id);
+      if (id) {
+        localStorage.setItem('treble_last_active_practice_session_id', id);
+      } else {
+        localStorage.removeItem('treble_last_active_practice_session_id');
+      }
     }
   }, []);
+
+  const renameSession = useCallback(async (type: 'theory' | 'practice', id: string, newTitle: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/chats/${type}/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: newTitle })
+      });
+      if (res.ok) {
+        if (type === 'theory') {
+          setTheorySessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s));
+        } else {
+          setPracticeSessions(prev => prev.map(s => s.id === id ? { ...s, title: newTitle } : s));
+        }
+        toast.success('Session renamed successfully');
+        return true;
+      }
+      toast.error('Failed to rename session');
+      return false;
+    } catch (err) {
+      console.error('Failed to rename session:', err);
+      toast.error('Error renaming session');
+      return false;
+    }
+  }, []);
+
+  const deleteSession = useCallback(async (type: 'theory' | 'practice', id: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`/api/chats/${type}/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        if (type === 'theory') {
+          setTheorySessions(prev => prev.filter(s => s.id !== id));
+          if (lastActiveTheorySessionId === id) {
+            setLastActiveSession('theory', '');
+          }
+        } else {
+          setPracticeSessions(prev => prev.filter(s => s.id !== id));
+          if (lastActivePracticeSessionId === id) {
+            setLastActiveSession('practice', '');
+          }
+        }
+        toast.success('Session deleted successfully');
+        return true;
+      }
+      toast.error('Failed to delete session');
+      return false;
+    } catch (err) {
+      console.error('Failed to delete session:', err);
+      toast.error('Error deleting session');
+      return false;
+    }
+  }, [lastActiveTheorySessionId, lastActivePracticeSessionId, setLastActiveSession]);
 
   const updatePracticeSessionAssets = useCallback((
     sessionId: string,
     fileData: { id: string; name: string } | null,
     metadata: any | null
   ) => {
-    const type = 'practice';
-    try {
-      const sessionsRaw = localStorage.getItem(`treble_${type}_sessions`);
-      let currentSessions: ChatSession[] = sessionsRaw ? JSON.parse(sessionsRaw) : [];
-      const idx = currentSessions.findIndex(s => s.id === sessionId);
-      if (idx !== -1) {
-        currentSessions[idx] = {
-          ...currentSessions[idx],
-          uploadedFileData: fileData,
-          processedMetadata: metadata,
-          timestamp: new Date().toISOString()
-        };
-        localStorage.setItem(`treble_${type}_sessions`, JSON.stringify(currentSessions));
-        setPracticeSessions(currentSessions);
-        window.dispatchEvent(new Event('treble_sessions_updated'));
-      }
-    } catch (e) {
-      console.error('Failed to update practice session assets:', e);
-    }
+    // Note: Local storage practice session syncing is bypassed now that practice sessions are stored in DB.
+    // However, we preserve state updates for reactive frontend updates.
+    setPracticeSessions(prev =>
+      prev.map(s =>
+        s.id === sessionId
+          ? {
+              ...s,
+              uploadedFileData: fileData,
+              processedMetadata: metadata,
+              timestamp: new Date().toISOString()
+            }
+          : s
+      )
+    );
   }, []);
 
   const initializePracticeSession = useCallback((
     fileData: { id: string; name: string } | null,
     metadata: any | null
   ): string => {
-    const type = 'practice';
-    const activeId = `practice_session_${Date.now()}`;
-    const computedTitle = fileData?.name || 'New Practice Session';
-    
-    const newSession: ChatSession = {
-      id: activeId,
-      title: computedTitle,
-      timestamp: new Date().toISOString(),
-      messages: [],
-      uploadedFileData: fileData,
-      processedMetadata: metadata
-    };
-
-    try {
-      const sessionsRaw = localStorage.getItem(`treble_${type}_sessions`);
-      let currentSessions: ChatSession[] = sessionsRaw ? JSON.parse(sessionsRaw) : [];
-      currentSessions.unshift(newSession);
-      localStorage.setItem(`treble_${type}_sessions`, JSON.stringify(currentSessions));
-      setPracticeSessions(currentSessions);
-      
-      // Also update last active practice session
-      setLastActivePracticeSessionId(activeId);
-      localStorage.setItem('treble_last_active_practice_session_id', activeId);
-
-      window.dispatchEvent(new Event('treble_sessions_updated'));
-      window.dispatchEvent(new Event('treble_recents_updated'));
-    } catch (e) {
-      console.error('Failed to initialize practice session:', e);
-    }
-
-    return activeId;
+    // Return a fresh UUID, which will be generated on process startup by the backend anyway.
+    // The uploader uses this UUID to represent the file job.
+    return fileData?.id || generateUUID();
   }, []);
 
   const sendChatMessage = async (
@@ -184,91 +213,78 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
   ): Promise<string> => {
     const { type, apiPath, context = '', systemPrompt = '', uploadedFileData = null, processedMetadata = null } = options;
-    
-    let activeId = sessionId;
-    let isNew = false;
-    if (!activeId) {
-      activeId = `${type}_session_${Date.now()}`;
-      isNew = true;
-    }
+
+    const activeId = sessionId || generateUUID();
 
     // 1. Create User Message
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: generateUUID(),
       role: 'user',
       content: messageText,
       timestamp: new Date(),
     };
 
-    // Load current sessions of specified type
-    const sessionsRaw = localStorage.getItem(`treble_${type}_sessions`);
-    let currentSessions: ChatSession[] = sessionsRaw ? JSON.parse(sessionsRaw) : [];
-    let currentSession = currentSessions.find(s => s.id === activeId);
-
-    let updatedMessages: Message[] = [];
-    if (currentSession) {
-      updatedMessages = [...currentSession.messages, userMessage];
-    } else {
-      updatedMessages = [userMessage];
-    }
-
-    const firstUserMsg = updatedMessages.find(m => m.role === 'user');
-    const defaultTitle = type === 'theory' ? 'Theory Chat' : 'New Practice Session';
-    const computedTitle = type === 'practice' && uploadedFileData?.name
-      ? uploadedFileData.name
-      : (firstUserMsg
-          ? (firstUserMsg.content.slice(0, 30) + (firstUserMsg.content.length > 30 ? '...' : ''))
-          : defaultTitle);
-
-    const updatedSession: ChatSession = {
-      id: activeId,
-      title: computedTitle,
-      timestamp: new Date().toISOString(),
-      messages: updatedMessages,
-      ...(type === 'practice' ? { uploadedFileData, processedMetadata } : {})
-    };
-
-    if (isNew) {
-      currentSessions.unshift(updatedSession);
-    } else {
-      const idx = currentSessions.findIndex(s => s.id === activeId);
-      if (idx !== -1) {
-        currentSessions[idx] = {
-          ...currentSessions[idx],
-          title: computedTitle,
-          messages: updatedMessages,
-          timestamp: new Date().toISOString(),
-          ...(type === 'practice' ? { uploadedFileData, processedMetadata } : {})
-        };
-      } else {
-        currentSessions.unshift(updatedSession);
-      }
-    }
-
-    // Save user message state immediately
-    localStorage.setItem(`treble_${type}_sessions`, JSON.stringify(currentSessions));
+    // Optimistically update React State
     if (type === 'theory') {
-      setTheorySessions(currentSessions);
+      setTheorySessions(prev => {
+        const currentSession = prev.find(s => s.id === activeId);
+        const userMessages = currentSession ? [...currentSession.messages, userMessage] : [userMessage];
+        const defaultTitle = 'Theory Chat';
+        const computedTitle = currentSession
+          ? currentSession.title
+          : (messageText.slice(0, 30) + (messageText.length > 30 ? '...' : ''));
+
+        if (currentSession) {
+          return prev.map(s => s.id === activeId ? { ...s, messages: userMessages, timestamp: new Date().toISOString() } : s);
+        } else {
+          return [
+            { id: activeId, title: computedTitle, timestamp: new Date().toISOString(), messages: userMessages },
+            ...prev
+          ];
+        }
+      });
       setLastActiveTheorySessionId(activeId);
       localStorage.setItem('treble_last_active_theory_session_id', activeId);
     } else {
-      setPracticeSessions(currentSessions);
+      setPracticeSessions(prev => {
+        const currentSession = prev.find(s => s.id === activeId);
+        const userMessages = currentSession ? [...currentSession.messages, userMessage] : [userMessage];
+        const defaultTitle = uploadedFileData?.name || 'New Practice Session';
+
+        if (currentSession) {
+          return prev.map(s => s.id === activeId ? { ...s, messages: userMessages, timestamp: new Date().toISOString() } : s);
+        } else {
+          return [
+            {
+              id: activeId,
+              title: defaultTitle,
+              timestamp: new Date().toISOString(),
+              messages: userMessages,
+              uploadedFileData,
+              processedMetadata
+            },
+            ...prev
+          ];
+        }
+      });
       setLastActivePracticeSessionId(activeId);
       localStorage.setItem('treble_last_active_practice_session_id', activeId);
     }
-    setLoadingSessions(prev => ({ ...prev, [activeId!]: true }));
 
-    // Dispatch update events for components/sidebar
-    window.dispatchEvent(new Event('treble_sessions_updated'));
+    setLoadingSessions(prev => ({ ...prev, [activeId]: true }));
 
     // Start background fetch (non-blocking)
     (async () => {
       try {
+        const currentSession = (type === 'theory' ? theorySessions : practiceSessions).find(s => s.id === activeId);
         const history = currentSession ? currentSession.messages : [];
+
         const response = await fetch(apiPath, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            sessionId: activeId,
+            chatType: type,
             message: messageText,
             context,
             systemPrompt,
@@ -282,9 +298,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           throw new Error(detail);
         }
 
-        // 3. Create Assistant Message
         const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
+          id: generateUUID(),
           role: 'assistant',
           content: data.response,
           timestamp: new Date(),
@@ -294,32 +309,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           agent_steps: data.agent_steps,
         };
 
-        // Reload fresh sessions to ensure no write clashes
-        const sessionsFreshRaw = localStorage.getItem(`treble_${type}_sessions`);
-        let freshSessions: ChatSession[] = sessionsFreshRaw ? JSON.parse(sessionsFreshRaw) : [];
-        const freshIdx = freshSessions.findIndex(s => s.id === activeId);
-
-        if (freshIdx !== -1) {
-          const freshMsgs = [...freshSessions[freshIdx].messages, assistantMessage];
-          freshSessions[freshIdx] = {
-            ...freshSessions[freshIdx],
-            messages: freshMsgs,
-            timestamp: new Date().toISOString()
-          };
-        }
-
-        localStorage.setItem(`treble_${type}_sessions`, JSON.stringify(freshSessions));
-        if (type === 'theory') {
-          setTheorySessions(freshSessions);
-        } else {
-          setPracticeSessions(freshSessions);
-        }
+        // Reload sessions list from backend to fetch updated titles and messages
+        await loadSessions();
       } catch (error: any) {
         console.error('[ChatContext] message fetch error:', error);
         const detail = error instanceof Error && error.message !== 'Failed to get response' ? error.message : null;
-        
+
         const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
+          id: generateUUID(),
           role: 'assistant',
           content: detail
             ? `Sorry, I could not respond: ${detail}`
@@ -327,50 +324,43 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           timestamp: new Date(),
         };
 
-        const sessionsFreshRaw = localStorage.getItem(`treble_${type}_sessions`);
-        let freshSessions: ChatSession[] = sessionsFreshRaw ? JSON.parse(sessionsFreshRaw) : [];
-        const freshIdx = freshSessions.findIndex(s => s.id === activeId);
-
-        if (freshIdx !== -1) {
-          const freshMsgs = [...freshSessions[freshIdx].messages, errorMessage];
-          freshSessions[freshIdx] = {
-            ...freshSessions[freshIdx],
-            messages: freshMsgs,
-            timestamp: new Date().toISOString()
-          };
-        }
-
-        localStorage.setItem(`treble_${type}_sessions`, JSON.stringify(freshSessions));
         if (type === 'theory') {
-          setTheorySessions(freshSessions);
+          setTheorySessions(prev =>
+            prev.map(s =>
+              s.id === activeId
+                ? { ...s, messages: [...s.messages, errorMessage], timestamp: new Date().toISOString() }
+                : s
+            )
+          );
         } else {
-          setPracticeSessions(freshSessions);
+          setPracticeSessions(prev =>
+            prev.map(s =>
+              s.id === activeId
+                ? { ...s, messages: [...s.messages, errorMessage], timestamp: new Date().toISOString() }
+                : s
+            )
+          );
         }
       } finally {
-        setLoadingSessions(prev => ({ ...prev, [activeId!]: false }));
-        window.dispatchEvent(new Event('treble_sessions_updated'));
-        window.dispatchEvent(new Event('treble_recents_updated'));
+        setLoadingSessions(prev => ({ ...prev, [activeId]: false }));
       }
     })();
 
     return activeId;
   };
 
-  const clearAllSessions = (type: 'theory' | 'practice') => {
+  const clearAllSessions = async (type: 'theory' | 'practice') => {
+    // clearAllSessions deletes all local state for standard operations.
+    // Database chats are cleared individually or cascade automatically.
     try {
-      localStorage.removeItem(`treble_${type}_sessions`);
-      localStorage.removeItem(`treble_last_active_${type}_session_id`);
       if (type === 'theory') {
-        setTheorySessions([]);
-        setLastActiveTheorySessionId('');
+        // Clear theory sessions one by one
+        await Promise.all(theorySessions.map(s => deleteSession('theory', s.id)));
       } else {
-        setPracticeSessions([]);
-        setLastActivePracticeSessionId('');
+        await Promise.all(practiceSessions.map(s => deleteSession('practice', s.id)));
       }
-      window.dispatchEvent(new Event('treble_sessions_updated'));
-      window.dispatchEvent(new Event('treble_recents_updated'));
     } catch (err) {
-      console.error(`Failed to clear ${type} sessions:`, err);
+      console.error(`Failed to clear all ${type} sessions:`, err);
     }
   };
 
@@ -388,6 +378,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         clearAllSessions,
         updatePracticeSessionAssets,
         initializePracticeSession,
+        renameSession,
+        deleteSession
       }}
     >
       {children}

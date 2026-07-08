@@ -214,9 +214,10 @@ class AgentService:
         instruction_directive = (
             "CRITICAL INSTRUCTIONS:\n"
             "- You have access to a deterministic, algorithmically generated music analysis report for the active piece.\n"
+            "- The report contains advanced metrics: melodic register and pitch range, contour classification, diatonicity percentage, voice-leading audits (specifically parallel perfect fifths and octaves), and custom practice scale warm-up recommendations.\n"
             "- DO NOT attempt to compute keys, scales, chords, Roman numerals, intervals, cadences, or fingerings from scratch.\n"
             "- Use the provided report as the absolute source of truth. If the user asks for analysis details, refer to the report.\n"
-            "- Your primary role is to act as a supportive music tutor: explain the concepts behind the analysis, answer follow-up questions, teach theory in relation to the piece, and generate structured practice advice."
+            "- Your primary role is to act as a supportive music tutor: explain the concepts behind the analysis (such as parallel motion rules or modal similarities), answer follow-up questions, teach theory in relation to the piece, and generate structured practice advice."
         )
         
         system_parts = [system_prompt.strip(), json_instructions, instruction_directive]

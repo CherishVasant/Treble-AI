@@ -7,6 +7,8 @@ class ChatMessageIn(BaseModel):
 
 
 class TheoryChatRequest(BaseModel):
+    sessionId: str | None = None
+    chatType: str | None = None
     message: str = Field(..., min_length=1)
     context: str = ""
     system_prompt: str = "You are a helpful music theory tutor."

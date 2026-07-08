@@ -52,7 +52,7 @@ def analyze_keys_and_modulations(score, analyzed_key):
     key_mode = analyzed_key.mode
     
     # 2. Relative Major/Minor
-    relative_key = RELATIVE_KEYS.get(tonal_center, "Unknown")
+    relative_key = RELATIVE_KEYS.get(tonal_center.title(), "Unknown")
     
     # 3. Modal Interpretations
     # Get pitch-class frequencies based on note durations
@@ -246,7 +246,8 @@ def analyze_roman_numerals(chords_info, analyzed_key):
             if rn_figure in ["IV", "ii", "I", "VI#"]:
                 borrowed = True
                 
-        chromatic = secondary_dominant or borrowed or any(p[:-1] not in analyzed_key.pitchNames for p in info["pitches"])
+        key_pitch_names = [p.name for p in analyzed_key.pitches]
+        chromatic = secondary_dominant or borrowed or any(p.translate(str.maketrans('', '', '0123456789')) not in key_pitch_names for p in info["pitches"])
         
         rn_info.append({
             "measure": info["measure"],
@@ -585,13 +586,14 @@ def analyze_difficulty(score, analyzed_key, key_info, rhythm_info, interval_info
     notes_per_second = (bpm / 60.0) * (1.0 / shortest_dur) if shortest_dur > 0 else 1.0
     
     accidental_notes = 0
+    key_pitch_names = [p.name for p in analyzed_key.pitches]
     for n in score.flat.notes:
         if isinstance(n, note.Note):
-            if n.pitch.accidental is not None and n.pitch.name not in analyzed_key.pitchNames:
+            if n.pitch.accidental is not None and n.pitch.name not in key_pitch_names:
                 accidental_notes += 1
         elif isinstance(n, chord.Chord):
             for p in n.pitches:
-                if p.accidental is not None and p.name not in analyzed_key.pitchNames:
+                if p.accidental is not None and p.name not in key_pitch_names:
                     accidental_notes += 1
                     
     avg_polyphony = total_chord_pitches / chords_count if chords_count > 0 else 1.0
@@ -753,6 +755,212 @@ def suggest_fingerings(score, analyzed_key, key_info):
     }
 
 
+def analyze_register_and_contour(score):
+    """
+    Finds highest and lowest notes, register span, and classifies melodic contour.
+    """
+    from music21 import note, chord, interval
+    pitches_with_measures = []
+    
+    for part in score.parts:
+        for m in part.getElementsByClass('Measure'):
+            m_num = m.number
+            for n in m.flat.notes:
+                if isinstance(n, note.Note):
+                    pitches_with_measures.append((n.pitch, m_num))
+                elif isinstance(n, chord.Chord):
+                    for p in n.pitches:
+                        pitches_with_measures.append((p, m_num))
+                        
+    if not pitches_with_measures:
+        return {
+            "highest_note": "N/A",
+            "highest_note_measure": 0,
+            "lowest_note": "N/A",
+            "lowest_note_measure": 0,
+            "range_semitones": 0,
+            "range_interval_name": "Unison",
+            "contour": "Static"
+        }
+        
+    highest_pitch_tuple = max(pitches_with_measures, key=lambda x: x[0].midi)
+    lowest_pitch_tuple = min(pitches_with_measures, key=lambda x: x[0].midi)
+    
+    range_semitones = highest_pitch_tuple[0].midi - lowest_pitch_tuple[0].midi
+    
+    try:
+        int_obj = interval.Interval(noteStart=lowest_pitch_tuple[0], noteEnd=highest_pitch_tuple[0])
+        range_interval_name = int_obj.niceName
+    except Exception:
+        range_interval_name = f"{range_semitones} semitones"
+        
+    melody_pitches = []
+    if score.parts:
+        first_part = score.parts[0]
+        for n in first_part.flat.notes:
+            if isinstance(n, note.Note):
+                melody_pitches.append(n.pitch.midi)
+            elif isinstance(n, chord.Chord):
+                melody_pitches.append(max(p.midi for p in n.pitches))
+                
+    contour = "Static"
+    if len(melody_pitches) >= 3:
+        diffs = [melody_pitches[i] - melody_pitches[i-1] for i in range(1, len(melody_pitches))]
+        up_pct = len([d for d in diffs if d > 0]) / len(diffs)
+        down_pct = len([d for d in diffs if d < 0]) / len(diffs)
+        
+        if up_pct > 0.7:
+            contour = "Ascending"
+        elif down_pct > 0.7:
+            contour = "Descending"
+        else:
+            middle_idx = len(melody_pitches) // 2
+            max_val = max(melody_pitches)
+            max_idx = melody_pitches.index(max_val)
+            if abs(max_idx - middle_idx) < len(melody_pitches) * 0.25:
+                contour = "Arch"
+            else:
+                contour = "Wave"
+    elif len(melody_pitches) == 2:
+        diff = melody_pitches[1] - melody_pitches[0]
+        contour = "Ascending" if diff > 0 else ("Descending" if diff < 0 else "Static")
+        
+    return {
+        "highest_note": highest_pitch_tuple[0].nameWithOctave,
+        "highest_note_measure": highest_pitch_tuple[1],
+        "lowest_note": lowest_pitch_tuple[0].nameWithOctave,
+        "lowest_note_measure": lowest_pitch_tuple[1],
+        "range_semitones": range_semitones,
+        "range_interval_name": range_interval_name,
+        "contour": contour
+    }
+
+
+def calculate_diatonicity(score, analyzed_key):
+    """
+    Calculates percentage of diatonic vs. chromatic notes in the score.
+    """
+    from music21 import note, chord
+    total_notes = 0
+    diatonic_notes = 0
+    key_pitch_names = [p.name for p in analyzed_key.pitches]
+    
+    for n in score.flat.notes:
+        if isinstance(n, note.Note):
+            total_notes += 1
+            if n.pitch.name in key_pitch_names:
+                diatonic_notes += 1
+        elif isinstance(n, chord.Chord):
+            for p in n.pitches:
+                total_notes += 1
+                if p.name in key_pitch_names:
+                    diatonic_notes += 1
+                    
+    ratio = (diatonic_notes / total_notes * 100.0) if total_notes > 0 else 100.0
+    return {
+        "ratio_percentage": round(ratio, 1),
+        "total_notes_counted": total_notes,
+        "diatonic_notes_count": diatonic_notes,
+        "chromatic_notes_count": total_notes - diatonic_notes
+    }
+
+
+def detect_voice_leading_errors(score):
+    """
+    Detects parallel fifths and octaves in the score.
+    """
+    from music21 import chord
+    errors = []
+    
+    chordified = score.chordify()
+    chords = list(chordified.flat.getElementsByClass(chord.Chord))
+    
+    for idx in range(len(chords) - 1):
+        c1 = chords[idx]
+        c2 = chords[idx + 1]
+        
+        p1s = sorted(c1.pitches, key=lambda p: p.midi)
+        p2s = sorted(c2.pitches, key=lambda p: p.midi)
+        
+        min_voices = min(len(p1s), len(p2s))
+        if min_voices < 2:
+            continue
+            
+        for i in range(min_voices):
+            for j in range(i + 1, min_voices):
+                v1_start = p1s[i].midi
+                v1_end = p2s[i].midi
+                v2_start = p1s[j].midi
+                v2_end = p2s[j].midi
+                
+                if v1_start == v1_end and v2_start == v2_end:
+                    continue
+                    
+                int1 = (v2_start - v1_start) % 12
+                int2 = (v2_end - v1_end) % 12
+                
+                if int1 in [7, 0] and int1 == int2:
+                    dir1 = v1_end - v1_start
+                    dir2 = v2_end - v2_start
+                    
+                    if (dir1 > 0 and dir2 > 0) or (dir1 < 0 and dir2 < 0):
+                        int_type = "Fifth" if int1 == 7 else "Octave"
+                        measure_num = c2.measureNumber or c1.measureNumber or 1
+                        
+                        errors.append({
+                            "measure": measure_num,
+                            "type": f"Parallel Perfect {int_type}",
+                            "voice_lower": p1s[i].nameWithOctave,
+                            "voice_higher": p1s[j].nameWithOctave,
+                            "chord_from": c1.commonName,
+                            "chord_to": c2.commonName
+                        })
+                        
+    return errors[:10]
+
+
+def get_practice_recommendations(key_analysis, analyzed_key):
+    """
+    Recommends 3 practice scales from the key context and modal similarity profiles.
+    """
+    tonal_center = analyzed_key.name.title()
+    recommendations = []
+    
+    recommendations.append({
+        "scale_name": tonal_center,
+        "type": "Primary Key Warm-up",
+        "description": "Warm up your hand muscles with the base scale of the piece to build finger familiarity in the home key."
+    })
+    
+    rel_key = key_analysis.get("relative_key", "Unknown")
+    if rel_key and rel_key != "Unknown":
+        recommendations.append({
+            "scale_name": rel_key,
+            "type": "Relative Key Warm-up",
+            "description": "Practice the relative scale to understand key transitions, shared accidentals, and chord relations."
+        })
+        
+    modals = key_analysis.get("modal_interpretations", [])
+    for m in modals:
+        m_name = m["mode"]
+        if tonal_center.lower() not in m_name.lower():
+            recommendations.append({
+                "scale_name": m_name,
+                "type": "Modal Shift Practice",
+                "description": f"Practice the {m_name} mode to explore the melodic colors and modal matches detected in the score's pitch profiles."
+            })
+            break
+            
+    if len(recommendations) < 3:
+        recommendations.append({
+            "scale_name": "Chromatic Scale",
+            "type": "Technique Booster",
+            "description": "Run a chromatic scale to improve finger independence, timing precision, and keyboard orientation."
+        })
+        
+    return recommendations[:3]
+
+
 def analyze_score(mxl_path: str) -> dict:
     """
     Main entry point for parsing score and compiling the deterministic analysis report.
@@ -836,6 +1044,11 @@ def analyze_score(mxl_path: str) -> dict:
     difficulty = analyze_difficulty(score, analyzed_key, key_analysis, rhythm, intervals)
     fingerings = suggest_fingerings(score, analyzed_key, key_analysis)
     
+    register_and_contour = analyze_register_and_contour(score)
+    diatonicity = calculate_diatonicity(score, analyzed_key)
+    voice_leading_errors = detect_voice_leading_errors(score)
+    practice_recommendations = get_practice_recommendations(key_analysis, analyzed_key)
+    
     serializable_chords = []
     for c in chords_info:
         serializable_chords.append({
@@ -867,7 +1080,12 @@ def analyze_score(mxl_path: str) -> dict:
         "phrases": phrases,
         "motifs": motifs,
         "difficulty": difficulty,
-        "fingerings": fingerings
+        "fingerings": fingerings,
+        
+        "register_and_contour": register_and_contour,
+        "diatonicity": diatonicity,
+        "voice_leading_errors": voice_leading_errors,
+        "practice_recommendations": practice_recommendations
     }
     
     return report

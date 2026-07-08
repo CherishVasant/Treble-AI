@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { readFile } from 'fs/promises';
 import path from 'path';
+import { proxyToBackend } from '@/lib/backend-proxy';
 
-const BACKEND_URL = process.env.BACKEND_URL ?? 'http://127.0.0.1:8000';
 const STORE = path.join(process.cwd(), '.upload-store');
 
 type FileMeta = {
@@ -31,18 +31,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    const infoResponse = await proxyToBackend(request, `/result/${jobId}/musical-info`, {
+      method: 'GET'
+    });
+
     let musicalInfo = null;
-    try {
-      const infoResponse = await fetch(`${BACKEND_URL}/result/${jobId}/musical-info`, {
-        method: 'GET',
-        headers: { Accept: 'application/json' },
-        cache: 'no-store',
-      });
-      if (infoResponse.ok) {
-        musicalInfo = await infoResponse.json();
-      }
-    } catch (err) {
-      console.error('[convert-sheet/result] failed to fetch musical info:', err);
+    if (infoResponse.ok) {
+      musicalInfo = await infoResponse.json();
     }
 
     return NextResponse.json({
@@ -57,6 +52,10 @@ export async function GET(request: NextRequest) {
         tempo: musicalInfo?.tempo || undefined,
       },
       message: 'Conversion complete',
+    }, {
+      headers: {
+        'Set-Cookie': infoResponse.headers.get('Set-Cookie') || ''
+      }
     });
   } catch (error) {
     console.error('[convert-sheet/result] error:', error);

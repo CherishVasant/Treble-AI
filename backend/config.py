@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:3000"
 
+    # JWT Security Configuration
+    jwt_secret_key: str = "change_this_to_a_secure_random_string_in_production"
+    jwt_algorithm: str = "HS256"
+    jwt_access_token_expire_minutes: int = 15
+    jwt_refresh_token_expire_days: int = 7
+
 
 def get_settings() -> Settings:
     return Settings()

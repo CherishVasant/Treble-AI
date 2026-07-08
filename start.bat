@@ -7,7 +7,7 @@ for /f "tokens=5" %%a in ('netstat -ano ^| findstr :8000 ^| findstr LISTENING') 
 
 echo.
 echo Starting Backend Server...
-start "Backend Server" cmd /k "cd /d %~dp0backend && pip install -r requirements.txt && python main.py"
+start "Backend Server" cmd /k "cd /d %~dp0backend && if exist venv\Scripts\python.exe (venv\Scripts\python main.py) else (pip install -r requirements.txt && python main.py)"
 
 echo.
 echo Waiting 5 seconds for backend to start...

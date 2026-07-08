@@ -3,10 +3,11 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useState, useEffect, useMemo } from 'react';
-import { Music, Star, BookOpen, ChevronRight, Settings, Plus, Search, MessageSquare, Menu, X, Trash2, Loader2 } from 'lucide-react';
+import { Music, Star, BookOpen, ChevronRight, Settings, Plus, Search, MessageSquare, Menu, X, Trash2, Loader2, Edit2, Check, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useChat } from '@/context/chat-context';
+import { useAuth } from '@/context/auth-context';
 
 const CATEGORY_GROUPS = [
   {
@@ -165,13 +166,128 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   
-  const { theorySessions, practiceSessions, clearAllSessions, lastActiveTheorySessionId, lastActivePracticeSessionId } = useChat();
+  const { 
+    theorySessions, 
+    practiceSessions, 
+    clearAllSessions, 
+    lastActiveTheorySessionId, 
+    lastActivePracticeSessionId,
+    renameSession,
+    deleteSession 
+  } = useChat();
+  const { logout, user } = useAuth();
+  
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
   const [theorySearch, setTheorySearch] = useState('');
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  const handleStartRename = (e: React.MouseEvent, id: string, currentTitle: string) => {
+    e.stopPropagation();
+    setEditingSessionId(id);
+    setEditTitle(currentTitle);
+  };
+
+  const handleSaveRename = async (e: React.MouseEvent | React.KeyboardEvent, type: 'theory' | 'practice', id: string) => {
+    e.stopPropagation();
+    if (!editTitle.trim()) return;
+    const ok = await renameSession(type, id, editTitle.trim());
+    if (ok) {
+      setEditingSessionId(null);
+    }
+  };
+
+  const handleCancelRename = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingSessionId(null);
+  };
+
+  const handleDeleteSession = async (e: React.MouseEvent, type: 'theory' | 'practice', id: string) => {
+    e.stopPropagation();
+    if (confirm('Are you sure you want to delete this conversation?')) {
+      const ok = await deleteSession(type, id);
+      if (ok && currentSessionId === id) {
+        router.push(type === 'theory' ? '/theory-tutor' : '/practice-studio');
+      }
+    }
+  };
+
+  const renderSessionRow = (session: any, type: 'theory' | 'practice') => {
+    const isActive = currentSessionId === session.id;
+    const isEditing = editingSessionId === session.id;
+    
+    if (isEditing) {
+      return (
+        <div key={session.id} className="w-full flex items-center gap-1.5 px-2 py-1 bg-card/65 border border-border/40 rounded-lg">
+          <input
+            type="text"
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleSaveRename(e, type, session.id);
+              if (e.key === 'Escape') handleCancelRename(e as any);
+            }}
+            autoFocus
+            className="flex-1 min-w-0 bg-transparent text-xs text-foreground focus:outline-none"
+          />
+          <button
+            onClick={(e) => handleSaveRename(e, type, session.id)}
+            className="p-0.5 text-green-400 hover:text-green-300 transition-colors"
+          >
+            <Check className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={handleCancelRename}
+            className="p-0.5 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      );
+    }
+    
+    const clickUrl = type === 'theory'
+      ? `/theory-tutor?sessionId=${session.id}`
+      : `/practice-studio?sessionId=${session.id}`;
+      
+    return (
+      <div
+        key={session.id}
+        onClick={() => router.push(clickUrl)}
+        className={`group relative w-full flex items-center justify-between rounded-lg text-left text-xs truncate transition-all duration-200 border cursor-pointer ${
+          isActive
+            ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
+            : 'text-muted-foreground hover:bg-card/45 hover:text-foreground border-transparent px-3 py-1.5'
+        }`}
+      >
+        <div className="flex items-center gap-2 truncate flex-1 mr-8">
+          <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{session.title}</span>
+        </div>
+        
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-card/85 via-card/75 to-transparent pl-3 py-0.5">
+          <button
+            onClick={(e) => handleStartRename(e, session.id, session.title)}
+            className="text-muted-foreground hover:text-primary transition-colors p-0.5"
+            title="Rename"
+          >
+            <Edit2 className="w-3 h-3" />
+          </button>
+          <button
+            onClick={(e) => handleDeleteSession(e, type, session.id)}
+            className="text-muted-foreground hover:text-red-400 transition-colors p-0.5"
+            title="Delete"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    );
+  };
   
   // Music Library Specific states
   const [favoritesCount, setFavoritesCount] = useState(0);
@@ -317,60 +433,21 @@ export default function Sidebar() {
             {groupedPracticeSessions.today.length > 0 && (
               <div className="space-y-1">
                 <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">Today's Chats</h5>
-                {groupedPracticeSessions.today.map(session => (
-                  <button
-                    key={session.id}
-                    onClick={() => router.push(`/practice-studio?sessionId=${session.id}`)}
-                    className={`w-full flex items-center gap-2 rounded-lg text-left text-xs truncate transition-all duration-200 border ${
-                      currentSessionId === session.id
-                        ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
-                        : 'text-muted-foreground hover:bg-card/45 hover:text-foreground border-transparent px-3 py-1.5'
-                    }`}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">{session.title}</span>
-                  </button>
-                ))}
+                {groupedPracticeSessions.today.map(session => renderSessionRow(session, 'practice'))}
               </div>
             )}
 
             {groupedPracticeSessions.yesterday.length > 0 && (
               <div className="space-y-1">
                 <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">Yesterday</h5>
-                {groupedPracticeSessions.yesterday.map(session => (
-                  <button
-                    key={session.id}
-                    onClick={() => router.push(`/practice-studio?sessionId=${session.id}`)}
-                    className={`w-full flex items-center gap-2 rounded-lg text-left text-xs truncate transition-all duration-200 border ${
-                      currentSessionId === session.id
-                        ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
-                        : 'text-muted-foreground hover:bg-card/45 hover:text-foreground border-transparent px-3 py-1.5'
-                    }`}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">{session.title}</span>
-                  </button>
-                ))}
+                {groupedPracticeSessions.yesterday.map(session => renderSessionRow(session, 'practice'))}
               </div>
             )}
 
             {groupedPracticeSessions.older.length > 0 && (
               <div className="space-y-1">
                 <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">Older</h5>
-                {groupedPracticeSessions.older.map(session => (
-                  <button
-                    key={session.id}
-                    onClick={() => router.push(`/practice-studio?sessionId=${session.id}`)}
-                    className={`w-full flex items-center gap-2 rounded-lg text-left text-xs truncate transition-all duration-200 border ${
-                      currentSessionId === session.id
-                        ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
-                        : 'text-muted-foreground hover:bg-card/45 hover:text-foreground border-transparent px-3 py-1.5'
-                    }`}
-                  >
-                    <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                    <span className="truncate">{session.title}</span>
-                  </button>
-                ))}
+                {groupedPracticeSessions.older.map(session => renderSessionRow(session, 'practice'))}
               </div>
             )}
 
@@ -411,20 +488,7 @@ export default function Sidebar() {
 
           <div className="flex-1 overflow-y-auto min-h-0 space-y-1 pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
             <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">Conversations</h5>
-            {filteredTheorySessions.map(session => (
-              <button
-                key={session.id}
-                onClick={() => router.push(`/theory-tutor?sessionId=${session.id}`)}
-                className={`w-full flex items-center gap-2 rounded-lg text-left text-xs truncate transition-all duration-200 border ${
-                  currentSessionId === session.id
-                    ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
-                    : 'text-muted-foreground hover:bg-card/45 hover:text-foreground border-transparent px-3 py-1.5'
-                }`}
-              >
-                <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{session.title}</span>
-              </button>
-            ))}
+            {filteredTheorySessions.map(session => renderSessionRow(session, 'theory'))}
 
             {filteredTheorySessions.length === 0 && (
               <div className="text-center py-6 px-3 border border-dashed border-border/20 rounded-xl">
@@ -578,6 +642,13 @@ export default function Sidebar() {
             Clear All Chats
           </button>
         )}
+
+        {user && (
+          <div className="px-3 py-1.5 flex items-center justify-between text-xs text-muted-foreground/80 font-medium">
+            <span className="truncate">Active: <b className="text-foreground">{user.username}</b></span>
+          </div>
+        )}
+
         <button
           onClick={handleSettingsClick}
           suppressHydrationWarning={true}
@@ -585,6 +656,15 @@ export default function Sidebar() {
         >
           <Settings className="w-4 h-4" />
           Settings
+        </button>
+
+        <button
+          onClick={logout}
+          suppressHydrationWarning={true}
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-red-400/80 hover:text-red-400 hover:bg-red-500/10 transition-all text-sm font-semibold hover:border-transparent"
+        >
+          <LogOut className="w-4 h-4" />
+          Log Out
         </button>
       </div>
     </div>

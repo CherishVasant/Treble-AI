@@ -1,29 +1,28 @@
 import { readFile } from 'fs/promises';
 import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
+import { proxyToBackend } from '@/lib/backend-proxy';
 
 const STORE = path.join(process.cwd(), '.upload-store');
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ fileId: string }> }
 ) {
+  const { fileId } = await context.params;
+  if (!fileId || fileId.includes('..') || fileId.includes('/') || fileId.includes('\\')) {
+    return NextResponse.json({ error: 'Invalid file id' }, { status: 400 });
+  }
+
+  const metaPath = path.join(STORE, `${fileId}.meta.json`);
+  const binPath = path.join(STORE, `${fileId}.bin`);
+
   try {
-    const { fileId } = await context.params;
-    if (!fileId || fileId.includes('..') || fileId.includes('/') || fileId.includes('\\')) {
-      return NextResponse.json({ error: 'Invalid file id' }, { status: 400 });
-    }
-
-    const metaPath = path.join(STORE, `${fileId}.meta.json`);
-    const binPath = path.join(STORE, `${fileId}.bin`);
-
+    // Try local temporary upload store first (e.g. during immediate upload preview)
     const metaRaw = await readFile(metaPath, 'utf-8');
     const meta = JSON.parse(metaRaw) as { mimeType?: string; originalName?: string };
-
     const buf = await readFile(binPath);
-
-    const contentType =
-      meta.mimeType && meta.mimeType.length > 0 ? meta.mimeType : 'application/octet-stream';
+    const contentType = meta.mimeType && meta.mimeType.length > 0 ? meta.mimeType : 'application/octet-stream';
 
     return new NextResponse(buf, {
       status: 200,
@@ -34,6 +33,7 @@ export async function GET(
       },
     });
   } catch {
-    return NextResponse.json({ error: 'File not found' }, { status: 404 });
+    // Fallback: proxy to Python backend to retrieve the persisted original score file
+    return proxyToBackend(request, `/result/${encodeURIComponent(fileId)}/original`);
   }
 }

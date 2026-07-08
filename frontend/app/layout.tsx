@@ -1,10 +1,7 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
-import { Suspense } from 'react'
-import Navbar from '@/components/navbar'
-import Sidebar from '@/components/sidebar'
-import { ChatProvider } from '@/context/chat-context'
+import { AppProviders } from '@/components/app-providers'
 import './globals.css'
 
 const geist = Geist({ subsets: ["latin"], variable: '--font-geist' });
@@ -41,17 +38,9 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${geist.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <body className="dark bg-background text-foreground" suppressHydrationWarning>
-        <ChatProvider>
-          <Suspense fallback={null}>
-            <Sidebar />
-          </Suspense>
-          <div className="flex flex-col min-h-screen md:pl-64">
-            <Navbar />
-            <main className="flex-1">
-              {children}
-            </main>
-          </div>
-        </ChatProvider>
+        <AppProviders>
+          {children}
+        </AppProviders>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

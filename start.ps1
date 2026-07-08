@@ -8,7 +8,7 @@ Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue | ForEach-Obj
 
 Write-Host ""
 Write-Host "Starting Backend Server..." -ForegroundColor Yellow
-Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\backend'; pip install -r requirements.txt; python main.py" -WindowStyle Normal
+Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PSScriptRoot\backend'; if (Test-Path venv\Scripts\python.exe) { .\venv\Scripts\python main.py } else { pip install -r requirements.txt; python main.py }" -WindowStyle Normal
 
 Write-Host ""
 Write-Host "Waiting 30 seconds for backend to start..." -ForegroundColor Cyan

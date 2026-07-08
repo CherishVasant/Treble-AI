@@ -1,14 +1,5 @@
 # TrebleAI — AI-Powered Music Theory & Practice Platform
 
-<p align="center">
-  <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
-  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
-  <img src="https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=chainlink&logoColor=white" alt="LangChain" />
-  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
-  <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="MIT License" />
-</p>
-
 TrebleAI is a premium, full-featured music theory learning and sheet music practice application. It combines a modern Next.js client with a robust FastAPI backend to help musicians practice sheet music, analyze notation, and receive real-time, context-aware guidance from an AI music tutor.
 
 ---
@@ -38,59 +29,7 @@ TrebleAI is a premium, full-featured music theory learning and sheet music pract
 
 ## ⚙️ Core Architecture & Pipeline
 
-TrebleAI features a advanced sheet music processing pipeline. When a user uploads a sheet music image or PDF, the backend automatically converts it into interactive notation, parses its musical qualities, and synthesizes playable audio:
-
-```mermaid
-graph TD
-    subgraph Frontend [Next.js Client]
-        UI[Interactive UI]
-        OSMD[OpenSheetMusicDisplay Renderer]
-        Player[Music Player]
-        AIChat[Context-Aware Chat]
-        RefLib[Reference Cards]
-    end
-
-    subgraph Backend [FastAPI Server]
-        API[API Endpoints / Router]
-        AuthSvc[JWT Authentication]
-        OMRPipeline[OMR & Synthesis Pipeline]
-        AgentSvc[LangChain Agent Service]
-    end
-
-    subgraph ExternalServices [External Services]
-        LLM[OpenAI / OpenRouter API]
-        Search[Tavily / Serper / DuckDuckGo APIs]
-    end
-
-    subgraph ProcessingPipeline [OMR & Audio Pipeline Flow]
-        Upload[Uploaded PDF/Image] --> Enhance[OpenCV Enhancement]
-        Enhance --> Audiveris[Audiveris OMR]
-        Audiveris --> MXL[MusicXML File]
-        MXL --> music21[music21 Parser]
-        music21 --> MIDI[MIDI File]
-        music21 --> Metadata[Metadata Extraction]
-        MIDI --> FluidSynth[FluidSynth Synthesis]
-        FluidSynth --> WAV[WAV Audio]
-    end
-
-    subgraph Database [Database System]
-        DB[(SQLite / PostgreSQL)]
-    end
-
-    %% Interactions
-    UI -->|HTTP / JSON| API
-    UI -->|Upload Sheet| API
-    API -->|Authenticate / Tokens| AuthSvc
-    AuthSvc -->|Save Users| DB
-    API -->|Process Job| OMRPipeline
-    OMRPipeline -->|Run Pipeline| ProcessingPipeline
-    OMRPipeline -->|Save Metadata & Paths| DB
-    API -->|Tutor Chat| AgentSvc
-    AgentSvc -->|System Prompt & Context| LLM
-    AgentSvc -->|Web Search Queries| Search
-    AgentSvc -->|Local Search| DB
-    RefLib -->|Fetch Scales/Chords| DB
-```
+TrebleAI features an advanced sheet music processing pipeline. When a user uploads a sheet music image or PDF, the backend automatically converts it into interactive notation, parses its musical qualities, and synthesizes playable audio.
 
 ### OMR & Audio Pipeline Breakdown
 1. **Enhancement**: OpenCV processes uploaded images (grayscale conversion, adaptive thresholding, deskewing) to optimize readability. PyMuPDF renders PDF pages to crisp images.

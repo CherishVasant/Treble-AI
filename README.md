@@ -1,121 +1,251 @@
-# Treble AI - Musical Terms Chatbot
+# TrebleAI — AI-Powered Music Theory & Practice Platform
 
-A web application that helps users understand musical terms and concepts using AI-powered search and a vector database.
+<p align="center">
+  <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=nextdotjs&logoColor=white" alt="Next.js" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/LangChain-1C3C3C?style=for-the-badge&logo=chainlink&logoColor=white" alt="LangChain" />
+  <img src="https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python" />
+  <img src="https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge" alt="MIT License" />
+</p>
 
-## Features
+TrebleAI is a premium, full-featured music theory learning and sheet music practice application. It combines a modern Next.js client with a robust FastAPI backend to help musicians practice sheet music, analyze notation, and receive real-time, context-aware guidance from an AI music tutor.
 
-- 🤖 AI-powered musical term definitions using Google Gemini
-- 🔍 Web search integration with Tavily
-- 📚 Wikipedia integration for comprehensive explanations
-- 💾 Vector database storage for quick retrieval
-- 🎨 Modern React frontend with beautiful UI
-- 📱 Responsive design
-- 🔄 Real-time chat interface
-- 📖 Search history and glossary
+---
 
-## Prerequisites
+## 🎯 Key Features
 
-- Python 3.8+
-- Node.js 18+
-- npm or yarn
+### 🎵 Practical Practice Page
+* **Sheet Music Uploader**: Interactive drag-and-drop interface supporting PDF and MusicXML/MXL files.
+* **Dynamic Notation Rendering**: High-fidelity, vector-based sheet music rendering powered by OpenSheetMusicDisplay (OSMD).
+* **Interactive Player**: Custom playback speed (0.5x - 2.0x) and volume controls for synthesized audio play-along.
+* **Context-Aware AI Chat**: Talk to an AI tutor who knows exactly which sheet music you are practicing, its key signature, tempo, and composer, giving you tailored advice and study recommendations.
 
-## Setup
+### 🎓 Theory Assistant
+* **Immersive Chat Space**: A full-screen study interface with a beautiful glassmorphism design and custom floating background animations.
+* **Dynamic Study Titles**: Conversational chat sessions are automatically summarized into concise, academic music-study titles using LLMs.
+* **Suggested Study Prompts**: Instant prompts to quickly explore topics like modal harmony, cadences, voice leading, and chord construction.
 
-### 1. Clone the repository
+### 📚 Reference Library
+* **Searchable Database**: Quickly search scales, chords, and musical notes stored in a relational database.
+* **Visual Information Cards**: Interactive cards that expand to show note spelling, mathematical scale formulas, interval configurations, and structural metadata.
+
+### 🔐 User Management & Security
+* **JWT-Based Authentication**: Secure login/registration using Access and Refresh tokens with automated token versioning to support instant session invalidations.
+* **Password Hashing**: Secure storage via `argon2-cffi` / `bcrypt` algorithms.
+
+---
+
+## ⚙️ Core Architecture & Pipeline
+
+TrebleAI features a advanced sheet music processing pipeline. When a user uploads a sheet music image or PDF, the backend automatically converts it into interactive notation, parses its musical qualities, and synthesizes playable audio:
+
+```mermaid
+graph TD
+    subgraph Frontend [Next.js Client]
+        UI[Interactive UI]
+        OSMD[OpenSheetMusicDisplay Renderer]
+        Player[Music Player]
+        AIChat[Context-Aware Chat]
+        RefLib[Reference Cards]
+    end
+
+    subgraph Backend [FastAPI Server]
+        API[API Endpoints / Router]
+        AuthSvc[JWT Authentication]
+        OMRPipeline[OMR & Synthesis Pipeline]
+        AgentSvc[LangChain Agent Service]
+    end
+
+    subgraph ExternalServices [External Services]
+        LLM[OpenAI / OpenRouter API]
+        Search[Tavily / Serper / DuckDuckGo APIs]
+    end
+
+    subgraph ProcessingPipeline [OMR & Audio Pipeline Flow]
+        Upload[Uploaded PDF/Image] --> Enhance[OpenCV Enhancement]
+        Enhance --> Audiveris[Audiveris OMR]
+        Audiveris --> MXL[MusicXML File]
+        MXL --> music21[music21 Parser]
+        music21 --> MIDI[MIDI File]
+        music21 --> Metadata[Metadata Extraction]
+        MIDI --> FluidSynth[FluidSynth Synthesis]
+        FluidSynth --> WAV[WAV Audio]
+    end
+
+    subgraph Database [Database System]
+        DB[(SQLite / PostgreSQL)]
+    end
+
+    %% Interactions
+    UI -->|HTTP / JSON| API
+    UI -->|Upload Sheet| API
+    API -->|Authenticate / Tokens| AuthSvc
+    AuthSvc -->|Save Users| DB
+    API -->|Process Job| OMRPipeline
+    OMRPipeline -->|Run Pipeline| ProcessingPipeline
+    OMRPipeline -->|Save Metadata & Paths| DB
+    API -->|Tutor Chat| AgentSvc
+    AgentSvc -->|System Prompt & Context| LLM
+    AgentSvc -->|Web Search Queries| Search
+    AgentSvc -->|Local Search| DB
+    RefLib -->|Fetch Scales/Chords| DB
+```
+
+### OMR & Audio Pipeline Breakdown
+1. **Enhancement**: OpenCV processes uploaded images (grayscale conversion, adaptive thresholding, deskewing) to optimize readability. PyMuPDF renders PDF pages to crisp images.
+2. **OMR (Optical Music Recognition)**: Audiveris processes the image to output a MusicXML (`.mxl`) file.
+3. **Parsing**: `music21` inspects the XML structure to extract metadata (tempo, key signatures, active accidentals, time signature).
+4. **Synthesis**: `music21` compiles the score into standard MIDI, which FluidSynth synthesizes into standard WAV audio using a high-quality GeneralUser SoundFont.
+
+---
+
+## 🛠️ Tech Stack
+
+### Backend
+* **Web Framework**: FastAPI (Python 3.10+)
+* **Database & ORM**: SQLAlchemy 2.0 (SQLite for development, supports PostgreSQL)
+* **Agentic AI**: LangChain (LangChain OpenAI / LangChain Core)
+* **Image Processing**: OpenCV & PyMuPDF (fitz)
+* **Music Analysis**: `music21`
+* **OMR Software**: Audiveris OMR Engine
+* **Audio Synthesizer**: FluidSynth & GeneralUser SoundFont
+
+### Frontend
+* **Framework**: Next.js 16 (App Router, TypeScript)
+* **Styling**: Tailwind CSS 4.0
+* **UI Components**: shadcn/ui & Radix primitives
+* **Animations**: Tailwind Animate & CSS custom animations
+* **Sheet Music Display**: OpenSheetMusicDisplay (OSMD)
+* **State & APIs**: Axios & Vercel AI SDK
+
+---
+
+## 🚀 Quick Setup & Installation
+
+### Prerequisites
+* **Python** (version 3.10 or higher)
+* **Node.js** (version 18 or higher)
+* **pnpm** (preferred) or **npm**
+* **Audiveris OMR** (Required for PDF/Image processing: [Install Audiveris](https://github.com/Audiveris/audiveris))
+* **FluidSynth** (Required for MIDI synthesis: [Install FluidSynth](https://github.com/FluidSynth/fluidsynth/releases))
+
+---
+
+### Step 1: Clone and Prepare Workspace
 ```bash
-git clone <repository-url>
-cd TrebleAI
+git clone https://github.com/CherishVasant/Treble-AI.git
+cd Treble-AI
 ```
 
-### 2. Set up Python environment
-```bash
-# Create virtual environment
-python -m venv venv
+### Step 2: Configure Backend Environment
+1. Navigate to the backend folder:
+   ```bash
+   cd backend
+   ```
+2. Create virtual environment and install dependencies:
+   ```bash
+   python -m venv venv
+   # On Windows:
+   .\venv\Scripts\activate
+   # On macOS/Linux:
+   source venv/bin/activate
 
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
+   pip install -r requirements.txt
+   ```
+3. Set up your environment variables by copying `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+4. Update the variables inside `.env`:
+   * Set your `DATABASE_URL` (defaults to SQLite if left empty).
+   * Put your `OPENAI_API_KEY` or `OPENROUTER_API_KEY`.
+   * (Optional) Configure custom local binary paths for `AUDIVERIS_PATH` or `FLUIDSYNTH_PATH` in `config.py` / `pipeline.py` if they are not in your system environment PATH.
 
-# Install Python dependencies
-pip install -r requirements.txt
+---
+
+### Step 3: Configure Frontend Environment
+1. Navigate to the frontend folder:
+   ```bash
+   cd ../frontend
+   ```
+2. Install dependencies:
+   ```bash
+   pnpm install
+   # Or using npm:
+   npm install
+   ```
+3. Configure frontend environment variables:
+   ```bash
+   cp .env.example .env.local
+   ```
+4. Update `OPENAI_API_KEY` or `NEXT_PUBLIC_APP_URL` in `.env.local` as needed.
+
+---
+
+## 🏃 Running the Application
+
+### Option A: Using the Automatic Startup Scripts (Windows)
+We provide easy launcher scripts at the root directory:
+* **Batch Script**: Double click `start.bat` or run:
+  ```cmd
+  .\start.bat
+  ```
+* **PowerShell Script**: Run:
+  ```powershell
+  powershell -ExecutionPolicy Bypass -File start.ps1
+  ```
+
+### Option B: Manual Startup
+
+1. **Start the FastAPI Backend**:
+   ```bash
+   cd backend
+   # Ensure your virtual environment is active
+   python main.py
+   ```
+   The backend will be running at `http://localhost:8000`.
+
+2. **Start the Next.js Frontend**:
+   ```bash
+   cd frontend
+   pnpm dev
+   # Or using npm
+   npm run dev
+   ```
+   The client application will be running at `http://localhost:3000`.
+
+---
+
+## 📁 Repository Directory Layout
+
+```
+Treble-AI/
+├── backend/
+│   ├── routers/             # API Router endpoints (Auth, Chats, Reference, Theory)
+│   ├── services/            # Shared business logic and LangChain services
+│   ├── soundfonts/          # GeneralUser-GS SoundFont file for MIDI playback
+│   ├── database.py          # SQLAlchemy engine, session maker, and DB base model
+│   ├── main.py              # Application entry point, lifespan, CORS, and root endpoints
+│   ├── models.py            # SQLAlchemy schema models (Users, Chats, PracticeSessions)
+│   ├── pipeline.py          # OMR, MusicXML parsing, MIDI conversion & FluidSynth audio synthesis
+│   ├── seed.py              # Startup database seed scripts for the Reference library
+│   └── requirements.txt     # Python libraries list
+├── frontend/
+│   ├── app/                 # Next.js App Router (Layouts, Pages, APIs)
+│   ├── components/          # Reusable React components (Player, OSMD Viewer, AIChat)
+│   ├── context/             # React Context providers (AuthContext, ThemeContext)
+│   ├── styles/              # CSS theme and custom animation variables
+│   └── package.json         # Node.js dependencies configuration
+├── start.bat                # Windows quick launcher batch file
+├── start.ps1                # Windows quick launcher PowerShell script
+└── requirements.txt         # Root-level requirements redirection
 ```
 
-### 3. Set up environment variables
-Create a `.env` file in the backend directory with your API keys:
-```env
-GOOGLE_API_KEY=your_google_api_key_here
-TAVILY_API_KEY=your_tavily_api_key_here
-```
+---
 
-### 4. Set up frontend
-```bash
-cd frontend
-npm install
-```
+## 📜 License
+This project is licensed under the MIT License. Feel free to use, modify, and distribute it as you wish.
 
-## Running the Application
-
-### Option 1: Using the startup script (Windows)
-```bash
-# Run the batch file
-start.bat
-
-# Or run the PowerShell script
-powershell -ExecutionPolicy Bypass -File start.ps1
-```
-
-### Option 2: Manual startup
-
-#### Start the backend server:
-```bash
-cd backend
-python main.py
-```
-The backend will be available at: http://localhost:8000
-
-#### Start the frontend server (in a new terminal):
-```bash
-cd frontend
-npm run dev
-```
-The frontend will be available at: http://localhost:3000
-
-## API Endpoints
-
-- `GET /` - Root endpoint
-- `POST /chat` - Main chat endpoint
-- `GET /health` - Health check
-- `GET /search-history` - Get search history
-- `DELETE /clear-memory` - Clear conversation memory
-
-## Usage
-
-1. Open your browser and navigate to http://localhost:3000
-2. Start chatting with Treble AI about musical terms
-3. Ask questions like:
-   - "What is a diminished chord?"
-   - "Define arpeggio"
-   - "What does legato mean?"
-4. View your search history in the left sidebar
-5. Use the suggestions sidebar for quick queries
-
-## Architecture
-
-- **Frontend**: Next.js with TypeScript, Tailwind CSS
-- **Backend**: FastAPI with Python
-- **AI**: Google Gemini via LangChain
-- **Vector Database**: ChromaDB
-- **Search**: Tavily and Wikipedia APIs
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License. 
+---
+*Built with ❤️ by [Cherish Vasant](https://github.com/CherishVasant)*

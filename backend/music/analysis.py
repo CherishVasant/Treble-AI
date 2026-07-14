@@ -1060,6 +1060,32 @@ def analyze_score(mxl_path: str) -> dict:
             "pitches": c["pitches"]
         })
         
+    measures_map = []
+    try:
+        tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
+        tempo_val = tempos[0].number if tempos else 120
+        seconds_per_beat = 60.0 / tempo_val
+        
+        try:
+            expanded = score.expandRepeats()
+        except Exception:
+            expanded = score
+            
+        parts = expanded.parts
+        if parts:
+            measures = parts[0].getElementsByClass('Measure')
+            for idx, m in enumerate(measures):
+                start_sec = m.offset * seconds_per_beat
+                end_sec = (m.offset + m.quarterLength) * seconds_per_beat
+                measures_map.append({
+                    "measure_index": idx,
+                    "measure_number": int(m.number),
+                    "start_time": float(start_sec),
+                    "end_time": float(end_sec)
+                })
+    except Exception as me:
+        print(f"[analysis] Error building measures_map: {me}")
+
     report = {
         "title": title,
         "composer": composer,
@@ -1070,6 +1096,7 @@ def analyze_score(mxl_path: str) -> dict:
         "parts": parts_info,
         "note_summary": note_summary,
         "notes": note_events,
+        "measures_map": measures_map,
         
         "key_analysis": key_analysis,
         "chord_list": serializable_chords,

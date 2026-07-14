@@ -365,6 +365,9 @@ export default function AIChat({
                           <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
+                              p: ({ node, children, ...props }: any) => {
+                                return <div className="mb-3 last:mb-0 leading-relaxed">{children}</div>;
+                              },
                               code: ({ node, inline, className, children, ...props } : any) => {
                                 return inline ? (
                                   <code className="bg-muted/70 px-1 py-0.5 rounded text-xs font-mono font-semibold" {...props}>{children}</code>

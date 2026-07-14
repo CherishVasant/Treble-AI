@@ -23,6 +23,7 @@ interface SheetMusicViewerProps {
   onLoopToggle?: () => void;
   onLoopStartChange?: (val: number) => void;
   onLoopEndChange?: (val: number) => void;
+  measuresMap?: any[];
 }
 
 const getFractionRealValue = (fraction: any): number => {
@@ -83,6 +84,7 @@ export default function SheetMusicViewer({
   onLoopToggle,
   onLoopStartChange,
   onLoopEndChange,
+  measuresMap = [],
 }: SheetMusicViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(false);
@@ -313,28 +315,53 @@ export default function SheetMusicViewer({
   // === DIAGNOSTIC VERSION ===
   useEffect(() => {
     const osmd = osmdRef.current;
-    if (!osmd || !osmd.cursor || secondsPerMeasure <= 0) return;
+    if (!osmd || !osmd.cursor) return;
 
     const tl = timelineRef.current;
-    const elapsedMeasures = Math.floor(currentTime / secondsPerMeasure);
-    const physicalIndex = tl.length > 0
-      ? (tl[Math.min(elapsedMeasures, tl.length - 1)] ?? elapsedMeasures)
-      : elapsedMeasures;
-
     const measures = osmd.Sheet?.SourceMeasures || [];
-    const measure = measures[physicalIndex];
+    if (measures.length === 0) return;
+
+    let writtenIndex = 0;
+    let fractionalMeasure = 0;
+
+    if (Array.isArray(measuresMap) && measuresMap.length > 0) {
+      let foundIndex = -1;
+      for (let i = 0; i < measuresMap.length; i++) {
+        if (currentTime >= measuresMap[i].start_time) {
+          foundIndex = i;
+        }
+      }
+      const idx = foundIndex !== -1 ? foundIndex : 0;
+      const mEntry = measuresMap[idx];
+      writtenIndex = Math.max(0, Math.min(measures.length - 1, mEntry.measure_number - 1));
+      
+      const start = mEntry.start_time;
+      const end = mEntry.end_time;
+      fractionalMeasure = end > start
+        ? Math.max(0, Math.min(1, (currentTime - start) / (end - start)))
+        : 0;
+    } else {
+      if (secondsPerMeasure <= 0) return;
+      const elapsedMeasures = Math.floor(currentTime / secondsPerMeasure);
+      writtenIndex = tl.length > 0
+        ? (tl[Math.min(elapsedMeasures, tl.length - 1)] ?? elapsedMeasures)
+        : elapsedMeasures;
+      writtenIndex = Math.max(0, Math.min(measures.length - 1, writtenIndex));
+      fractionalMeasure = (currentTime / secondsPerMeasure) % 1;
+    }
+
+    const measure = measures[writtenIndex];
     if (!measure) return;
 
     try {
       const measureStart = getFractionRealValue(measure.AbsoluteTimestamp);
       
-      const nextMeasure = measures[physicalIndex + 1];
+      const nextMeasure = measures[writtenIndex + 1];
       const nextStart = nextMeasure 
         ? getFractionRealValue(nextMeasure.AbsoluteTimestamp) 
         : (measureStart + 1.0);
         
       const measureDuration = nextStart - measureStart;
-      const fractionalMeasure = (currentTime / secondsPerMeasure) % 1;
       
       // Target timestamp in whole notes since beginning of sheet
       const targetTimestamp = measureStart + (fractionalMeasure * measureDuration);
@@ -377,9 +404,20 @@ export default function SheetMusicViewer({
     } catch (e) {
       console.warn('[SheetMusicViewer] Cursor note-level sync error:', e);
     }
-  }, [currentTime, secondsPerMeasure]);
+  }, [currentTime, secondsPerMeasure, measuresMap]);
 
   const activeMeasure = useMemo(() => {
+    if (Array.isArray(measuresMap) && measuresMap.length > 0) {
+      let foundIndex = -1;
+      for (let i = 0; i < measuresMap.length; i++) {
+        if (currentTime >= measuresMap[i].start_time) {
+          foundIndex = i;
+        }
+      }
+      const idx = foundIndex !== -1 ? foundIndex : 0;
+      return measuresMap[idx].measure_number;
+    }
+
     if (secondsPerMeasure <= 0) return 1;
     const tl = timelineRef.current;
     const elapsedMeasures = Math.floor(currentTime / secondsPerMeasure);
@@ -387,7 +425,7 @@ export default function SheetMusicViewer({
       ? (tl[Math.min(elapsedMeasures, tl.length - 1)] ?? elapsedMeasures)
       : elapsedMeasures;
     return physicalIndex + 1;
-  }, [currentTime, secondsPerMeasure]);
+  }, [currentTime, secondsPerMeasure, measuresMap]);
 
   const empty = !showRasterOrPdf && !showOsmd && !loading && !error;
 
@@ -473,39 +511,6 @@ export default function SheetMusicViewer({
           </div>
 
           <div className="flex items-center flex-wrap gap-4">
-            {/* Loop controls */}
-            {showOsmd && (
-              <div className="flex items-center gap-2 border-r border-border/30 pr-4">
-                <Button
-                  size="sm"
-                  variant={isLooping ? 'default' : 'outline'}
-                  onClick={onLoopToggle}
-                  className={`h-8 gap-1.5 ${isLooping ? 'bg-gradient-primary text-white border-transparent' : 'border-border/50 text-muted-foreground'}`}
-                >
-                  <RotateCcw className={`w-3.5 h-3.5 ${isLooping ? 'animate-spin' : ''}`} style={{ animationDuration: '4s' }} />
-                  Loop
-                </Button>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min={1}
-                    value={loopStartMeasure}
-                    onChange={(e) => onLoopStartChange?.(Math.max(1, parseInt(e.target.value) || 1))}
-                    className="w-12 h-8 px-1 text-center bg-card/50 border border-border/30 rounded text-xs text-foreground focus:outline-none focus:border-primary"
-                    title="Loop Start Measure"
-                  />
-                  <span className="text-xs text-muted-foreground">to</span>
-                  <input
-                    type="number"
-                    min={loopStartMeasure}
-                    value={loopEndMeasure}
-                    onChange={(e) => onLoopEndChange?.(Math.max(loopStartMeasure, parseInt(e.target.value) || loopStartMeasure))}
-                    className="w-12 h-8 px-1 text-center bg-card/50 border border-border/30 rounded text-xs text-foreground focus:outline-none focus:border-primary"
-                    title="Loop End Measure"
-                  />
-                </div>
-              </div>
-            )}
 
             {/* Zoom controls */}
             {showOsmd && (

@@ -43,6 +43,12 @@ interface ChatContextType {
     fileData: { id: string; name: string } | null,
     metadata: any | null
   ) => string;
+  migratePracticeSessionId: (
+    oldId: string,
+    newId: string,
+    fileData: { id: string; name: string } | null,
+    metadata: any | null
+  ) => void;
   renameSession: (type: 'theory' | 'practice', id: string, newTitle: string) => Promise<boolean>;
   deleteSession: (type: 'theory' | 'practice', id: string) => Promise<boolean>;
 }
@@ -195,9 +201,50 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     fileData: { id: string; name: string } | null,
     metadata: any | null
   ): string => {
-    // Return a fresh UUID, which will be generated on process startup by the backend anyway.
-    // The uploader uses this UUID to represent the file job.
-    return fileData?.id || generateUUID();
+    const sessionId = fileData?.id || generateUUID();
+    
+    setPracticeSessions(prev => {
+      const exists = prev.some(s => s.id === sessionId);
+      if (exists) return prev;
+      
+      const newSession: ChatSession = {
+        id: sessionId,
+        title: fileData?.name || 'New Practice Session',
+        timestamp: new Date().toISOString(),
+        messages: [],
+        uploadedFileData: fileData,
+        processedMetadata: metadata
+      };
+      return [newSession, ...prev];
+    });
+    
+    setLastActivePracticeSessionId(sessionId);
+    localStorage.setItem('treble_last_active_practice_session_id', sessionId);
+    
+    return sessionId;
+  }, []);
+
+  const migratePracticeSessionId = useCallback((
+    oldId: string,
+    newId: string,
+    fileData: { id: string; name: string } | null,
+    metadata: any | null
+  ) => {
+    setPracticeSessions(prev =>
+      prev.map(s =>
+        s.id === oldId
+          ? {
+               ...s,
+               id: newId,
+               uploadedFileData: fileData,
+               processedMetadata: metadata,
+               timestamp: new Date().toISOString()
+             }
+          : s
+      )
+    );
+    setLastActivePracticeSessionId(newId);
+    localStorage.setItem('treble_last_active_practice_session_id', newId);
   }, []);
 
   const sendChatMessage = async (
@@ -378,6 +425,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         clearAllSessions,
         updatePracticeSessionAssets,
         initializePracticeSession,
+        migratePracticeSessionId,
         renameSession,
         deleteSession
       }}

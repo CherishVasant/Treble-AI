@@ -1,0 +1,1241 @@
+{
+  "title": "",
+  "composer": "",
+  "key_signature": "A minor (0 sharps/flats)",
+  "time_signature": "6/4",
+  "tempo": "120 bpm",
+  "total_measures": 8,
+  "parts": [
+    {
+      "name": "Piano",
+      "measures_count": 8
+    },
+    {
+      "name": "Piano",
+      "measures_count": 8
+    }
+  ],
+  "note_summary": "E5 (1.0 beats), D#5 (1.0 beats), E5 (1.0 beats), D#5 (1.0 beats), E5 (1.0 beats), B4 (1.0 beats), D5 (1.0 beats), C5 (1.0 beats), A4 (3.0 beats), A3 (2.0 beats), A3 (1.0 beats), C4 (1.0 beats), A3 (3.0 beats), E4 (1.0 beats), A4 (1.0 beats), B4 (3.0 beats), E3 (2.0 beats), E3 (1.0 beats), E4 (1.0 beats), E3 (3.0 beats), G#4 (1.0 beats), B4 (1.0 beats), C5 (2.0 beats), A3 (2.0 beats), A3 (1.0 beats), E4 (1.0 beats), E5 (1.0 beats), D#5 (1.0 beats), E5 (1.0 beats), D#5 (1.0 beats), E5 (1.0 beats), B4 (1.0 beats), D5 (1.0 beats), C5 (1.0 beats), A4 (3.0 beats), A3 (2.0 beats), A3 (1.0 beats), C4 (1.0 beats), A3 (3.0 beats), E4 (1.0 beats), A4 (1.0 beats), B4 (3.0 beats), E3 (2.0 beats), E3 (1.0 beats), E4 (1.0 beats), E3 (3.0 beats), C5 (1.0 beats), B4 (1.0 beats)",
+  "notes": [
+    {
+      "start": 2.0,
+      "duration": 0.5,
+      "midi": 76
+    },
+    {
+      "start": 2.5,
+      "duration": 0.5,
+      "midi": 75
+    },
+    {
+      "start": 3.0,
+      "duration": 0.5,
+      "midi": 76
+    },
+    {
+      "start": 3.5,
+      "duration": 0.5,
+      "midi": 75
+    },
+    {
+      "start": 4.0,
+      "duration": 0.5,
+      "midi": 76
+    },
+    {
+      "start": 4.5,
+      "duration": 0.5,
+      "midi": 71
+    },
+    {
+      "start": 5.0,
+      "duration": 0.5,
+      "midi": 74
+    },
+    {
+      "start": 5.5,
+      "duration": 0.5,
+      "midi": 72
+    },
+    {
+      "start": 6.0,
+      "duration": 1.5,
+      "midi": 69
+    },
+    {
+      "start": 6.0,
+      "duration": 1.0,
+      "midi": 57
+    },
+    {
+      "start": 7.0,
+      "duration": 0.5,
+      "midi": 57
+    },
+    {
+      "start": 7.5,
+      "duration": 0.5,
+      "midi": 60
+    },
+    {
+      "start": 7.5,
+      "duration": 1.5,
+      "midi": 57
+    },
+    {
+      "start": 8.0,
+      "duration": 0.5,
+      "midi": 64
+    },
+    {
+      "start": 8.5,
+      "duration": 0.5,
+      "midi": 69
+    },
+    {
+      "start": 9.0,
+      "duration": 1.5,
+      "midi": 71
+    },
+    {
+      "start": 9.0,
+      "duration": 1.0,
+      "midi": 52
+    },
+    {
+      "start": 10.0,
+      "duration": 0.5,
+      "midi": 52
+    },
+    {
+      "start": 10.5,
+      "duration": 0.5,
+      "midi": 64
+    },
+    {
+      "start": 10.5,
+      "duration": 1.5,
+      "midi": 52
+    },
+    {
+      "start": 11.0,
+      "duration": 0.5,
+      "midi": 68
+    },
+    {
+      "start": 11.5,
+      "duration": 0.5,
+      "midi": 71
+    },
+    {
+      "start": 12.0,
+      "duration": 1.0,
+      "midi": 72
+    },
+    {
+      "start": 12.0,
+      "duration": 1.0,
+      "midi": 57
+    },
+    {
+      "start": 13.0,
+      "duration": 0.5,
+      "midi": 57
+    },
+    {
+      "start": 13.5,
+      "duration": 0.5,
+      "midi": 64
+    },
+    {
+      "start": 14.0,
+      "duration": 0.5,
+      "midi": 76
+    },
+    {
+      "start": 14.5,
+      "duration": 0.5,
+      "midi": 75
+    },
+    {
+      "start": 15.0,
+      "duration": 0.5,
+      "midi": 76
+    },
+    {
+      "start": 15.5,
+      "duration": 0.5,
+      "midi": 75
+    },
+    {
+      "start": 16.0,
+      "duration": 0.5,
+      "midi": 76
+    },
+    {
+      "start": 16.5,
+      "duration": 0.5,
+      "midi": 71
+    },
+    {
+      "start": 17.0,
+      "duration": 0.5,
+      "midi": 74
+    },
+    {
+      "start": 17.5,
+      "duration": 0.5,
+      "midi": 72
+    },
+    {
+      "start": 18.0,
+      "duration": 1.5,
+      "midi": 69
+    },
+    {
+      "start": 18.0,
+      "duration": 1.0,
+      "midi": 57
+    },
+    {
+      "start": 19.0,
+      "duration": 0.5,
+      "midi": 57
+    },
+    {
+      "start": 19.5,
+      "duration": 0.5,
+      "midi": 60
+    },
+    {
+      "start": 19.5,
+      "duration": 1.5,
+      "midi": 57
+    },
+    {
+      "start": 20.0,
+      "duration": 0.5,
+      "midi": 64
+    },
+    {
+      "start": 20.5,
+      "duration": 0.5,
+      "midi": 69
+    },
+    {
+      "start": 21.0,
+      "duration": 1.5,
+      "midi": 71
+    },
+    {
+      "start": 21.0,
+      "duration": 1.0,
+      "midi": 52
+    },
+    {
+      "start": 22.0,
+      "duration": 0.5,
+      "midi": 52
+    },
+    {
+      "start": 22.5,
+      "duration": 0.5,
+      "midi": 64
+    },
+    {
+      "start": 22.5,
+      "duration": 1.5,
+      "midi": 52
+    },
+    {
+      "start": 23.0,
+      "duration": 0.5,
+      "midi": 72
+    },
+    {
+      "start": 23.5,
+      "duration": 0.5,
+      "midi": 71
+    }
+  ],
+  "measures_map": [
+    {
+      "measure_index": 0,
+      "measure_number": 1,
+      "start_time": 0.0,
+      "end_time": 3.0
+    },
+    {
+      "measure_index": 1,
+      "measure_number": 2,
+      "start_time": 3.0,
+      "end_time": 6.0
+    },
+    {
+      "measure_index": 2,
+      "measure_number": 3,
+      "start_time": 6.0,
+      "end_time": 9.0
+    },
+    {
+      "measure_index": 3,
+      "measure_number": 4,
+      "start_time": 9.0,
+      "end_time": 12.0
+    },
+    {
+      "measure_index": 4,
+      "measure_number": 5,
+      "start_time": 12.0,
+      "end_time": 15.0
+    },
+    {
+      "measure_index": 5,
+      "measure_number": 6,
+      "start_time": 15.0,
+      "end_time": 18.0
+    },
+    {
+      "measure_index": 6,
+      "measure_number": 7,
+      "start_time": 18.0,
+      "end_time": 21.0
+    },
+    {
+      "measure_index": 7,
+      "measure_number": 8,
+      "start_time": 21.0,
+      "end_time": 24.0
+    }
+  ],
+  "key_analysis": {
+    "key_signature_sharps": 0,
+    "tonal_center": "A minor",
+    "mode": "minor",
+    "relative_key": "C Major",
+    "modal_interpretations": [
+      {
+        "mode": "C Ionian",
+        "similarity": 62.5
+      },
+      {
+        "mode": "C Lydian",
+        "similarity": 62.5
+      },
+      {
+        "mode": "D Dorian",
+        "similarity": 62.5
+      }
+    ],
+    "modulations": []
+  },
+  "chord_list": [
+    {
+      "measure": 1,
+      "offset": 4.0,
+      "name": "E Interval unison",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E5"
+      ]
+    },
+    {
+      "measure": 1,
+      "offset": 5.0,
+      "name": "E- Interval unison",
+      "root": "E-",
+      "inversion": 0,
+      "pitches": [
+        "D#5"
+      ]
+    },
+    {
+      "measure": 2,
+      "offset": 6.0,
+      "name": "E Interval unison",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E5"
+      ]
+    },
+    {
+      "measure": 2,
+      "offset": 7.0,
+      "name": "E- Interval unison",
+      "root": "E-",
+      "inversion": 0,
+      "pitches": [
+        "D#5"
+      ]
+    },
+    {
+      "measure": 2,
+      "offset": 8.0,
+      "name": "E Interval unison",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E5"
+      ]
+    },
+    {
+      "measure": 2,
+      "offset": 9.0,
+      "name": "B Interval unison",
+      "root": "B",
+      "inversion": 0,
+      "pitches": [
+        "B4"
+      ]
+    },
+    {
+      "measure": 2,
+      "offset": 10.0,
+      "name": "D Interval unison",
+      "root": "D",
+      "inversion": 0,
+      "pitches": [
+        "D5"
+      ]
+    },
+    {
+      "measure": 2,
+      "offset": 11.0,
+      "name": "C Interval unison",
+      "root": "C",
+      "inversion": 0,
+      "pitches": [
+        "C5"
+      ]
+    },
+    {
+      "measure": 3,
+      "offset": 12.0,
+      "name": "A Interval unison",
+      "root": "A",
+      "inversion": 0,
+      "pitches": [
+        "A3",
+        "A4"
+      ]
+    },
+    {
+      "measure": 3,
+      "offset": 14.0,
+      "name": "A Interval unison",
+      "root": "A",
+      "inversion": 0,
+      "pitches": [
+        "A3",
+        "A4"
+      ]
+    },
+    {
+      "measure": 3,
+      "offset": 15.0,
+      "name": "C Interval major sixth",
+      "root": "C",
+      "inversion": 1,
+      "pitches": [
+        "A3",
+        "C4"
+      ]
+    },
+    {
+      "measure": 3,
+      "offset": 16.0,
+      "name": "E Interval perfect fourth",
+      "root": "E",
+      "inversion": 1,
+      "pitches": [
+        "A3",
+        "E4"
+      ]
+    },
+    {
+      "measure": 3,
+      "offset": 17.0,
+      "name": "A Interval unison",
+      "root": "A",
+      "inversion": 0,
+      "pitches": [
+        "A3",
+        "A4"
+      ]
+    },
+    {
+      "measure": 4,
+      "offset": 18.0,
+      "name": "E Interval perfect fifth",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E3",
+        "B4"
+      ]
+    },
+    {
+      "measure": 4,
+      "offset": 20.0,
+      "name": "E Interval perfect fifth",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E3",
+        "B4"
+      ]
+    },
+    {
+      "measure": 4,
+      "offset": 21.0,
+      "name": "E Interval unison",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "measure": 4,
+      "offset": 22.0,
+      "name": "E Interval major third",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E3",
+        "G#4"
+      ]
+    },
+    {
+      "measure": 4,
+      "offset": 23.0,
+      "name": "E Interval perfect fifth",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E3",
+        "B4"
+      ]
+    },
+    {
+      "measure": 5,
+      "offset": 24.0,
+      "name": "C Interval major sixth",
+      "root": "C",
+      "inversion": 1,
+      "pitches": [
+        "A3",
+        "C5"
+      ]
+    },
+    {
+      "measure": 5,
+      "offset": 25.0,
+      "name": "C Interval major sixth",
+      "root": "C",
+      "inversion": 1,
+      "pitches": [
+        "A3",
+        "C5"
+      ]
+    },
+    {
+      "measure": 5,
+      "offset": 26.0,
+      "name": "A Interval unison",
+      "root": "A",
+      "inversion": 0,
+      "pitches": [
+        "A3"
+      ]
+    },
+    {
+      "measure": 5,
+      "offset": 27.0,
+      "name": "E Interval unison",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E4"
+      ]
+    },
+    {
+      "measure": 5,
+      "offset": 28.0,
+      "name": "E Interval unison",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E5"
+      ]
+    },
+    {
+      "measure": 5,
+      "offset": 29.0,
+      "name": "E- Interval unison",
+      "root": "E-",
+      "inversion": 0,
+      "pitches": [
+        "D#5"
+      ]
+    },
+    {
+      "measure": 6,
+      "offset": 30.0,
+      "name": "E Interval unison",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E5"
+      ]
+    },
+    {
+      "measure": 6,
+      "offset": 31.0,
+      "name": "E- Interval unison",
+      "root": "E-",
+      "inversion": 0,
+      "pitches": [
+        "D#5"
+      ]
+    },
+    {
+      "measure": 6,
+      "offset": 32.0,
+      "name": "E Interval unison",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E5"
+      ]
+    },
+    {
+      "measure": 6,
+      "offset": 33.0,
+      "name": "B Interval unison",
+      "root": "B",
+      "inversion": 0,
+      "pitches": [
+        "B4"
+      ]
+    },
+    {
+      "measure": 6,
+      "offset": 34.0,
+      "name": "D Interval unison",
+      "root": "D",
+      "inversion": 0,
+      "pitches": [
+        "D5"
+      ]
+    },
+    {
+      "measure": 6,
+      "offset": 35.0,
+      "name": "C Interval unison",
+      "root": "C",
+      "inversion": 0,
+      "pitches": [
+        "C5"
+      ]
+    },
+    {
+      "measure": 7,
+      "offset": 36.0,
+      "name": "A Interval unison",
+      "root": "A",
+      "inversion": 0,
+      "pitches": [
+        "A3",
+        "A4"
+      ]
+    },
+    {
+      "measure": 7,
+      "offset": 38.0,
+      "name": "A Interval unison",
+      "root": "A",
+      "inversion": 0,
+      "pitches": [
+        "A3",
+        "A4"
+      ]
+    },
+    {
+      "measure": 7,
+      "offset": 39.0,
+      "name": "C Interval major sixth",
+      "root": "C",
+      "inversion": 1,
+      "pitches": [
+        "A3",
+        "C4"
+      ]
+    },
+    {
+      "measure": 7,
+      "offset": 40.0,
+      "name": "E Interval perfect fourth",
+      "root": "E",
+      "inversion": 1,
+      "pitches": [
+        "A3",
+        "E4"
+      ]
+    },
+    {
+      "measure": 7,
+      "offset": 41.0,
+      "name": "A Interval unison",
+      "root": "A",
+      "inversion": 0,
+      "pitches": [
+        "A3",
+        "A4"
+      ]
+    },
+    {
+      "measure": 8,
+      "offset": 42.0,
+      "name": "E Interval perfect fifth",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E3",
+        "B4"
+      ]
+    },
+    {
+      "measure": 8,
+      "offset": 44.0,
+      "name": "E Interval perfect fifth",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E3",
+        "B4"
+      ]
+    },
+    {
+      "measure": 8,
+      "offset": 45.0,
+      "name": "E Interval unison",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E3",
+        "E4"
+      ]
+    },
+    {
+      "measure": 8,
+      "offset": 46.0,
+      "name": "C Interval major third",
+      "root": "C",
+      "inversion": 1,
+      "pitches": [
+        "E3",
+        "C5"
+      ]
+    },
+    {
+      "measure": 8,
+      "offset": 47.0,
+      "name": "E Interval perfect fifth",
+      "root": "E",
+      "inversion": 0,
+      "pitches": [
+        "E3",
+        "B4"
+      ]
+    }
+  ],
+  "roman_numerals": [
+    {
+      "measure": 1,
+      "offset": 4.0,
+      "chord_name": "E Interval unison",
+      "roman_numeral": "v",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 1,
+      "offset": 5.0,
+      "chord_name": "E- Interval unison",
+      "roman_numeral": "#iv",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": true
+    },
+    {
+      "measure": 2,
+      "offset": 6.0,
+      "chord_name": "E Interval unison",
+      "roman_numeral": "v",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 2,
+      "offset": 7.0,
+      "chord_name": "E- Interval unison",
+      "roman_numeral": "#iv",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": true
+    },
+    {
+      "measure": 2,
+      "offset": 8.0,
+      "chord_name": "E Interval unison",
+      "roman_numeral": "v",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 2,
+      "offset": 9.0,
+      "chord_name": "B Interval unison",
+      "roman_numeral": "ii",
+      "secondary_dominant": false,
+      "borrowed_chord": true,
+      "chromatic_harmony": true
+    },
+    {
+      "measure": 2,
+      "offset": 10.0,
+      "chord_name": "D Interval unison",
+      "roman_numeral": "iv",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 2,
+      "offset": 11.0,
+      "chord_name": "C Interval unison",
+      "roman_numeral": "iii",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 3,
+      "offset": 12.0,
+      "chord_name": "A Interval unison",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 3,
+      "offset": 14.0,
+      "chord_name": "A Interval unison",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 3,
+      "offset": 15.0,
+      "chord_name": "C Interval major sixth",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 3,
+      "offset": 16.0,
+      "chord_name": "E Interval perfect fourth",
+      "roman_numeral": "i5",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 3,
+      "offset": 17.0,
+      "chord_name": "A Interval unison",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 4,
+      "offset": 18.0,
+      "chord_name": "E Interval perfect fifth",
+      "roman_numeral": "v5",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 4,
+      "offset": 20.0,
+      "chord_name": "E Interval perfect fifth",
+      "roman_numeral": "v5",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 4,
+      "offset": 21.0,
+      "chord_name": "E Interval unison",
+      "roman_numeral": "v",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 4,
+      "offset": 22.0,
+      "chord_name": "E Interval major third",
+      "roman_numeral": "V#3",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": true
+    },
+    {
+      "measure": 4,
+      "offset": 23.0,
+      "chord_name": "E Interval perfect fifth",
+      "roman_numeral": "v5",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 5,
+      "offset": 24.0,
+      "chord_name": "C Interval major sixth",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 5,
+      "offset": 25.0,
+      "chord_name": "C Interval major sixth",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 5,
+      "offset": 26.0,
+      "chord_name": "A Interval unison",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 5,
+      "offset": 27.0,
+      "chord_name": "E Interval unison",
+      "roman_numeral": "v",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 5,
+      "offset": 28.0,
+      "chord_name": "E Interval unison",
+      "roman_numeral": "v",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 5,
+      "offset": 29.0,
+      "chord_name": "E- Interval unison",
+      "roman_numeral": "#iv",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": true
+    },
+    {
+      "measure": 6,
+      "offset": 30.0,
+      "chord_name": "E Interval unison",
+      "roman_numeral": "v",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 6,
+      "offset": 31.0,
+      "chord_name": "E- Interval unison",
+      "roman_numeral": "#iv",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": true
+    },
+    {
+      "measure": 6,
+      "offset": 32.0,
+      "chord_name": "E Interval unison",
+      "roman_numeral": "v",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 6,
+      "offset": 33.0,
+      "chord_name": "B Interval unison",
+      "roman_numeral": "ii",
+      "secondary_dominant": false,
+      "borrowed_chord": true,
+      "chromatic_harmony": true
+    },
+    {
+      "measure": 6,
+      "offset": 34.0,
+      "chord_name": "D Interval unison",
+      "roman_numeral": "iv",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 6,
+      "offset": 35.0,
+      "chord_name": "C Interval unison",
+      "roman_numeral": "iii",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 7,
+      "offset": 36.0,
+      "chord_name": "A Interval unison",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 7,
+      "offset": 38.0,
+      "chord_name": "A Interval unison",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 7,
+      "offset": 39.0,
+      "chord_name": "C Interval major sixth",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 7,
+      "offset": 40.0,
+      "chord_name": "E Interval perfect fourth",
+      "roman_numeral": "i5",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 7,
+      "offset": 41.0,
+      "chord_name": "A Interval unison",
+      "roman_numeral": "i",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 8,
+      "offset": 42.0,
+      "chord_name": "E Interval perfect fifth",
+      "roman_numeral": "v5",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 8,
+      "offset": 44.0,
+      "chord_name": "E Interval perfect fifth",
+      "roman_numeral": "v5",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 8,
+      "offset": 45.0,
+      "chord_name": "E Interval unison",
+      "roman_numeral": "v",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 8,
+      "offset": 46.0,
+      "chord_name": "C Interval major third",
+      "roman_numeral": "III6",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    },
+    {
+      "measure": 8,
+      "offset": 47.0,
+      "chord_name": "E Interval perfect fifth",
+      "roman_numeral": "v5",
+      "secondary_dominant": false,
+      "borrowed_chord": false,
+      "chromatic_harmony": false
+    }
+  ],
+  "cadences": [
+    {
+      "measure": 5,
+      "offset": 27.0,
+      "type": "Half Cadence",
+      "progression": "i -> v"
+    }
+  ],
+  "intervals": {
+    "total_intervals": 33,
+    "most_common_interval": "Minor 2nd",
+    "largest_leap": "Perfect Octave",
+    "average_melodic_movement": 3.79
+  },
+  "rhythm": {
+    "duration_distribution": {
+      "Quarter Note": 34,
+      "Dotted Half Note": 8,
+      "Half Note": 6
+    },
+    "syncopations_detected": 25,
+    "tuplets_detected": 0,
+    "common_rhythmic_motifs": [
+      "3.0 beats - 1.0 beats - 1.0 beats - 1.0 beats (used 4 times)",
+      "1.0 beats - 1.0 beats - 1.0 beats - 1.0 beats - 1.0 beats - 1.0 beats (used 2 times)"
+    ],
+    "meter_changes": [
+      {
+        "measure": 1,
+        "ratio": "6/4"
+      },
+      {
+        "measure": 1,
+        "ratio": "6/4"
+      }
+    ],
+    "has_pickup_measure": false
+  },
+  "phrases": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8
+  ],
+  "motifs": [
+    {
+      "sequence": "Down m2 -> Up m2 -> Down m2 -> Up m2",
+      "count": 2
+    },
+    {
+      "sequence": "Up m2 -> Down m2 -> Up m2 -> Down P4",
+      "count": 2
+    },
+    {
+      "sequence": "Down m2 -> Up m2 -> Down P4 -> Up m3",
+      "count": 2
+    },
+    {
+      "sequence": "Up m2 -> Down P4 -> Up m3 -> Down M2",
+      "count": 2
+    },
+    {
+      "sequence": "Down P4 -> Up m3 -> Down M2 -> Down m3",
+      "count": 2
+    }
+  ],
+  "difficulty": {
+    "difficulty_score": 2.5,
+    "difficulty_category": "Beginner",
+    "contributing_factors": [
+      "Syncopations require advanced rhythmic independence"
+    ],
+    "max_hand_span_semitones": 0,
+    "notes_per_second": 2.0,
+    "accidental_notes_count": 5,
+    "average_chord_size": 1.0
+  },
+  "fingerings": {
+    "scale_fingerings": {
+      "key": "A minor Minor",
+      "right_hand": "1-2-3-1-2-3-4-5 (Default)",
+      "left_hand": "5-4-3-2-1-3-2-1 (Default)",
+      "source": "Heuristic rule"
+    },
+    "melodic_passage_fingering_suggestion": "3-2-3-2-3-1-3-2-4-2-4-1-2-4-1-3-4-2-4-3"
+  },
+  "register_and_contour": {
+    "highest_note": "E5",
+    "highest_note_measure": 1,
+    "lowest_note": "E3",
+    "lowest_note_measure": 4,
+    "range_semitones": 24,
+    "range_interval_name": "Perfect Double-octave",
+    "contour": "Wave"
+  },
+  "diatonicity": {
+    "ratio_percentage": 89.6,
+    "total_notes_counted": 48,
+    "diatonic_notes_count": 43,
+    "chromatic_notes_count": 5
+  },
+  "voice_leading_errors": [],
+  "practice_recommendations": [
+    {
+      "scale_name": "A Minor",
+      "type": "Primary Key Warm-up",
+      "description": "Warm up your hand muscles with the base scale of the piece to build finger familiarity in the home key."
+    },
+    {
+      "scale_name": "C Major",
+      "type": "Relative Key Warm-up",
+      "description": "Practice the relative scale to understand key transitions, shared accidentals, and chord relations."
+    },
+    {
+      "scale_name": "C Ionian",
+      "type": "Modal Shift Practice",
+      "description": "Practice the C Ionian mode to explore the melodic colors and modal matches detected in the score's pitch profiles."
+    }
+  ]
+}

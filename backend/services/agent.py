@@ -3,12 +3,14 @@ import urllib.request
 import urllib.parse
 import json
 import re
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Annotated, Sequence, TypedDict
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
+from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.tools import tool
 from config import get_settings
 from reference_library import search_library
+from langgraph.graph import StateGraph, END
+from langgraph.graph.message import add_messages
 
 
 # Define local reference library search tool
@@ -36,6 +38,7 @@ def search_local_reference_library(query: str) -> str:
         return "\n".join(formatted)
     except Exception as e:
         return f"Failed to query local reference library: {str(e)}"
+
 
 # DuckDuckGo fallback search
 def search_ddg(query: str) -> str:
@@ -65,6 +68,7 @@ def search_ddg(query: str) -> str:
             return "\n".join(formatted) if formatted else "No results found on DuckDuckGo."
     except Exception as e:
         return f"DuckDuckGo search failed: {str(e)}"
+
 
 # Tavily search
 def search_tavily(query: str, api_key: str) -> str:
@@ -96,6 +100,7 @@ def search_tavily(query: str, api_key: str) -> str:
     except Exception as e:
         return f"Tavily search failed: {str(e)}"
 
+
 # Serper search
 def search_serper(query: str, api_key: str) -> str:
     try:
@@ -120,6 +125,7 @@ def search_serper(query: str, api_key: str) -> str:
             return "\n".join(formatted) if formatted else "No results found on Serper."
     except Exception as e:
         return f"Serper search failed: {str(e)}"
+
 
 # Brave search
 def search_brave(query: str, api_key: str) -> str:
@@ -146,6 +152,7 @@ def search_brave(query: str, api_key: str) -> str:
     except Exception as e:
         return f"Brave search failed: {str(e)}"
 
+
 # Unified web search tool
 @tool
 def search_web(query: str) -> str:
@@ -166,13 +173,17 @@ def search_web(query: str) -> str:
     else:
         return search_ddg(query)
 
+
+# --- LangChain Agents Implementation ---
+
 class AgentService:
     @staticmethod
     def run_agent(
         message: str,
         context: str = "",
         system_prompt: str = "You are a helpful music theory tutor.",
-        history: list = None
+        history: list = None,
+        chat_type: str = "theory"
     ) -> dict:
         settings = get_settings()
         api_key = (settings.openrouter_api_key or "").strip()
@@ -186,46 +197,53 @@ class AgentService:
                 "agent_steps": ["Thinking", "Failed"]
             }
 
-        # Setup tools list
-        tools = [search_web, search_local_reference_library]
-        
-        # Add get_loaded_score_details tool if context is provided
-        @tool
-        def get_loaded_score_details() -> str:
-            """Get the parsed musical details, metadata, and note sequences of the currently loaded sheet music score in the Practice Studio."""
-            if not context or "No sheet music" in context:
-                return "No sheet music score is currently loaded in the studio."
-            return context
-            
-        tools.append(get_loaded_score_details)
-
         # Build initial messages list
-        json_instructions = (
-            "\n\nYou MUST respond ONLY with a valid JSON object. Do not include any conversational text or markdown code blocks (like ```json) outside the JSON. "
-            "The JSON object must have exactly the following structure:\n"
-            "{\n"
-            '  "response": "Your detailed tutor answer in Markdown format (use headings, lists, bold, italics, tables, and code blocks as needed). Support music notation formatting (like sharps/flats).",\n'
-            '  "suggested_follow_up_questions": ["Question 1?", "Question 2?", "Question 3?"],\n'
-            '  "related_concepts": ["Concept A", "Concept B", "Concept C"],\n'
-            '  "citations": ["Reference Source A", "Reference Source B"]\n'
-            "}"
-        )
+        messages = []
         
-        instruction_directive = (
-            "CRITICAL INSTRUCTIONS:\n"
-            "- You have access to a deterministic, algorithmically generated music analysis report for the active piece.\n"
-            "- The report contains advanced metrics: melodic register and pitch range, contour classification, diatonicity percentage, voice-leading audits (specifically parallel perfect fifths and octaves), and custom practice scale warm-up recommendations.\n"
-            "- DO NOT attempt to compute keys, scales, chords, Roman numerals, intervals, cadences, or fingerings from scratch.\n"
-            "- Use the provided report as the absolute source of truth. If the user asks for analysis details, refer to the report.\n"
-            "- Your primary role is to act as a supportive music tutor: explain the concepts behind the analysis (such as parallel motion rules or modal similarities), answer follow-up questions, teach theory in relation to the piece, and generate structured practice advice."
-        )
-        
-        system_parts = [system_prompt.strip(), json_instructions, instruction_directive]
-        if context.strip():
-            system_parts.append(f"Context from the app (Music Analysis Report):\n{context.strip()}")
-        system_content = "\n\n".join(system_parts)
+        # Format the appropriate system prompt based on chat_type
+        if chat_type == "practice":
+            # Practice Studio Agent
+            active_score_ctx = ""
+            if context and "No sheet music" not in context:
+                active_score_ctx = f"\n\n--- Active Loaded Score Context ---\n{context}"
+                
+            sys_msg = (
+                f"{system_prompt}\n\n"
+                f"{active_score_ctx}\n\n"
+                "Use this report details (difficulty score, chords, Roman numerals, voice-leading rules, and fingerings) to answer questions, "
+                "offer structured practice guidelines, suggest scale routines, and explain concept-based insights.\n"
+                "You have access to search tools (search_local_reference_library and search_web) to lookup exact definitions, formulas, and general guides if needed.\n"
+                "You MUST respond ONLY with a valid JSON object matching this structure:\n"
+                "{\n"
+                '  "response": "Your detailed tutor answer in Markdown format (use headings, lists, tables). Explain your insights thoroughly.",\n'
+                '  "suggested_follow_up_questions": ["Question 1?", "Question 2?", "Question 3?"],\n'
+                '  "related_concepts": ["Concept A", "Concept B", "Concept C"],\n'
+                '  "citations": ["Citation A", "Citation B"]\n'
+                "}\n\n"
+                "Do not wrap in markdown code block, just output raw JSON."
+            )
+            tools = [search_local_reference_library, search_web]
+            agent_role = "Practice Coach"
+        else:
+            # General Music Theory Agent
+            sys_msg = (
+                f"{system_prompt}\n\n"
+                "Answer the user's music theory queries, scale or chord formulas, music history, or definitions. "
+                "You have access to search tools (search_local_reference_library and search_web) to lookup exact definitions or formulas if needed. "
+                "You MUST respond ONLY with a valid JSON object matching this structure:\n"
+                "{\n"
+                '  "response": "Your detailed tutor answer in Markdown format (use headings, lists, tables). Explain the concepts in detail.",\n'
+                '  "suggested_follow_up_questions": ["Question 1?", "Question 2?", "Question 3?"],\n'
+                '  "related_concepts": ["Concept A", "Concept B", "Concept C"],\n'
+                '  "citations": ["Citation A", "Citation B"]\n'
+                "}\n\n"
+                "Do not wrap in markdown code block, just output raw JSON."
+            )
+            tools = [search_local_reference_library, search_web]
+            agent_role = "Theory Scholar"
 
-        messages = [SystemMessage(content=system_content)]
+        messages.append(SystemMessage(content=sys_msg))
+
         if history:
             for h in history:
                 role = getattr(h, "role", None) or (h.get("role") if isinstance(h, dict) else None)
@@ -237,116 +255,124 @@ class AgentService:
                     
         messages.append(HumanMessage(content=message))
 
-        # Setup LLM with OpenRouter config
-        llm = ChatOpenAI(
-            model=settings.theory_llm_model,
-            api_key=api_key,
-            base_url="https://openrouter.ai/api/v1",
-            temperature=0.7,
-            default_headers={
-                "HTTP-Referer": "https://github.com/Treble-AI",
-                "X-Title": "Treble AI",
-            }
-        )
-        
-        # Bind tools to LLM
-        llm_with_tools = llm.bind_tools(tools)
+        steps = [f"Thinking: Running {agent_role}..."]
+        response_text = ""
 
-        # Track steps taken
-        agent_steps = ["Thinking"]
-        
-        # Loop for tool execution
-        max_turns = 5
-        curr_turn = 0
-        
-        while curr_turn < max_turns:
-            curr_turn += 1
-            try:
-                res = llm_with_tools.invoke(messages)
-            except Exception as exc:
-                message_err = str(exc)
-                return {
-                    "response": f"Sorry, I encountered an LLM error: {message_err}",
-                    "success": False,
-                    "suggested_follow_up_questions": [],
-                    "related_concepts": [],
-                    "citations": [],
-                    "agent_steps": agent_steps + ["Failed"]
+        try:
+            llm = ChatOpenAI(
+                model=settings.theory_llm_model,
+                api_key=api_key,
+                base_url="https://openrouter.ai/api/v1",
+                temperature=0.5,
+                default_headers={
+                    "HTTP-Referer": "https://github.com/Treble-AI",
+                    "X-Title": f"Treble AI {agent_role}",
                 }
-                
-            messages.append(res)
+            )
             
-            # Check for tool calls
-            tool_calls = getattr(res, "tool_calls", [])
-            if not tool_calls:
-                break
-                
-            # Execute tool calls
-            for tool_call in tool_calls:
-                tool_name = tool_call["name"]
-                tool_args = tool_call["args"]
-                tool_id = tool_call["id"]
-                
-                # Expose status message for agent activities
-                if tool_name == "search_web":
-                    q = tool_args.get("query", "")
-                    agent_steps.append(f"Searching web references for '{q}'...")
-                elif tool_name == "search_local_reference_library":
-                    q = tool_args.get("query", "")
-                    agent_steps.append(f"Searching local music database for '{q}'...")
-                elif tool_name == "get_loaded_score_details":
-                    agent_steps.append("Analyzing loaded sheet music score...")
-                
-                # Execute the tool
-                try:
-                    if tool_name == "search_web":
-                        tool_out = search_web.invoke(tool_args)
-                    elif tool_name == "search_local_reference_library":
-                        tool_out = search_local_reference_library.invoke(tool_args)
-                    elif tool_name == "get_loaded_score_details":
-                        tool_out = get_loaded_score_details.invoke(tool_args)
+            llm_with_tools = llm.bind_tools(tools)
+            
+            # Simple standard ReAct loop using LangChain
+            max_turns = 5
+            for turn in range(max_turns):
+                res = llm_with_tools.invoke(messages)
+                messages.append(res)
+                if not getattr(res, "tool_calls", []):
+                    response_text = res.content
+                    break
+                for tool_call in res.tool_call_queries if hasattr(res, "tool_call_queries") else res.tool_calls:
+                    name = tool_call["name"]
+                    args = tool_call["args"]
+                    tid = tool_call["id"]
+                    if name == "search_local_reference_library":
+                        steps.append(f"Scholar: Searching local library for '{args.get('query', '')}'...")
+                        out = search_local_reference_library.invoke(args)
+                    elif name == "search_web":
+                        steps.append(f"Scholar: Searching web references for '{args.get('query', '')}'...")
+                        out = search_web.invoke(args)
                     else:
-                        tool_out = f"Error: Tool '{tool_name}' not found."
-                except Exception as e:
-                    tool_out = f"Error executing tool '{tool_name}': {str(e)}"
-                    
-                messages.append(ToolMessage(content=str(tool_out), tool_call_id=tool_id))
-                
-        # Final step is generating response
-        agent_steps.append("Generating response...")
-        agent_steps.append("Finalizing answer...")
+                        out = f"Tool {name} not found."
+                    messages.append(ToolMessage(content=str(out), tool_call_id=tid))
+            else:
+                # If loop finishes without breaking, run a final synthesis step forcing text output
+                steps.append("Planner: Finalizing response synthesis...")
+                final_res = llm.invoke(messages)
+                response_text = final_res.content
+        except Exception as exc:
+            return {
+                "response": f"Sorry, I encountered an error during execution: {str(exc)}",
+                "success": False,
+                "suggested_follow_up_questions": [],
+                "related_concepts": [],
+                "citations": [],
+                "agent_steps": steps + ["Failed"]
+            }
 
-        # Parse JSON output from final assistant message
-        final_text = messages[-1].content if hasattr(messages[-1], "content") else str(messages[-1])
-        
-        response_text = str(final_text)
+        # Parse JSON output from the response
         suggested = []
         concepts = []
-        citations = []
+        citations_list = []
         
         try:
+            # 1. Clean markdown wrappers
             cleaned = response_text.strip()
-            if cleaned.startswith("```json"):
-                cleaned = cleaned[7:]
-            elif cleaned.startswith("```"):
-                cleaned = cleaned[3:]
+            if cleaned.startswith("```"):
+                first_line_end = cleaned.find("\n")
+                if first_line_end != -1:
+                    cleaned = cleaned[first_line_end:]
+                else:
+                    cleaned = cleaned[3:]
             if cleaned.endswith("```"):
                 cleaned = cleaned[:-3]
             cleaned = cleaned.strip()
             
-            data = json.loads(cleaned)
-            response_text = data.get("response", response_text)
-            suggested = data.get("suggested_follow_up_questions", [])
-            concepts = data.get("related_concepts", [])
-            citations = data.get("citations", [])
+            # 2. Try parsing direct or extracting bracket block using strict=False
+            data = None
+            try:
+                data = json.loads(cleaned, strict=False)
+            except Exception:
+                first_brace = cleaned.find("{")
+                last_brace = cleaned.rfind("}")
+                if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+                    candidate = cleaned[first_brace:last_brace + 1]
+                    data = json.loads(candidate, strict=False)
+            
+            if data is not None:
+                response_text = data.get("response", response_text)
+                suggested = data.get("suggested_follow_up_questions", [])
+                concepts = data.get("related_concepts", [])
+                citations_list = data.get("citations", [])
+            else:
+                print("[agent service] JSON extraction failed: No braces found.")
         except Exception as e:
             print("[agent service] JSON parse fallback. Error:", e)
+            # Try regex fallback parsing to salvage response details from malformed JSON
+            try:
+                res_match = re.search(r'"response"\s*:\s*"(.*)"\s*,\s*"(?:suggested_follow_up_questions|related_concepts|citations)"', cleaned, re.DOTALL)
+                if res_match:
+                    response_text = res_match.group(1).replace("\\n", "\n").replace('\\"', '"')
+                
+                sug_match = re.search(r'"suggested_follow_up_questions"\s*:\s*\[(.*?)\]', cleaned, re.DOTALL)
+                if sug_match:
+                    suggested = re.findall(r'"(.*?)"', sug_match.group(1))
+                    
+                con_match = re.search(r'"related_concepts"\s*:\s*\[(.*?)\]', cleaned, re.DOTALL)
+                if con_match:
+                    concepts = re.findall(r'"(.*?)"', con_match.group(1))
+                    
+                cit_match = re.search(r'"citations"\s*:\s*\[(.*?)\]', cleaned, re.DOTALL)
+                if cit_match:
+                    citations_list = re.findall(r'"(.*?)"', cit_match.group(1))
+            except Exception as fe:
+                print("[agent service] JSON fallback regex parse failed:", fe)
             
+        steps.append("Planner: Finalizing response structure...")
         return {
             "response": response_text,
             "success": True,
             "suggested_follow_up_questions": suggested,
             "related_concepts": concepts,
-            "citations": citations,
-            "agent_steps": agent_steps
+            "citations": citations_list,
+            "agent_steps": steps
         }
+

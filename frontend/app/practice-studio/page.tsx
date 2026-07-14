@@ -109,7 +109,7 @@ function PracticeStudioContent() {
   const router = useRouter();
   const sessionId = searchParams.get('sessionId') || '';
 
-  const { practiceSessions, loadingSessions, sendChatMessage, updatePracticeSessionAssets, initializePracticeSession, setLastActiveSession } = useChat();
+  const { practiceSessions, loadingSessions, sendChatMessage, updatePracticeSessionAssets, initializePracticeSession, migratePracticeSessionId, setLastActiveSession } = useChat();
 
   const activeSessionIdRef = useRef(sessionId);
   useEffect(() => {
@@ -135,6 +135,7 @@ function PracticeStudioContent() {
   const [loopEndMeasure, setLoopEndMeasure] = useState<number>(8);
   const [isLooping, setIsLooping] = useState(false);
   const [showPiano, setShowPiano] = useState(true);
+  const [showAnalysis, setShowAnalysis] = useState(false);
 
   const playerRef = useRef<MusicPlayerRef>(null);
 
@@ -161,6 +162,13 @@ function PracticeStudioContent() {
     setLoopEndMeasure(8);
   }, [sessionId]);
 
+  // Set the loopEndMeasure to the total measures count from backend when metadata is ready
+  useEffect(() => {
+    if (processedMetadata?.musicalInfo?.total_measures) {
+      setLoopEndMeasure(processedMetadata.musicalInfo.total_measures);
+    }
+  }, [processedMetadata]);
+
   const handleFileUpload = (file: { id: string; name: string }) => {
     const nextFile = file.id ? file : null;
     const currentSessionId = activeSessionIdRef.current;
@@ -176,8 +184,17 @@ function PracticeStudioContent() {
   const handleMetadataUpdate = (meta: any) => {
     const nextMeta = meta ? { ...processedMetadata, ...meta } : null;
     const currentSessionId = activeSessionIdRef.current;
+    const backendJobId = meta?.jobId || meta?.conversionState?.jobId;
+
     if (currentSessionId) {
-      updatePracticeSessionAssets(currentSessionId, uploadedFileData, nextMeta);
+      if (backendJobId && backendJobId !== currentSessionId) {
+        console.log(`[PracticeStudio] Migrating local sessionId ${currentSessionId} to backend jobId ${backendJobId}`);
+        migratePracticeSessionId(currentSessionId, backendJobId, uploadedFileData, nextMeta);
+        activeSessionIdRef.current = backendJobId;
+        router.replace(`/practice-studio?sessionId=${backendJobId}`, { scroll: false });
+      } else {
+        updatePracticeSessionAssets(currentSessionId, uploadedFileData, nextMeta);
+      }
     } else {
       const newId = initializePracticeSession(uploadedFileData, nextMeta);
       activeSessionIdRef.current = newId;
@@ -265,21 +282,10 @@ function PracticeStudioContent() {
   const secondsPerMeasure = useMemo(() => {
     const beatsPerMeasure = timeSignature.numerator;
     const secondsPerBeat = 60 / musicalTempo;
-    return secondsPerBeat * beatsPerMeasure;
+    const result = secondsPerBeat * beatsPerMeasure;
+    console.log('[PlayRange DEBUG page.tsx] secondsPerMeasure:', result, 'musicalTempo:', musicalTempo, 'timeSignature:', timeSignature);
+    return result;
   }, [musicalTempo, timeSignature]);
-
-  // Handle playback looping
-  useEffect(() => {
-    if (!isLooping || duration <= 0) return;
-
-    const startTime = (loopStartMeasure - 1) * secondsPerMeasure;
-    const endTime = loopEndMeasure * secondsPerMeasure;
-
-    if (currentTime >= endTime) {
-      playerRef.current?.seekTo(startTime);
-    }
-  }, [currentTime, isLooping, loopStartMeasure, loopEndMeasure, secondsPerMeasure, duration]);
-
   const suggestedPrompts = [
     'Quiz me on this sheet music',
     'Test my rhythm reading skills',
@@ -295,42 +301,42 @@ function PracticeStudioContent() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
       
-      {/* Row 1: Playback controls & PDF Upload Box side-by-side */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start w-full">
-        <div className="lg:col-span-2">
-          <MusicPlayer
-            ref={playerRef}
-            title={uploadedFileData?.name || 'No music loaded'}
-            composer={processedMetadata?.metadata?.composer || 'Unknown'}
-            audioUrl={processedMetadata?.audioUrl ?? undefined}
-            isConverting={isConverting}
-            onTimeUpdate={setCurrentTime}
-            onIsPlayingChange={setIsPlaying}
-            onDurationChange={setDuration}
-            fileId={uploadedFileData?.id}
-            className="w-full"
-          />
-        </div>
-
-        <div className="lg:col-span-1">
-          <div className="bg-card/25 p-5 rounded-xl border border-border/30 shadow-sm flex flex-col justify-center animate-fade-in">
-            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-2.5">
-              Score Upload
-            </h4>
-            <SheetMusicUploader
-              fileId={uploadedFileData?.id}
-              fileName={uploadedFileData?.name}
-              hasAudio={Boolean(processedMetadata?.audioUrl)}
-              conversionState={processedMetadata?.conversionState}
-              onFileUpload={handleFileUpload}
-              onProcessing={handleMetadataUpdate}
-              onConvertingChange={setIsConverting}
-            />
-          </div>
-        </div>
+      {/* Row 1: Upload button & Horizontal progress tracker */}
+      <div className="w-full">
+        <SheetMusicUploader
+          fileId={uploadedFileData?.id}
+          fileName={uploadedFileData?.name}
+          hasAudio={Boolean(processedMetadata?.audioUrl)}
+          conversionState={processedMetadata?.conversionState}
+          onFileUpload={handleFileUpload}
+          onProcessing={handleMetadataUpdate}
+          onConvertingChange={setIsConverting}
+        />
       </div>
 
-      {/* Row 2: Interactive Piano Keyboard */}
+      {/* Row 2: Audio Player */}
+      <div className="w-full">
+        <MusicPlayer
+          ref={playerRef}
+          title={uploadedFileData?.name || 'No music loaded'}
+          composer={processedMetadata?.composer || processedMetadata?.metadata?.composer || 'Unknown'}
+          audioUrl={processedMetadata?.audioUrl ?? undefined}
+          isConverting={isConverting}
+          onTimeUpdate={setCurrentTime}
+          onIsPlayingChange={setIsPlaying}
+          onDurationChange={setDuration}
+          fileId={uploadedFileData?.id}
+          loopStartMeasure={loopStartMeasure}
+          loopEndMeasure={loopEndMeasure}
+          onLoopStartChange={setLoopStartMeasure}
+          onLoopEndChange={setLoopEndMeasure}
+          secondsPerMeasure={secondsPerMeasure}
+          measuresMap={processedMetadata?.musicalInfo?.measures_map}
+          className="w-full"
+        />
+      </div>
+
+      {/* Row 3: Piano Visualization */}
       <div className="w-full bg-card/25 rounded-xl border border-border/30 overflow-hidden flex flex-col transition-all duration-300">
         <div className="px-6 py-4 border-b border-border/30 flex items-center justify-between bg-card/10">
           <div className="flex items-center gap-3">
@@ -375,202 +381,7 @@ function PracticeStudioContent() {
         </div>
       </div>
 
-      {/* Row 2.5: Deterministic Score Analysis Dashboard */}
-      {processedMetadata?.musicalInfo?.difficulty && (
-        <div className="w-full bg-card/25 rounded-xl border border-border/30 overflow-hidden flex flex-col transition-all duration-300 animate-fade-in">
-          <div className="px-6 py-4 border-b border-border/30 flex items-center justify-between bg-card/10">
-            <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
-              </svg>
-              <h2 className="text-lg font-semibold text-foreground">Score Analysis & Theory Insights</h2>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">
-                Deterministic Report
-              </span>
-            </div>
-          </div>
-
-          <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {/* Card 1: Difficulty & Melodic Register */}
-            <div className="glass rounded-xl p-5 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Difficulty</span>
-                  <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
-                    processedMetadata.musicalInfo.difficulty.difficulty_category === 'Beginner' 
-                      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-                      : processedMetadata.musicalInfo.difficulty.difficulty_category === 'Intermediate'
-                      ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                      : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
-                  }`}>
-                    {processedMetadata.musicalInfo.difficulty.difficulty_category}
-                  </span>
-                </div>
-                <div className="text-3xl font-extrabold text-foreground mb-2">
-                  {processedMetadata.musicalInfo.difficulty.difficulty_score} <span className="text-sm font-medium text-muted-foreground">/ 10</span>
-                </div>
-                
-                {processedMetadata.musicalInfo.register_and_contour && (
-                  <div className="mt-3 pt-3 border-t border-border/25 space-y-1.5 text-[11px]">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Highest Note:</span>
-                      <span className="font-semibold text-foreground">
-                        {processedMetadata.musicalInfo.register_and_contour.highest_note} (M.{processedMetadata.musicalInfo.register_and_contour.highest_note_measure})
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Lowest Note:</span>
-                      <span className="font-semibold text-foreground">
-                        {processedMetadata.musicalInfo.register_and_contour.lowest_note} (M.{processedMetadata.musicalInfo.register_and_contour.lowest_note_measure})
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Register Span:</span>
-                      <span className="font-semibold text-foreground truncate max-w-[120px]">
-                        {processedMetadata.musicalInfo.register_and_contour.range_interval_name}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Contour Shape:</span>
-                      <span className="font-semibold text-primary">
-                        {processedMetadata.musicalInfo.register_and_contour.contour}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Card 2: Key & Warm-up Scales */}
-            <div className="glass rounded-xl p-5 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Key & Diatonicity</span>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">
-                    {processedMetadata.musicalInfo.key_analysis?.mode || 'Tonal'}
-                  </span>
-                </div>
-                <div className="text-2xl font-extrabold text-foreground mb-0.5 truncate">
-                  {processedMetadata.musicalInfo.key_analysis?.tonal_center || 'C Major'}
-                </div>
-                
-                {processedMetadata.musicalInfo.diatonicity && (
-                  <div className="mb-3">
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                      <span>Diatonic Notes:</span>
-                      <span className="font-semibold text-foreground">
-                        {processedMetadata.musicalInfo.diatonicity.ratio_percentage}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                      <div 
-                        className="bg-primary h-1.5 rounded-full transition-all duration-500" 
-                        style={{ width: `${processedMetadata.musicalInfo.diatonicity.ratio_percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {processedMetadata.musicalInfo.practice_recommendations?.length > 0 && (
-                  <div className="border-t border-border/25 pt-2.5">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Warm-up Scale Routine</span>
-                    <div className="space-y-1.5 max-h-[85px] overflow-y-auto pr-1">
-                      {processedMetadata.musicalInfo.practice_recommendations.map((rec: any, idx: number) => (
-                        <div key={idx} className="text-[10px] bg-muted/40 p-1.5 rounded border border-border/10">
-                          <div className="flex justify-between items-center mb-0.5">
-                            <span className="font-bold text-foreground">{rec.scale_name}</span>
-                            <span className="text-[9px] bg-primary/10 text-primary px-1 rounded font-semibold">{rec.type}</span>
-                          </div>
-                          <p className="text-[9px] text-muted-foreground line-clamp-1">{rec.description}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Card 3: Harmony & Voice Leading */}
-            <div className="glass rounded-xl p-5 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Harmony & Rules</span>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
-                    {processedMetadata.musicalInfo.cadences?.length || 0} Cadences
-                  </span>
-                </div>
-                
-                <div className="space-y-3">
-                  <div>
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Form Cadences</span>
-                    {processedMetadata.musicalInfo.cadences?.length > 0 ? (
-                      <div className="space-y-1 max-h-[60px] overflow-y-auto pr-1">
-                        {processedMetadata.musicalInfo.cadences.slice(0, 2).map((cad: any, idx: number) => (
-                          <div key={idx} className="text-[9px] flex items-center justify-between bg-muted/30 p-1 rounded border border-border/10">
-                            <span className="font-medium text-foreground truncate max-w-[90px]">{cad.type}</span>
-                            <span className="text-[8px] text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded">{cad.progression} (M.{cad.measure})</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground italic">No cadences detected</span>
-                    )}
-                  </div>
-
-                  <div className="border-t border-border/25 pt-2">
-                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Voice-Leading Audits</span>
-                    {processedMetadata.musicalInfo.voice_leading_errors?.length > 0 ? (
-                      <div className="space-y-1 max-h-[60px] overflow-y-auto pr-1">
-                        {processedMetadata.musicalInfo.voice_leading_errors.slice(0, 2).map((err: any, idx: number) => (
-                          <div key={idx} className="text-[9px] bg-amber-500/5 text-amber-500 border border-amber-500/10 p-1 rounded flex flex-col">
-                            <div className="flex justify-between items-center">
-                              <span className="font-semibold text-foreground">M.{err.measure}:</span>
-                              <span className="font-bold text-[8px] uppercase">{err.type}</span>
-                            </div>
-                            <span className="text-[8px] text-muted-foreground">Between {err.voice_lower} & {err.voice_higher}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <span className="text-[9px] text-emerald-400 bg-emerald-500/5 px-1.5 py-1 rounded border border-emerald-500/10 block font-medium">
-                        ✓ All voice-leading rules passed.
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 4: Fingering & Rhythm */}
-            <div className="glass rounded-xl p-5 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Fingering & Rhythm</span>
-                  <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold">
-                    {processedMetadata.musicalInfo.rhythm?.syncopations_detected || 0} Sync
-                  </span>
-                </div>
-                <div className="text-xs space-y-2 text-muted-foreground">
-                  <div>
-                    <span className="font-semibold text-foreground block text-[10px] mb-0.5">Scale Fingering (RH / LH):</span>
-                    <span className="text-[10px] font-mono bg-muted/65 px-2 py-1 rounded block border border-border/20">
-                      {processedMetadata.musicalInfo.fingerings?.scale_fingerings?.right_hand} / {processedMetadata.musicalInfo.fingerings?.scale_fingerings?.left_hand}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="font-semibold text-foreground block text-[10px] mb-0.5">Melodic Suggestion (first 20 notes):</span>
-                    <span className="text-[10px] font-mono bg-muted/65 px-2 py-1 rounded block border border-border/20 truncate">
-                      {processedMetadata.musicalInfo.fingerings?.melodic_passage_fingering_suggestion || 'N/A'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Row 3: Sheet Music Viewer */}
+      {/* Row 4: Sheet Music Viewer */}
       <div className="w-full">
         <SheetMusicViewer
           xmlData={processedMetadata?.xmlData}
@@ -581,21 +392,237 @@ function PracticeStudioContent() {
           currentTime={currentTime}
           isPlaying={isPlaying}
           secondsPerMeasure={secondsPerMeasure}
+          measuresMap={processedMetadata?.musicalInfo?.measures_map}
           onMeasureClick={(measure) => {
-            const targetTime = (measure - 1) * secondsPerMeasure;
+            const map = processedMetadata?.musicalInfo?.measures_map;
+            let targetTime = (measure - 1) * secondsPerMeasure;
+            if (Array.isArray(map) && map.length > 0) {
+              const entry = map.find((m: any) => m.measure_number === measure);
+              if (entry) {
+                targetTime = entry.start_time;
+              }
+            }
             playerRef.current?.seekTo(targetTime);
           }}
-          loopStartMeasure={loopStartMeasure}
-          loopEndMeasure={loopEndMeasure}
-          isLooping={isLooping}
-          onLoopToggle={() => setIsLooping(!isLooping)}
-          onLoopStartChange={setLoopStartMeasure}
-          onLoopEndChange={setLoopEndMeasure}
           className="h-[600px] lg:h-[650px] min-h-[500px] w-full"
         />
       </div>
 
-      {/* Row 3: Practice Chat (moved down and big) */}
+      {/* Row 5: Deterministic Score Analysis Dashboard */}
+      {processedMetadata?.musicalInfo?.difficulty && (
+        <div className="w-full bg-card/25 rounded-xl border border-border/30 overflow-hidden flex flex-col transition-all duration-300 animate-fade-in">
+          <div className="px-6 py-4 border-b border-border/30 flex items-center justify-between bg-card/10">
+            <div className="flex items-center gap-3">
+              <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+              </svg>
+              <h2 className="text-lg font-semibold text-foreground">Score Analysis & Theory Insights</h2>
+              <span className="text-xs px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20 font-bold">
+                Deterministic Report
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-semibold">
+                Show Analysis
+              </span>
+              <button
+                onClick={() => setShowAnalysis(!showAnalysis)}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${showAnalysis ? 'bg-primary' : 'bg-muted'}`}
+                role="switch"
+                aria-checked={showAnalysis}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${showAnalysis ? 'translate-x-5' : 'translate-x-0'}`}
+                />
+              </button>
+            </div>
+          </div>
+
+          <div className={`transition-all duration-300 ease-in-out overflow-hidden ${showAnalysis ? 'max-h-[1500px] opacity-100' : 'max-h-0 opacity-0 border-0'}`}>
+            <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+              {/* Card 1: Difficulty & Melodic Register */}
+              <div className="glass rounded-xl p-6 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Difficulty</span>
+                    <span className={`text-xs px-2.5 py-0.5 rounded-full font-bold border ${
+                      processedMetadata.musicalInfo.difficulty.difficulty_category === 'Beginner' 
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        : processedMetadata.musicalInfo.difficulty.difficulty_category === 'Intermediate'
+                        ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                    }`}>
+                      {processedMetadata.musicalInfo.difficulty.difficulty_category}
+                    </span>
+                  </div>
+                  <div className="text-4xl font-extrabold text-foreground mb-3">
+                    {processedMetadata.musicalInfo.difficulty.difficulty_score} <span className="text-base font-medium text-muted-foreground">/ 10</span>
+                  </div>
+                  
+                  {processedMetadata.musicalInfo.register_and_contour && (
+                    <div className="mt-4 pt-4 border-t border-border/25 space-y-2.5 text-xs">
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Highest Note:</span>
+                        <span className="font-semibold text-foreground">
+                          {processedMetadata.musicalInfo.register_and_contour.highest_note} (M.{processedMetadata.musicalInfo.register_and_contour.highest_note_measure})
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Lowest Note:</span>
+                        <span className="font-semibold text-foreground">
+                          {processedMetadata.musicalInfo.register_and_contour.lowest_note} (M.{processedMetadata.musicalInfo.register_and_contour.lowest_note_measure})
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Register Span:</span>
+                        <span className="font-semibold text-foreground truncate max-w-[120px]">
+                          {processedMetadata.musicalInfo.register_and_contour.range_interval_name}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Contour Shape:</span>
+                        <span className="font-semibold text-primary">
+                          {processedMetadata.musicalInfo.register_and_contour.contour}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 2: Key & Warm-up Scales */}
+              <div className="glass rounded-xl p-6 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Key & Diatonicity</span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">
+                      {processedMetadata.musicalInfo.key_analysis?.mode || 'Tonal'}
+                    </span>
+                  </div>
+                  <div className="text-3xl font-extrabold text-foreground mb-1.5 truncate">
+                    {processedMetadata.musicalInfo.key_analysis?.tonal_center || 'C Major'}
+                  </div>
+                  
+                  {processedMetadata.musicalInfo.diatonicity && (
+                    <div className="mb-4">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1.5">
+                        <span>Diatonic Notes:</span>
+                        <span className="font-semibold text-foreground">
+                          {processedMetadata.musicalInfo.diatonicity.ratio_percentage}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                        <div 
+                          className="bg-primary h-2 rounded-full transition-all duration-500" 
+                          style={{ width: `${processedMetadata.musicalInfo.diatonicity.ratio_percentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {processedMetadata.musicalInfo.practice_recommendations?.length > 0 && (
+                    <div className="border-t border-border/25 pt-3.5">
+                      <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">Warm-up Scale Routine</span>
+                      <div className="space-y-2.5">
+                        {processedMetadata.musicalInfo.practice_recommendations.map((rec: any, idx: number) => (
+                          <div key={idx} className="text-xs bg-muted/40 p-2 rounded border border-border/10">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-bold text-foreground">{rec.scale_name}</span>
+                              <span className="text-[10px] bg-primary/10 text-primary px-1.5 rounded font-semibold">{rec.type}</span>
+                            </div>
+                            <p className="text-[10px] text-muted-foreground line-clamp-2">{rec.description}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Card 3: Harmony & Voice Leading */}
+              <div className="glass rounded-xl p-6 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Harmony & Rules</span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
+                      {processedMetadata.musicalInfo.cadences?.length || 0} Cadences
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">Form Cadences</span>
+                      {processedMetadata.musicalInfo.cadences?.length > 0 ? (
+                        <div className="space-y-2">
+                          {processedMetadata.musicalInfo.cadences.slice(0, 2).map((cad: any, idx: number) => (
+                            <div key={idx} className="text-xs flex items-center justify-between bg-muted/30 p-2 rounded border border-border/10">
+                              <span className="font-medium text-foreground truncate max-w-[110px]">{cad.type}</span>
+                              <span className="text-[10px] text-muted-foreground font-semibold bg-muted px-1.5 py-0.5 rounded">{cad.progression} (M.{cad.measure})</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground italic">No cadences detected</span>
+                      )}
+                    </div>
+
+                    <div className="border-t border-border/25 pt-3">
+                      <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider block mb-2">Voice-Leading Audits</span>
+                      {processedMetadata.musicalInfo.voice_leading_errors?.length > 0 ? (
+                        <div className="space-y-2">
+                          {processedMetadata.musicalInfo.voice_leading_errors.slice(0, 2).map((err: any, idx: number) => (
+                            <div key={idx} className="text-xs bg-amber-500/5 text-amber-500 border border-amber-500/10 p-2 rounded flex flex-col">
+                              <div className="flex justify-between items-center mb-0.5">
+                                <span className="font-semibold text-foreground">M.{err.measure}:</span>
+                                <span className="font-bold text-[9px] uppercase">{err.type}</span>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground">Between {err.voice_lower} & {err.voice_higher}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-emerald-400 bg-emerald-500/5 px-2 py-1.5 rounded border border-emerald-500/10 block font-medium">
+                          ✓ All voice-leading rules passed.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Card 4: Fingering & Rhythm */}
+              <div className="glass rounded-xl p-6 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Fingering & Rhythm</span>
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold">
+                      {processedMetadata.musicalInfo.rhythm?.syncopations_detected || 0} Sync
+                    </span>
+                  </div>
+                  <div className="text-sm space-y-3.5 text-muted-foreground">
+                    <div>
+                      <span className="font-semibold text-foreground block text-xs mb-1">Scale Fingering (RH / LH):</span>
+                      <span className="text-xs font-mono bg-muted/65 px-2.5 py-1.5 rounded block border border-border/20">
+                        {processedMetadata.musicalInfo.fingerings?.scale_fingerings?.right_hand} / {processedMetadata.musicalInfo.fingerings?.scale_fingerings?.left_hand}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-foreground block text-xs mb-1">Melodic Suggestion (first 20 notes):</span>
+                      <span className="text-xs font-mono bg-muted/65 px-2.5 py-1.5 rounded block border border-border/20 whitespace-normal break-all">
+                        {processedMetadata.musicalInfo.fingerings?.melodic_passage_fingering_suggestion || 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Row 6: Practice Chat */}
       <div className="w-full">
         <AIChat
           title="Treble"

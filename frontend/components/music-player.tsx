@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, Loader2, Upload, Check, AlertCircle, X, Music, ChevronRight } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, Loader2, Upload, Check, AlertCircle, X, Music, ChevronRight, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 
@@ -25,6 +25,15 @@ interface MusicPlayerProps {
   onMetadataUpdate?: (metadata: any) => void;
   onConvertingChange?: (converting: boolean) => void;
   fileId?: string;
+  // Looping props
+  isLooping?: boolean;
+  loopStartMeasure?: number;
+  loopEndMeasure?: number;
+  onLoopToggle?: () => void;
+  onLoopStartChange?: (measure: number) => void;
+  onLoopEndChange?: (measure: number) => void;
+  secondsPerMeasure?: number;
+  measuresMap?: any[];
 }
 
 function extFromName(filename: string): string {
@@ -56,6 +65,14 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
   onMetadataUpdate,
   onConvertingChange,
   fileId,
+  isLooping = false,
+  loopStartMeasure = 1,
+  loopEndMeasure = 8,
+  onLoopToggle,
+  onLoopStartChange,
+  onLoopEndChange,
+  secondsPerMeasure = 2.0,
+  measuresMap = [],
 }, ref) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const isSeekingRef = useRef(false);
@@ -116,12 +133,42 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
       setDuration(audio.duration);
     }
   }, []);
+  
+  // Helper to compute start and end times in seconds from measuresMap
+  const getPlayRangeTimes = useCallback(() => {
+    let startTime = (loopStartMeasure - 1) * secondsPerMeasure;
+    let endTime = loopEndMeasure * secondsPerMeasure;
+
+    if (Array.isArray(measuresMap) && measuresMap.length > 0) {
+      const startEntry = measuresMap.find((m: any) => m.measure_number === loopStartMeasure);
+      if (startEntry) {
+        startTime = startEntry.start_time;
+      }
+      const endEntry = measuresMap.find((m: any) => m.measure_number === loopEndMeasure);
+      if (endEntry) {
+        endTime = endEntry.end_time;
+      }
+    }
+
+    return { startTime, endTime };
+  }, [loopStartMeasure, loopEndMeasure, secondsPerMeasure, measuresMap]);
 
   const syncCurrentTime = useCallback(() => {
     const audio = audioRef.current;
     if (!audio || isSeekingRef.current) return;
     
-    const newTime = audio.currentTime;
+    let newTime = audio.currentTime;
+    
+    // Play Range Limit Enforcement (Synchronous and lag-free)
+    const { endTime } = getPlayRangeTimes();
+    const effectiveEndTime = Math.max(0, endTime - 0.05); // Stop 50ms early to avoid next measure buffer trigger
+    
+    if (newTime >= effectiveEndTime && !audio.paused) {
+      audio.pause();
+      audio.currentTime = effectiveEndTime;
+      newTime = effectiveEndTime;
+    }
+
     if (Math.abs(currentTimeRef.current - newTime) >= 0.01) {
       currentTimeRef.current = newTime;
       setCurrentTime(newTime);
@@ -133,7 +180,7 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
       setDuration(audio.duration);
       onDurationChangeRef.current?.(audio.duration);
     }
-  }, []);
+  }, [getPlayRangeTimes]);
 
   // Expose methods to parent components
   useImperativeHandle(ref, () => ({
@@ -271,6 +318,17 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
     if (isPlaying) {
       audio.pause();
     } else {
+      const { startTime, endTime } = getPlayRangeTimes();
+      const effectiveEndTime = Math.max(0, endTime - 0.05);
+      
+      // If playhead is outside the range, jump to the start of the range before playing
+      if (audio.currentTime < startTime || audio.currentTime >= effectiveEndTime) {
+        audio.currentTime = startTime;
+        currentTimeRef.current = startTime;
+        setCurrentTime(startTime);
+        onTimeUpdateRef.current?.(startTime);
+      }
+
       audio.play().catch((err) => {
         console.error('[MusicPlayer] Playback error:', err);
       });
@@ -557,16 +615,8 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
   ];
 
   return (
-    <div className={`glass rounded-xl p-6 border border-border/30 relative flex flex-col justify-between ${className}`}>
+    <div className={`glass rounded-xl p-4 border border-border/30 relative flex flex-col justify-between ${className}`}>
       <audio ref={audioRef} src={audioUrl} preload="auto" className="hidden" />
-
-      {/* Top Header Row */}
-      <div className="flex items-start justify-between gap-4 mb-6 relative">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-lg font-bold text-foreground truncate">{title}</h3>
-          <p className="text-xs text-muted-foreground truncate font-medium">{composer}</p>
-        </div>
-      </div>
 
       {/* Seek Progress Bar */}
       <div className="mb-4 space-y-2">
@@ -594,7 +644,8 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
       </div>
 
       {/* Control Buttons row */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        {/* Play/Pause Button */}
         <div className="flex items-center gap-2">
           <button
             onClick={handlePlayPause}
@@ -610,6 +661,33 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
           </button>
         </div>
 
+        {/* Loop controls (Play Range) */}
+        {hasAudio && (
+          <div className="flex items-center gap-2 border-l border-r border-border/20 px-4">
+            <span className="text-xs text-muted-foreground font-semibold">Measure:</span>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="number"
+                min={1}
+                value={loopStartMeasure}
+                onChange={(e) => onLoopStartChange?.(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-12 h-8 px-1.5 text-center bg-card/50 border border-border/30 rounded text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                title="Start Measure"
+              />
+              <span className="text-xs text-muted-foreground font-semibold">to</span>
+              <input
+                type="number"
+                min={loopStartMeasure}
+                value={loopEndMeasure}
+                onChange={(e) => onLoopEndChange?.(Math.max(loopStartMeasure, parseInt(e.target.value) || loopStartMeasure))}
+                className="w-12 h-8 px-1.5 text-center bg-card/50 border border-border/30 rounded text-xs text-foreground focus:outline-none focus:border-primary font-semibold"
+                title="End Measure"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Speed Controls */}
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground font-semibold">Speed:</span>
           <select
@@ -627,6 +705,7 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
           </select>
         </div>
 
+        {/* Volume Controls */}
         <div className="flex items-center gap-2 min-w-[7.5rem]">
           <Volume2 className="w-4 h-4 text-muted-foreground shrink-0" />
           <input

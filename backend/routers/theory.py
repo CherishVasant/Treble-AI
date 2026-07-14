@@ -1,5 +1,6 @@
 import uuid
 import datetime
+import json
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -8,7 +9,7 @@ from jose import jwt
 from services.agent import AgentService
 from schemas import TheoryChatRequest, TheoryChatResponse
 from database import get_db
-from models import User, TheoryTutorChat, TheoryTutorMessage, PracticeSession, PracticeChat, PracticeMessage
+from models import User, TheoryTutorChat, TheoryTutorMessage, PracticeSession, PracticeChat, PracticeMessage, AnalysisReport
 from routers.auth import get_current_user
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
@@ -128,12 +129,44 @@ def theory_chat(
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Database error saving message: {str(db_exc)}")
 
+    # Inject database-backed score analysis context for practice tutor sessions to guarantee completeness
+    if chat_type == "practice" and chat_id:
+        report_record = db.query(AnalysisReport).filter(AnalysisReport.practice_session_id == chat_id).first()
+        if report_record and report_record.analysis_json:
+            info = report_record.analysis_json
+            original_filename = "Uploaded score"
+            session_rec = db.query(PracticeSession).filter(PracticeSession.id == chat_id).first()
+            if session_rec:
+                original_filename = session_rec.original_filename
+                
+            db_context = f"Current practice file: {original_filename}. Here is the detailed deterministic music analysis report for this piece:\n"
+            db_context += f"- Title: {info.get('title') or original_filename}\n"
+            db_context += f"- Composer: {info.get('composer') or 'Unknown'}\n"
+            db_context += f"- Key Signature: {info.get('key_signature') or 'Unknown'}\n"
+            db_context += f"- Time Signature: {info.get('time_signature') or 'Unknown'}\n"
+            db_context += f"- Tempo: {info.get('tempo') or 'Unknown'}\n"
+            db_context += f"- Total Measures: {info.get('total_measures') or 'Unknown'}\n"
+            db_context += f"- Parts: {json.dumps(info.get('parts', []))}\n"
+            db_context += f"- Key/Scale Analysis: {json.dumps(info.get('key_analysis', {}))}\n"
+            db_context += f"- Chords Detected (first 50): {json.dumps((info.get('chord_list', []) or [])[:50])}\n"
+            db_context += f"- Roman Numeral Progression (first 50): {json.dumps((info.get('roman_numerals', []) or [])[:50])}\n"
+            db_context += f"- Cadences Detected: {json.dumps(info.get('cadences', []))}\n"
+            db_context += f"- Melodic Interval Stats: {json.dumps(info.get('intervals', {}))}\n"
+            db_context += f"- Rhythm Analysis: {json.dumps(info.get('rhythm', {}))}\n"
+            db_context += f"- Phrase Boundaries (measures): {json.dumps(info.get('phrases', []))}\n"
+            db_context += f"- Melodic Motifs: {json.dumps(info.get('motifs', []))}\n"
+            db_context += f"- Difficulty Analysis: {json.dumps(info.get('difficulty', {}))}\n"
+            db_context += f"- Fingering Suggestions: {json.dumps(info.get('fingerings', {}))}"
+            
+            body.context = db_context
+
     try:
         res = AgentService.run_agent(
             message=body.message,
             context=body.context,
             system_prompt=body.system_prompt,
-            history=[{"role": h.role, "content": h.content} for h in body.history]
+            history=[{"role": h.role, "content": h.content} for h in body.history],
+            chat_type=chat_type
         )
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))

@@ -435,14 +435,92 @@ export default function SheetMusicUploader({
     setIsConvertingLocal(false);
   };
 
-  const stepsList = [
-    { key: 'upload', label: activeFile ? 'File Upload' : 'Waiting for file' },
-    { key: 'omr', label: 'OMR Processing' },
-    { key: 'musicxml', label: 'MusicXML Generation' },
-    { key: 'midi', label: 'MusicXML Validation' },
-    { key: 'audio', label: 'MusicXML → MIDI Conversion' },
-    { key: 'analysis', label: 'MIDI → Audio Rendering' }
-  ];
+  const getStepStatus = (stepKey: 'upload' | 'omr' | 'midi') => {
+    if (stepKey === 'upload') {
+      return conversionSteps.upload || 'pending';
+    }
+    if (stepKey === 'omr') {
+      const omr = conversionSteps.omr || 'pending';
+      const mxml = conversionSteps.musicxml || 'pending';
+      if (omr === 'failed' || mxml === 'failed') return 'failed';
+      if (omr === 'completed' && mxml === 'completed') return 'completed';
+      if (omr === 'processing' || mxml === 'processing' || (omr === 'completed' && mxml === 'pending')) return 'processing';
+      return 'pending';
+    }
+    if (stepKey === 'midi') {
+      const midi = conversionSteps.midi || 'pending';
+      const audio = conversionSteps.audio || 'pending';
+      const analysis = conversionSteps.analysis || 'pending';
+      if (midi === 'failed' || audio === 'failed' || analysis === 'failed') return 'failed';
+      if (midi === 'completed' && audio === 'completed' && analysis === 'completed') return 'completed';
+      if (midi === 'processing' || audio === 'processing' || analysis === 'processing' || 
+          (midi === 'completed' && (audio !== 'completed' || analysis !== 'completed'))) return 'processing';
+      return 'pending';
+    }
+    return 'pending';
+  };
+
+  const renderStepNode = (stepKey: 'upload' | 'omr' | 'midi', num: number, label: string) => {
+    const status = getStepStatus(stepKey);
+    return (
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="relative">
+          {status === 'completed' && (
+            <div className="w-7 h-7 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/35 flex items-center justify-center bg-card shadow-glow/10 scale-100 transition-all duration-300">
+              <Check className="w-3.5 h-3.5" />
+            </div>
+          )}
+          {status === 'processing' && (
+            <div className="w-7 h-7 rounded-full bg-primary/20 text-primary border border-primary/35 flex items-center justify-center bg-card shadow-glow/20 scale-105 transition-all duration-300">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            </div>
+          )}
+          {status === 'pending' && (
+            <div className="w-7 h-7 rounded-full bg-muted/10 text-muted-foreground border border-border/30 flex items-center justify-center bg-card text-[11px] font-mono font-bold transition-all duration-300">
+              {num}
+            </div>
+          )}
+          {status === 'failed' && (
+            <div className="w-7 h-7 rounded-full bg-red-500/20 text-red-400 border border-red-500/35 flex items-center justify-center bg-card transition-all duration-300">
+              <AlertCircle className="w-3.5 h-3.5" />
+            </div>
+          )}
+        </div>
+        <span
+          className={`text-xs font-semibold whitespace-nowrap transition-colors duration-300 ${
+            status === 'completed'
+              ? 'text-foreground/80'
+              : status === 'processing'
+                ? 'text-primary font-bold'
+                : status === 'failed'
+                  ? 'text-red-400 font-semibold'
+                  : 'text-muted-foreground/60'
+          }`}
+        >
+          {label}
+        </span>
+      </div>
+    );
+  };
+
+  const renderConnectorLine = (fromKey: 'upload' | 'omr', toKey: 'omr' | 'midi') => {
+    const fromStatus = getStepStatus(fromKey);
+    const toStatus = getStepStatus(toKey);
+    const isCompleted = fromStatus === 'completed';
+    const isProcessing = toStatus === 'processing';
+    
+    return (
+      <div 
+        className={`w-6 sm:w-10 h-0.5 rounded transition-all duration-500 flex-shrink-0 ${
+          isCompleted 
+            ? 'bg-emerald-500/50' 
+            : isProcessing 
+              ? 'bg-gradient-to-r from-emerald-500/30 to-primary/50 animate-pulse' 
+              : 'bg-border/20'
+        }`}
+      />
+    );
+  };
 
   const getConvertButtonState = () => {
     if (!activeFile) {
@@ -515,19 +593,11 @@ export default function SheetMusicUploader({
   const btnState = getConvertButtonState();
 
   return (
-    <div className="space-y-4">
-      {/* Upload Dropzone Area (Always visible) */}
-      <div
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-        className={`p-6 rounded-xl border-2 border-dashed text-center transition-all duration-300 ${
-          dragActive
-            ? 'border-primary bg-primary/5 shadow-glow'
-            : 'border-border/30 bg-card/25 hover:border-border/60 hover:bg-card/40'
-        }`}
-      >
+    <div className="w-full flex flex-col gap-3">
+      <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-4 rounded-xl bg-card/25 border border-border/30 shadow-sm animate-fade-in relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full pointer-events-none" />
+        
+        {/* Hidden file input */}
         <input
           ref={fileInputRef}
           type="file"
@@ -535,147 +605,79 @@ export default function SheetMusicUploader({
           accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tif,.tiff,.heic,.avif,.svg,application/pdf,image/*"
           className="hidden"
         />
-        <div className="flex flex-col items-center gap-3 text-center">
-          <div className="p-3 rounded-lg bg-gradient-primary/10 border border-primary/20 shadow-glow">
-            <Upload className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-foreground">Drop score file</h3>
-            <p className="text-xs text-muted-foreground mt-1">
-              or{' '}
+
+        {/* Left side: Upload Button & File Details */}
+        <div className="flex flex-wrap items-center gap-4">
+          {!activeFile ? (
+            <Button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="bg-gradient-primary hover:shadow-glow text-white font-semibold flex items-center gap-2 px-5 py-2.5 h-11 transition-all duration-200"
+            >
+              <Upload className="w-4 h-4" />
+              <span>Upload Sheet Music</span>
+            </Button>
+          ) : (
+            <div className="flex items-center gap-3 bg-card/50 px-4 py-2 rounded-lg border border-border/20">
+              <div className="p-2 rounded bg-primary/10 text-primary">
+                <Music className="w-4 h-4" />
+              </div>
+              <div className="min-w-0 max-w-[200px] sm:max-w-[300px]">
+                <h5 className="text-xs font-semibold text-foreground truncate" title={activeFile.name}>
+                  {activeFile.name}
+                </h5>
+                <p className="text-[10px] text-muted-foreground">
+                  {activeFile.size > 0 ? `${(activeFile.size / 1024).toFixed(1)} KB` : 'Loaded score'}
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-primary hover:underline font-medium"
+                onClick={handleRemoveFile}
+                disabled={isConvertingLocal}
+                className="p-1 hover:bg-card/85 rounded-lg transition-colors flex-shrink-0 disabled:opacity-40"
+                aria-label="Remove File"
               >
-                browse files
+                <X className="w-3.5 h-3.5 text-muted-foreground hover:text-red-400" />
               </button>
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Stepper and Action Button Details (Always visible) */}
-      <div className="p-4 rounded-xl bg-card/40 border border-border/30 animate-slide-up shadow-sm relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 blur-2xl rounded-full pointer-events-none" />
-
-        {/* Active File Details Header */}
-        {activeFile ? (
-          <div className="flex items-start justify-between gap-3 mb-4">
-            <div className="min-w-0 flex-1">
-              <h5 className="text-sm font-semibold text-foreground truncate" title={activeFile.name}>
-                {activeFile.name}
-              </h5>
-              <p className="text-[11px] text-muted-foreground">
-                {activeFile.size > 0 ? `${(activeFile.size / 1024).toFixed(1)} KB` : 'Loaded score'}
-              </p>
             </div>
-            <button
-              type="button"
-              onClick={handleRemoveFile}
-              disabled={isConvertingLocal}
-              className="p-1 hover:bg-card/85 rounded-lg transition-colors flex-shrink-0 disabled:opacity-40"
-              aria-label="Remove File"
-            >
-              <X className="w-4 h-4 text-muted-foreground hover:text-red-400" />
-            </button>
-          </div>
-        ) : (
-          <div className="mb-4">
-            <h5 className="text-sm font-semibold text-muted-foreground/60 italic">
-              No score file loaded
-            </h5>
-          </div>
-        )}
+          )}
 
-        {/* Stepper progress stages */}
-        <div className="space-y-3 border-t border-border/20 pt-4">
-          <h6 className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-3">
-            Processing Progress
-          </h6>
-          <div className="relative pl-1 space-y-4">
-            {/* Vertical timeline connector line linking all step circles */}
-            <div className="absolute left-[9px] top-2.5 bottom-2.5 w-[2px] bg-border/20 rounded" />
-            
-            {stepsList.map((step, idx) => {
-              const stepStatus = conversionSteps[step.key] || 'pending';
-
-              return (
-                <div key={step.key} className="flex items-center gap-3 text-xs relative z-10 transition-all duration-300">
-                  <div className="flex-shrink-0 relative">
-                    {stepStatus === 'completed' && (
-                      <div className="w-5 h-5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center bg-card shadow-glow/10 scale-100 transition-all duration-300 animate-[scale-in_0.2s_ease-out]">
-                        <Check className="w-3 h-3" />
-                      </div>
-                    )}
-                    {stepStatus === 'processing' && (
-                      <div className="w-5 h-5 rounded-full bg-primary/20 text-primary border border-primary/30 flex items-center justify-center bg-card shadow-glow/20 scale-110 transition-all duration-300">
-                        <Loader2 className="w-3 h-3 animate-spin" />
-                      </div>
-                    )}
-                    {stepStatus === 'pending' && (
-                      <div className="w-5 h-5 rounded-full bg-muted/10 text-muted border border-border/30 flex items-center justify-center bg-card text-[10px] font-mono font-bold transition-all duration-300">
-                        {idx + 1}
-                      </div>
-                    )}
-                    {stepStatus === 'failed' && (
-                      <div className="w-5 h-5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 flex items-center justify-center bg-card transition-all duration-300">
-                        <AlertCircle className="w-3 h-3" />
-                      </div>
-                    )}
-                  </div>
-                  <span
-                    className={`font-medium transition-colors duration-300 ${
-                      stepStatus === 'completed'
-                        ? 'text-foreground/80'
-                        : stepStatus === 'processing'
-                          ? 'text-primary'
-                          : stepStatus === 'failed'
-                            ? 'text-red-400 font-semibold'
-                            : 'text-muted-foreground/60'
-                    }`}
-                  >
-                    {step.label}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Action Trigger Convert Button (Always rendered) */}
-        <div className="mt-4">
-          <Button
-            type="button"
-            onClick={handleConvert}
-            disabled={btnState.disabled}
-            className="w-full bg-gradient-primary hover:shadow-glow text-white font-semibold transition-all duration-200 py-2.5 h-10 flex items-center justify-center gap-1.5 disabled:opacity-50"
-          >
-            {btnState.icon}
-            {btnState.label}
-          </Button>
-        </div>
-
-        {conversionError && (
-          <div className="mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-[11px] text-red-400 flex flex-col gap-2">
-            <div className="flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <div>
-                <span className="font-semibold block mb-0.5">Conversion Failed</span>
-                {conversionError}
-              </div>
-            </div>
+          {/* Action Button (only shown when a file is loaded) */}
+          {activeFile && (
             <Button
               type="button"
               onClick={handleConvert}
-              variant="ghost"
-              className="w-full border border-red-500/30 text-[10px] h-7 bg-red-500/5 hover:bg-red-500/25 text-red-400 font-bold"
+              disabled={btnState.disabled}
+              className="bg-gradient-primary hover:shadow-glow text-white font-semibold flex items-center gap-2 px-4 py-2.5 h-11 transition-all duration-200 disabled:opacity-50"
             >
-              Retry Conversion
+              {btnState.icon}
+              <span>{btnState.label}</span>
             </Button>
-          </div>
-        )}
+          )}
+        </div>
+
+        {/* Right side: Horizontal Progress Stepper */}
+        <div className="flex items-center gap-4 overflow-x-auto py-1 scrollbar-none">
+          {/* Step 1: File Upload */}
+          {renderStepNode('upload', 1, 'File Upload')}
+          {renderConnectorLine('upload', 'omr')}
+
+          {/* Step 2: OMR Processing */}
+          {renderStepNode('omr', 2, 'OMR Processing')}
+          {renderConnectorLine('omr', 'midi')}
+
+          {/* Step 3: MIDI & Audio */}
+          {renderStepNode('midi', 3, 'MIDI & Audio')}
+        </div>
       </div>
+
+      {/* Error message inline underneath if failed */}
+      {conversionError && (
+        <div className="w-full text-xs text-red-400 flex items-center gap-2 bg-red-500/5 p-3 rounded-lg border border-red-500/15">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{conversionError}</span>
+        </div>
+      )}
     </div>
   );
 }

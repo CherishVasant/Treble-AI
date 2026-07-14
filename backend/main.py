@@ -418,6 +418,35 @@ def extract_musical_info(mxl_path: Path) -> dict:
             
         info["notes"] = note_events
             
+        # Build measures map
+        measures_map = []
+        try:
+            try:
+                expanded = score.expandRepeats()
+            except Exception:
+                expanded = score
+            
+            tempos = expanded.flat.getElementsByClass(tempo.MetronomeMark)
+            tempo_val = tempos[0].number if tempos else 120
+            seconds_per_beat = 60.0 / tempo_val
+            
+            parts = expanded.parts
+            if parts:
+                measures = parts[0].getElementsByClass('Measure')
+                for idx, m in enumerate(measures):
+                    start_sec = m.offset * seconds_per_beat
+                    end_sec = (m.offset + m.quarterLength) * seconds_per_beat
+                    measures_map.append({
+                        "measure_index": idx,
+                        "measure_number": int(m.number),
+                        "start_time": float(start_sec),
+                        "end_time": float(end_sec)
+                    })
+        except Exception as me:
+            print(f"[extract_musical_info] Error building measures_map: {me}")
+        
+        info["measures_map"] = measures_map
+            
     except Exception as e:
         info["error"] = f"Failed to parse musical details: {str(e)}"
         
@@ -469,4 +498,5 @@ def get_musical_info(
 if __name__ == "__main__":
     import uvicorn
 
+    # Reload trigger comment: added JSON parsing regex fallback
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

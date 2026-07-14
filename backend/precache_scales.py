@@ -6,7 +6,8 @@ from pathlib import Path
 from music21 import stream, note, tempo
 
 FLUIDSYNTH_PATH = r"C:\tools\fluidsynth\bin\fluidsynth.exe"
-SOUNDFONT = r"C:\Users\CHERISH\DEV\PersonalProjects\Treble-AI\backend\soundfonts\GeneralUser-GS.sf2"
+import os
+SOUNDFONT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "soundfonts", "GeneralUser-GS.sf2")
 
 def precache_scales():
     # Read scales-data.ts to extract scales and their playNotes

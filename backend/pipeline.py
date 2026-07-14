@@ -7,7 +7,8 @@ from enhance_quality import process_file
 
 AUDIVERIS_PATH = r"C:\Program Files\Audiveris\Audiveris.exe"
 FLUIDSYNTH_PATH = r"C:\tools\fluidsynth\bin\fluidsynth.exe"
-SOUNDFONT = r"C:\Users\CHERISH\DEV\PersonalProjects\Treble-AI\backend\soundfonts\GeneralUser-GS.sf2"
+import os
+SOUNDFONT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "soundfonts", "GeneralUser-GS.sf2")
 
 
 def _friendly_audiveris_error(log: str) -> str | None:

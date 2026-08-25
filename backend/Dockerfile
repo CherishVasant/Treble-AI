@@ -70,6 +70,15 @@ ENV AUDIVERIS_PATH=Audiveris
 ENV FLUIDSYNTH_PATH=fluidsynth
 ENV PYTHONPATH=/app
 
+# Cap the JVM heap so Audiveris stays within Render's 512 MB container limit.
+# JAVA_TOOL_OPTIONS is honoured by every JVM in the container automatically.
+#   -Xmx256m  hard heap ceiling — if a score exceeds this, the JVM throws
+#              OutOfMemoryError (exit 1) and the pipeline returns a clean 500,
+#              instead of the whole container being killed by the OOM killer.
+#   -Xss512k  halve the default per-thread stack (1 MB → 512 KB); Audiveris
+#              uses many threads so this saves ~50–100 MB of virtual RSS.
+ENV JAVA_TOOL_OPTIONS="-Xmx256m -Xss512k"
+
 # ── Run ──────────────────────────────────────────────────────────────────────
 EXPOSE 8000
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

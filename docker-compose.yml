@@ -17,9 +17,8 @@ services:
       - "8000:8000"
     depends_on:
       - db
+    env_file:
+      - ./backend/.env
     environment:
-      DATABASE_URL: postgresql+psycopg://treble:treble@db:5432/treble
-      JWT_SECRET_KEY: local-dev-secret-change-in-prod
-      CORS_ORIGINS: http://localhost:3000
       AUDIVERIS_PATH: /opt/audiveris/bin/Audiveris
       FLUIDSYNTH_PATH: fluidsynth

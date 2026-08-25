@@ -21,7 +21,7 @@ elif db_url.startswith("postgresql://"):
     db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
 
 # Auto-append SSL mode for remote connections if not already specified.
-if "localhost" not in db_url and "127.0.0.1" not in db_url:
+if "localhost" not in db_url and "127.0.0.1" not in db_url and "@db:" not in db_url and "@db/" not in db_url:
     if "sslmode=" not in db_url:
         if "?" in db_url:
             db_url += "&sslmode=require"

@@ -3,7 +3,8 @@ import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 import { proxyToBackend } from '@/lib/backend-proxy';
 
-const STORE = path.join(process.cwd(), '.upload-store');
+// Vercel serverless functions have a read-only filesystem except for /tmp
+const STORE = '/tmp/.upload-store';
 
 export async function GET(
   request: NextRequest,

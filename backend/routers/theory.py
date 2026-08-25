@@ -138,8 +138,16 @@ def theory_chat(
             session_rec = db.query(PracticeSession).filter(PracticeSession.id == chat_id).first()
             if session_rec:
                 original_filename = session_rec.original_filename
-                
-            db_context = f"Current practice file: {original_filename}. Here is the detailed deterministic music analysis report for this piece:\n"
+
+            db_context = f"Current practice file: {original_filename}.\n\n"
+
+            # ── SECTION 1: Full note-by-note score (the ground truth the agent MUST use) ──
+            if report_record.notes_text:
+                db_context += "=== FULL SCORE — NOTE BY NOTE (use this to answer any question about specific notes, fingering, or how the piece is played) ===\n"
+                db_context += report_record.notes_text + "\n\n"
+
+            # ── SECTION 2: Derived music analysis (chords, harmony, difficulty, etc.) ──
+            db_context += "=== MUSIC ANALYSIS REPORT ===\n"
             db_context += f"- Title: {info.get('title') or original_filename}\n"
             db_context += f"- Composer: {info.get('composer') or 'Unknown'}\n"
             db_context += f"- Key Signature: {info.get('key_signature') or 'Unknown'}\n"
@@ -157,7 +165,7 @@ def theory_chat(
             db_context += f"- Melodic Motifs: {json.dumps(info.get('motifs', []))}\n"
             db_context += f"- Difficulty Analysis: {json.dumps(info.get('difficulty', {}))}\n"
             db_context += f"- Fingering Suggestions: {json.dumps(info.get('fingerings', {}))}"
-            
+
             body.context = db_context
 
     try:

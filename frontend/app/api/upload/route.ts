@@ -2,7 +2,8 @@ import { mkdir, writeFile } from 'fs/promises';
 import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
 
-const STORE = path.join(process.cwd(), '.upload-store');
+// Vercel serverless functions have a read-only filesystem except for /tmp
+const STORE = '/tmp/.upload-store';
 
 function extFromName(filename: string): string {
   const m = filename.match(/\.([^.]+)$/);

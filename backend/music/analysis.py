@@ -961,6 +961,68 @@ def get_practice_recommendations(key_analysis, analyzed_key):
     return recommendations[:3]
 
 
+def extract_notes_text(mxl_path: str, max_measures: int = 300) -> str:
+    """
+    Extract a compact, LLM-readable text representation of every note/rest/chord
+    in the score, organized by part and measure.
+
+    Example output:
+        Part 1 (Violin):
+          Measure 1: G4(quarter), A4(eighth), B4(eighth), C5(quarter), D5(quarter)
+          Measure 2: rest(quarter), E5(half), ...
+        Part 2 (Piano):
+          Measure 1: [C4+E4+G4](whole)
+          ...
+    """
+    from music21 import instrument as m21instrument
+
+    try:
+        score = converter.parse(str(mxl_path))
+        lines: list[str] = []
+
+        for part_idx, part in enumerate(score.parts):
+            # Determine a human-readable part name
+            part_name = part.partName or part.id or f"Part {part_idx + 1}"
+            instruments = part.flat.getElementsByClass(m21instrument.Instrument)
+            if instruments:
+                instr_name = instruments[0].instrumentName
+                if instr_name:
+                    part_name = instr_name
+
+            lines.append(f"Part {part_idx + 1} ({part_name}):")
+
+            measures = list(part.getElementsByClass("Measure"))
+            for m_idx, measure in enumerate(measures):
+                if m_idx >= max_measures:
+                    remaining = len(measures) - max_measures
+                    lines.append(f"  ... [{remaining} more measures not shown]")
+                    break
+
+                note_tokens: list[str] = []
+                for element in measure.notesAndRests:
+                    try:
+                        dur = element.duration.type
+                        if dur == "complex":
+                            dur = f"{float(element.duration.quarterLength):.2g}qL"
+                    except Exception:
+                        dur = "?"
+
+                    if isinstance(element, note.Rest):
+                        note_tokens.append(f"rest({dur})")
+                    elif isinstance(element, note.Note):
+                        note_tokens.append(f"{element.nameWithOctave}({dur})")
+                    elif isinstance(element, chord.Chord):
+                        names = "+".join(n.nameWithOctave for n in element.notes)
+                        note_tokens.append(f"[{names}]({dur})")
+
+                if note_tokens:
+                    lines.append(f"  Measure {measure.number}: {', '.join(note_tokens)}")
+
+        return "\n".join(lines)
+    except Exception as exc:
+        return f"[Notes extraction failed: {exc}]"
+
+
 def analyze_score(mxl_path: str) -> dict:
     """
     Main entry point for parsing score and compiling the deterministic analysis report.

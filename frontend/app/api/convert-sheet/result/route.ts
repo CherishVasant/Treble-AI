@@ -3,7 +3,8 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 import { proxyToBackend } from '@/lib/backend-proxy';
 
-const STORE = path.join(process.cwd(), '.upload-store');
+// Vercel serverless functions have a read-only filesystem except for /tmp
+const STORE = '/tmp/.upload-store';
 
 type FileMeta = {
   originalName: string;

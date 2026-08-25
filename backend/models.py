@@ -1,4 +1,5 @@
 import datetime
+from typing import Optional
 from sqlalchemy import JSON, ForeignKey, Integer, String, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -186,6 +187,8 @@ class AnalysisReport(Base):
         ForeignKey("practice_sessions.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
     )
     analysis_json: Mapped[dict] = mapped_column(JSON, nullable=False)
+    # Compact measure-by-measure notes list extracted from MusicXML for agent context
+    notes_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.datetime.now(datetime.timezone.utc),

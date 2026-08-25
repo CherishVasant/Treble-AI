@@ -481,10 +481,18 @@ def get_musical_info(
     # Save to database AnalysisReport cache if no error
     if report and "error" not in report:
         try:
+            from music.analysis import extract_notes_text
+            notes_text = extract_notes_text(str(mxl_path))
+        except Exception as exc:
+            print(f"[AnalysisReport Cache] Warning: Failed to extract notes text: {exc}")
+            notes_text = None
+
+        try:
             new_report = AnalysisReport(
                 id=str(uuid.uuid4()),
                 practice_session_id=job_id,
-                analysis_json=report
+                analysis_json=report,
+                notes_text=notes_text,
             )
             db.add(new_report)
             db.commit()

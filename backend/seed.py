@@ -12,6 +12,29 @@ from reference_data.registry import REFERENCE_REGISTRY
 
 def init_db() -> None:
     Base.metadata.create_all(bind=engine)
+    _run_column_migrations()
+
+
+def _run_column_migrations() -> None:
+    """Add any new columns that create_all won't add to existing tables."""
+    migrations = [
+        # (table, column, definition)
+        ("analysis_reports", "notes_text", "TEXT"),
+    ]
+    with engine.connect() as conn:
+        for table, column, definition in migrations:
+            try:
+                conn.execute(text(
+                    f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {definition}"
+                ))
+                conn.commit()
+            except Exception as exc:
+                # Some DB dialects don't support IF NOT EXISTS; check and skip if column exists
+                try:
+                    conn.rollback()
+                    conn.execute(text(f"SELECT {column} FROM {table} LIMIT 0"))
+                except Exception:
+                    print(f"[Migration] Could not add column {table}.{column}: {exc}")
 
 
 def seed_reference_data(db: Session) -> None:

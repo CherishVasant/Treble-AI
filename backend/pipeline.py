@@ -128,18 +128,41 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
             audiveris_command = ["xvfb-run", "-a", "--server-args=-screen 0 640x480x8"] + audiveris_command
         _run_step("Audiveris", audiveris_command)
 
-        if not input_mxl.exists():
+        # Audiveris 5.x creates the MXL inside a *subdirectory* named after the
+        # input stem: output_dir/{stem}/{stem}.mxl — not flat in output_dir.
+        # Search recursively so the code works regardless of Audiveris version.
+        found_mxl: Path | None = None
+        if input_mxl.exists():
+            found_mxl = input_mxl
+        else:
+            candidates = list(output_dir_path.glob("**/*.mxl"))
+            if candidates:
+                # Prefer the one whose stem matches; otherwise take the first.
+                for c in candidates:
+                    if c.stem == actual_base_name:
+                        found_mxl = c
+                        break
+                if not found_mxl:
+                    found_mxl = candidates[0]
+
+        if not found_mxl:
             raise RuntimeError(
-                "Audiveris did not produce MusicXML output. Check that the image is clear sheet music."
+                "Audiveris did not produce MusicXML output. "
+                "Check that the image is clear, well-lit sheet music with full staves visible."
             )
 
         _set_status(output_dir, "omr", "completed")
         current_step = "musicxml"
         _set_status(output_dir, "musicxml", "processing")
 
-        if input_mxl != final_mxl:
-            shutil.move(str(input_mxl), str(final_mxl))
-            input_mxl = final_mxl
+        # Move the MXL to the canonical location (base_name, no _better_quality suffix).
+        if found_mxl != final_mxl:
+            shutil.move(str(found_mxl), str(final_mxl))
+            # Remove the now-empty subdirectory Audiveris created.
+            leftover_dir = found_mxl.parent
+            if leftover_dir != output_dir_path and leftover_dir.exists():
+                shutil.rmtree(str(leftover_dir), ignore_errors=True)
+        input_mxl = final_mxl
 
         _set_status(output_dir, "musicxml", "completed")
         current_step = "midi"
@@ -191,6 +214,13 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
                 pass
 
         _set_status(output_dir, "analysis", "completed")
+
+        # Clean up the temporary enhanced image — it's large and no longer needed.
+        if enhanced_path and Path(actual_image_path).exists():
+            try:
+                Path(actual_image_path).unlink()
+            except Exception:
+                pass
 
         return {
             "musicxml_path": str(input_mxl),

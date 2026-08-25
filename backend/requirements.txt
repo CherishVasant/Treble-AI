@@ -15,6 +15,9 @@ langgraph>=0.1.0
 # PostgreSQL driver (optional — only if DATABASE_URL uses PostgreSQL)
 psycopg[binary]>=3.2.0
 
+# HTTP client — used to upload synthesised audio to Vercel Blob from Python
+requests>=2.32.0
+
 # Sheet music → audio pipeline
 music21>=9.1.0
 

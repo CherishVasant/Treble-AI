@@ -1,27 +1,113 @@
 from contextlib import asynccontextmanager
 from typing import Optional
-
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from database import get_db
-from sqlalchemy.orm import Session
-import shutil
+import json
 import os
-import uuid
 import re
+import shutil
+import tempfile
+import uuid
 from pathlib import Path
 
+import requests as http_requests
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, Depends
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, RedirectResponse
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from config import settings
-from routers.reference import router as reference_router
-from routers.theory import router as theory_router
+from database import get_db, SessionLocal
+from models import PracticeSession, AnalysisReport
+from reference_library import initialize_cache
 from routers.auth import router as auth_router, get_current_user, User
 from routers.chats import router as chats_router
-from models import PracticeSession, AnalysisReport
+from routers.reference import router as reference_router
+from routers.theory import router as theory_router
 from seed import run_startup_seed
-from database import SessionLocal
-from reference_library import initialize_cache
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Vercel Blob helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _blob_token() -> str:
+    return os.getenv("BLOB_READ_WRITE_TOKEN", "")
+
+
+def _upload_to_blob(file_path: Path, pathname: str, content_type: str = "application/octet-stream") -> str | None:
+    """Upload a file to Vercel Blob. Returns the public URL or None on failure."""
+    token = _blob_token()
+    if not token:
+        return None
+    try:
+        with open(file_path, "rb") as fh:
+            data = fh.read()
+        resp = http_requests.put(
+            "https://api.vercel.com/v9/blob",
+            params={"pathname": pathname, "access": "public"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": content_type,
+                "x-api-version": "7",
+            },
+            data=data,
+            timeout=60,
+        )
+        if not resp.ok:
+            print(f"[Blob] Upload failed ({resp.status_code}): {resp.text[:200]}")
+            return None
+        return resp.json().get("url")
+    except Exception as exc:
+        print(f"[Blob] Upload error for {pathname}: {exc}")
+        return None
+
+
+def _download_from_blob(url: str, dest: Path) -> bool:
+    """Download a Vercel Blob file to dest. Returns True on success."""
+    try:
+        resp = http_requests.get(url, timeout=30, stream=True)
+        if not resp.ok:
+            return False
+        with open(dest, "wb") as fh:
+            for chunk in resp.iter_content(chunk_size=65536):
+                fh.write(chunk)
+        return True
+    except Exception as exc:
+        print(f"[Blob] Download error from {url}: {exc}")
+        return False
+
+
+def _upload_processed_files(job_id: str, job_dir: Path, base_name: str) -> dict:
+    """Upload MXL, MIDI and WAV pipeline outputs to Vercel Blob.
+
+    Returns a dict with the blob URLs that were successfully uploaded
+    (keys: musicxml_blob_url, midi_blob_url, audio_blob_url).
+    """
+    urls: dict[str, str] = {}
+
+    files = [
+        ("musicxml_blob_url", job_dir / f"{base_name}.mxl",  f"processed/{job_id}/{base_name}.mxl",  "application/octet-stream"),
+        ("midi_blob_url",     job_dir / f"{base_name}.mid",  f"processed/{job_id}/{base_name}.mid",  "audio/midi"),
+        ("audio_blob_url",    job_dir / f"{base_name}.wav",  f"processed/{job_id}/{base_name}.wav",  "audio/wav"),
+    ]
+
+    for url_field, local_path, pathname, content_type in files:
+        if local_path.exists():
+            url = _upload_to_blob(local_path, pathname, content_type)
+            if url:
+                urls[url_field] = url
+                print(f"[Blob] Uploaded {local_path.name} → {url}")
+            else:
+                print(f"[Blob] Skipped {local_path.name} (upload failed or no token)")
+        else:
+            print(f"[Blob] File not found, skipping: {local_path}")
+
+    return urls
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# App setup
+# ─────────────────────────────────────────────────────────────────────────────
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
@@ -50,14 +136,98 @@ app.include_router(auth_router)
 app.include_router(chats_router)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Utilities
+# ─────────────────────────────────────────────────────────────────────────────
+
 def safe_folder_name(filename: str) -> str:
     name = os.path.splitext(filename)[0]
     name = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
     return name
 
 
-from sqlalchemy import text
+def _init_status(job_dir: Path):
+    status_path = job_dir / "status.json"
+    data = {
+        "status": "processing",
+        "error": None,
+        "steps": {
+            "upload": "completed",
+            "omr": "pending",
+            "musicxml": "pending",
+            "midi": "pending",
+            "audio": "pending",
+            "analysis": "pending",
+        }
+    }
+    with open(status_path, "w") as f:
+        json.dump(data, f)
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Background pipeline
+# ─────────────────────────────────────────────────────────────────────────────
+
+def run_background_pipeline(
+    process_image_to_audio,
+    temp_path: str,
+    job_dir: str,
+    base_name: str,
+    job_id: str,
+):
+    job_dir_path = Path(job_dir)
+    status_path = job_dir_path / "status.json"
+
+    try:
+        process_image_to_audio(temp_path, job_dir, base_name)
+    except Exception as exc:
+        # Mark the active step as failed in status.json
+        active_step = "omr"
+        if status_path.exists():
+            try:
+                with open(status_path) as f:
+                    d = json.load(f)
+                for k, v in d["steps"].items():
+                    if v == "processing":
+                        active_step = k
+                        break
+            except Exception:
+                pass
+        try:
+            if status_path.exists():
+                with open(status_path) as f:
+                    data = json.load(f)
+                data["status"] = "failed"
+                data["error"] = str(exc)
+                data["steps"][active_step] = "failed"
+                with open(status_path, "w") as f:
+                    json.dump(data, f)
+        except Exception:
+            pass
+        return  # Don't proceed to blob upload on failure
+
+    # ── Pipeline succeeded → upload output files to Vercel Blob ─────────── #
+    blob_urls = _upload_processed_files(job_id, job_dir_path, base_name)
+
+    if blob_urls:
+        db = SessionLocal()
+        try:
+            session = db.query(PracticeSession).filter(PracticeSession.id == job_id).first()
+            if session:
+                for field, url in blob_urls.items():
+                    setattr(session, field, url)
+                db.commit()
+                print(f"[Pipeline] Blob URLs saved to DB for session {job_id}")
+        except Exception as exc:
+            db.rollback()
+            print(f"[Pipeline] Failed to save blob URLs to DB: {exc}")
+        finally:
+            db.close()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Routes
+# ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/")
 def root():
@@ -79,7 +249,6 @@ def health_check(db: Session = Depends(get_db)):
 def _get_pipeline_runner():
     try:
         from pipeline import process_image_to_audio
-
         return process_image_to_audio
     except ImportError as exc:
         raise HTTPException(
@@ -88,75 +257,19 @@ def _get_pipeline_runner():
         ) from exc
 
 
-import json
-
-def _init_status(job_dir: Path):
-    status_path = job_dir / "status.json"
-    data = {
-        "status": "processing",
-        "error": None,
-        "steps": {
-            "upload": "completed",
-            "omr": "pending",
-            "musicxml": "pending",
-            "midi": "pending",
-            "audio": "pending",
-            "analysis": "pending"
-        }
-    }
-    with open(status_path, "w") as f:
-        json.dump(data, f)
-
-def run_background_pipeline(process_image_to_audio, temp_path: str, job_dir: str, base_name: str, job_id: str):
-    try:
-        process_image_to_audio(temp_path, job_dir, base_name)
-    except Exception as exc:
-        status_path = Path(job_dir) / "status.json"
-        active_step = "omr"
-        if status_path.exists():
-            try:
-                with open(status_path, "r") as f:
-                    d = json.load(f)
-                    for k, v in d["steps"].items():
-                        if v == "processing":
-                            active_step = k
-                            break
-            except Exception:
-                pass
-        
-        try:
-            if status_path.exists():
-                with open(status_path, "r") as f:
-                    data = json.load(f)
-                data["status"] = "failed"
-                data["error"] = str(exc)
-                data["steps"][active_step] = "failed"
-                with open(status_path, "w") as f:
-                    json.dump(data, f)
-        except Exception:
-            pass
-
-
 @app.post("/process")
 async def process_sheet_music(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    # Optional metadata fields sent as extra form fields alongside the file.
-    # blob_url: Vercel Blob URL of the original upload — stored so the file can
-    #   be re-converted after a server restart without asking the user to re-upload.
-    # original_name: the user's actual filename (not the blob-generated ID).
     blob_url: Optional[str] = Form(None),
     original_name: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     process_image_to_audio = _get_pipeline_runner()
 
-    # Use the caller-supplied original filename if provided, otherwise fall back
-    # to the multipart field filename (which may be a Vercel Blob generated ID).
     display_filename = original_name or file.filename or "upload"
 
-    # Create UUID for session/folder
     session_uuid = str(uuid.uuid4())
     storage_directory = f"uploads/{session_uuid}"
     job_dir = Path(storage_directory)
@@ -167,7 +280,6 @@ async def process_sheet_music(
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Initialize PracticeSession in database
     session_title = base_name.replace("_", " ").capitalize()
     new_session = PracticeSession(
         id=session_uuid,
@@ -183,21 +295,22 @@ async def process_sheet_music(
     _init_status(job_dir)
 
     background_tasks.add_task(
-        run_background_pipeline, process_image_to_audio, str(temp_path), str(job_dir), base_name, session_uuid
+        run_background_pipeline,
+        process_image_to_audio,
+        str(temp_path),
+        str(job_dir),
+        base_name,
+        session_uuid,
     )
 
-    return {
-        "jobId": session_uuid,
-        "status": "processing",
-        "message": "Conversion started in background"
-    }
+    return {"jobId": session_uuid, "status": "processing", "message": "Conversion started in background"}
 
 
 @app.get("/result/{job_id}/status")
 def get_job_status(
     job_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     session = db.query(PracticeSession).filter(PracticeSession.id == job_id).first()
     if not session:
@@ -207,6 +320,13 @@ def get_job_status(
 
     status_path = Path(session.storage_directory) / "status.json"
     if not status_path.exists():
+        # If blob URLs are set, the pipeline definitely completed even if status.json is gone
+        if session.audio_blob_url:
+            return {
+                "status": "completed",
+                "error": None,
+                "steps": {k: "completed" for k in ["upload", "omr", "musicxml", "midi", "audio", "analysis"]},
+            }
         return {
             "status": "processing",
             "error": None,
@@ -216,11 +336,11 @@ def get_job_status(
                 "musicxml": "pending",
                 "midi": "pending",
                 "audio": "pending",
-                "analysis": "pending"
-            }
+                "analysis": "pending",
+            },
         }
     try:
-        with open(status_path, "r") as f:
+        with open(status_path) as f:
             return json.load(f)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc))
@@ -230,7 +350,7 @@ def get_job_status(
 def get_audio(
     job_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     session = db.query(PracticeSession).filter(PracticeSession.id == job_id).first()
     if not session:
@@ -238,24 +358,23 @@ def get_audio(
     if session.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
+    # Prefer permanent Vercel Blob URL (survives restarts)
+    if session.audio_blob_url:
+        return RedirectResponse(url=session.audio_blob_url, status_code=302)
+
+    # Fallback: serve from local filesystem (first run, or no Blob token)
     base_name = safe_folder_name(session.original_filename)
     audio_path = Path(session.storage_directory) / f"{base_name}.wav"
-
     if not audio_path.exists():
-        raise HTTPException(status_code=404, detail="Audio file not found")
-
-    return FileResponse(
-        path=str(audio_path),
-        media_type="audio/wav",
-        filename=f"{base_name}.wav",
-    )
+        raise HTTPException(status_code=404, detail="Audio file not found. The server may have restarted — please re-convert.")
+    return FileResponse(path=str(audio_path), media_type="audio/wav", filename=f"{base_name}.wav")
 
 
 @app.get("/result/{job_id}/musicxml")
 def get_musicxml(
     job_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     session = db.query(PracticeSession).filter(PracticeSession.id == job_id).first()
     if not session:
@@ -263,24 +382,21 @@ def get_musicxml(
     if session.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
+    if session.musicxml_blob_url:
+        return RedirectResponse(url=session.musicxml_blob_url, status_code=302)
+
     base_name = safe_folder_name(session.original_filename)
     mxl_path = Path(session.storage_directory) / f"{base_name}.mxl"
-
     if not mxl_path.exists():
-        raise HTTPException(status_code=404, detail="MusicXML file not found")
-
-    return FileResponse(
-        path=str(mxl_path),
-        media_type="application/octet-stream",
-        filename=f"{base_name}.mxl",
-    )
+        raise HTTPException(status_code=404, detail="MusicXML file not found. The server may have restarted — please re-convert.")
+    return FileResponse(path=str(mxl_path), media_type="application/octet-stream", filename=f"{base_name}.mxl")
 
 
 @app.get("/result/{job_id}/original")
 def get_original_file(
     job_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     session = db.query(PracticeSession).filter(PracticeSession.id == job_id).first()
     if not session:
@@ -288,180 +404,140 @@ def get_original_file(
     if session.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
+    # Original upload is stored in Vercel Blob from the moment the user picks the file
+    if session.blob_url:
+        return RedirectResponse(url=session.blob_url, status_code=302)
+
+    # Fallback: serve from local disk
     original_path = Path(session.storage_directory) / session.original_filename
-
     if not original_path.exists():
-        raise HTTPException(status_code=404, detail="Original score file not found")
+        raise HTTPException(status_code=404, detail="Original file not found. The server may have restarted — please re-upload.")
 
-    mime_type = "application/pdf" if session.original_filename.lower().endswith(".pdf") else "image/png"
-    if session.original_filename.lower().endswith((".jpg", ".jpeg")):
-        mime_type = "image/jpeg"
-    elif session.original_filename.lower().endswith(".webp"):
-        mime_type = "image/webp"
+    fn = session.original_filename.lower()
+    if fn.endswith(".pdf"):
+        mime = "application/pdf"
+    elif fn.endswith((".jpg", ".jpeg")):
+        mime = "image/jpeg"
+    elif fn.endswith(".webp"):
+        mime = "image/webp"
+    else:
+        mime = "image/png"
 
-    return FileResponse(
-        path=str(original_path),
-        media_type=mime_type,
-        filename=session.original_filename,
-    )
+    return FileResponse(path=str(original_path), media_type=mime, filename=session.original_filename)
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Musical info (analysis)
+# ─────────────────────────────────────────────────────────────────────────────
 
 def extract_musical_info(mxl_path: Path) -> dict:
-    # 1. Try to load from cached analysis_report.json in the same directory
+    """Parse a local MXL file and return the full analysis dict."""
+    # 1. Try the cached analysis_report.json written by the pipeline
     report_path = mxl_path.parent / "analysis_report.json"
     if report_path.exists():
         try:
-            with open(report_path, "r", encoding="utf-8") as f:
+            with open(report_path, encoding="utf-8") as f:
                 report = json.load(f)
             if "error" not in report or len(report) > 1:
                 return report
         except Exception as err:
-            print(f"[extract_musical_info] Error reading cached analysis report: {err}")
+            print(f"[extract_musical_info] Error reading cached report: {err}")
 
-    # 2. Try to generate analysis report on-the-fly if not cached
+    # 2. Generate on-the-fly
     try:
         from music.analysis import analyze_score
-        print(f"[extract_musical_info] Generating analysis report on-the-fly for {mxl_path}...")
+        print(f"[extract_musical_info] Generating analysis on-the-fly for {mxl_path}…")
         report = analyze_score(str(mxl_path))
         try:
             with open(report_path, "w", encoding="utf-8") as f:
                 json.dump(report, f, indent=2)
-        except Exception as err:
-            print(f"[extract_musical_info] Failed to cache generated report: {err}")
+        except Exception:
+            pass
         return report
     except Exception as e:
         print(f"[extract_musical_info] On-the-fly analysis failed: {e}")
 
+    # 3. Minimal fallback using music21 directly
     from music21 import converter, key, meter, tempo, note, chord
-    
-    info = {
-        "title": "",
-        "composer": "",
-        "key_signature": "Unknown",
-        "time_signature": "Unknown",
-        "tempo": "Unknown",
-        "total_measures": 0,
-        "parts": [],
-        "note_summary": "",
+    info: dict = {
+        "title": "", "composer": "", "key_signature": "Unknown",
+        "time_signature": "Unknown", "tempo": "Unknown",
+        "total_measures": 0, "parts": [], "note_summary": "",
     }
-    
     try:
         score = converter.parse(str(mxl_path))
-        
-        # Metadata
         if score.metadata:
             info["title"] = score.metadata.title or ""
             info["composer"] = score.metadata.composer or ""
-            
-        # Key signature
         keys = score.flat.getElementsByClass(key.KeySignature)
         if keys:
-            first_key = keys[0]
             try:
-                info["key_signature"] = f"{first_key.asKey().name} ({first_key.sharps} sharps/flats)"
+                info["key_signature"] = f"{keys[0].asKey().name} ({keys[0].sharps} sharps/flats)"
             except Exception:
-                info["key_signature"] = f"{first_key.sharps} sharps/flats"
+                info["key_signature"] = f"{keys[0].sharps} sharps/flats"
         else:
             try:
-                analyzed_key = score.analyze('key')
-                info["key_signature"] = f"{analyzed_key.name} (deduced)"
+                info["key_signature"] = f"{score.analyze('key').name} (deduced)"
             except Exception:
                 pass
-
-        # Time signature
         times = score.flat.getElementsByClass(meter.TimeSignature)
         if times:
             info["time_signature"] = times[0].ratioString
-            
-        # Tempo
         tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
         if tempos:
             info["tempo"] = f"{tempos[0].number} bpm"
-            
-        # Parts / Instruments
         for part in score.parts:
-            part_info = {
-                "name": part.partName or "Unknown Part",
-                "measures_count": len(part.getElementsByClass('Measure')),
-            }
-            info["parts"].append(part_info)
+            pi = {"name": part.partName or "Unknown Part", "measures_count": len(part.getElementsByClass("Measure"))}
+            info["parts"].append(pi)
             if not info["total_measures"]:
-                info["total_measures"] = part_info["measures_count"]
-                
-        # Note / Chord Summary (limit to 100 notes/chords)
-        notes_and_chords = score.flat.notes
-        note_sequence = []
-        for nc in list(notes_and_chords)[:100]:
+                info["total_measures"] = pi["measures_count"]
+        note_seq = []
+        for nc in list(score.flat.notes)[:100]:
             if isinstance(nc, note.Note):
-                note_sequence.append(f"{nc.nameWithOctave} ({nc.duration.quarterLength} beats)")
+                note_seq.append(f"{nc.nameWithOctave} ({nc.duration.quarterLength} beats)")
             elif isinstance(nc, chord.Chord):
-                pitches = [p.nameWithOctave for p in nc.pitches]
-                note_sequence.append(f"Chord:{'+'.join(pitches)} ({nc.duration.quarterLength} beats)")
-        
-        if note_sequence:
-            info["note_summary"] = ", ".join(note_sequence)
-            
-        # Extract precise note timing events for interactive visualization
+                note_seq.append(f"Chord:{'+'.join(p.nameWithOctave for p in nc.pitches)} ({nc.duration.quarterLength} beats)")
+        info["note_summary"] = ", ".join(note_seq)
+
         note_events = []
         try:
-            flat_score = score.flatten()
-            for entry in flat_score.secondsMap:
-                el = entry.get('element')
-                offset_sec = entry.get('offsetSeconds')
-                dur_sec = entry.get('durationSeconds')
-                start_val = float(offset_sec) if offset_sec is not None else 0.0
-                dur_val = float(dur_sec) if dur_sec is not None else 0.0
-                
+            for entry in score.flatten().secondsMap:
+                el = entry.get("element")
+                start = float(entry.get("offsetSeconds") or 0)
+                dur = float(entry.get("durationSeconds") or 0)
                 if isinstance(el, note.Note):
-                    note_events.append({
-                        "start": start_val,
-                        "duration": dur_val,
-                        "midi": int(el.pitch.midi)
-                    })
+                    note_events.append({"start": start, "duration": dur, "midi": int(el.pitch.midi)})
                 elif isinstance(el, chord.Chord):
                     for p in el.pitches:
-                        note_events.append({
-                            "start": start_val,
-                            "duration": dur_val,
-                            "midi": int(p.midi)
-                        })
-        except Exception as se:
-            print(f"[extract_musical_info] Error calculating secondsMap: {se}")
-            
+                        note_events.append({"start": start, "duration": dur, "midi": int(p.midi)})
+        except Exception:
+            pass
         info["notes"] = note_events
-            
-        # Build measures map
+
         measures_map = []
         try:
             try:
                 expanded = score.expandRepeats()
             except Exception:
                 expanded = score
-            
-            tempos = expanded.flat.getElementsByClass(tempo.MetronomeMark)
-            tempo_val = tempos[0].number if tempos else 120
-            seconds_per_beat = 60.0 / tempo_val
-            
+            tv = (expanded.flat.getElementsByClass(tempo.MetronomeMark) or [None])[0]
+            tempo_val = (tv.number if tv else None) or 120
+            tempo_val = tempo_val if tempo_val > 0 else 120
+            spb = 60.0 / tempo_val
             parts = expanded.parts
             if parts:
-                measures = parts[0].getElementsByClass('Measure')
-                for idx, m in enumerate(measures):
-                    start_sec = m.offset * seconds_per_beat
-                    end_sec = (m.offset + m.quarterLength) * seconds_per_beat
+                for idx, m in enumerate(parts[0].getElementsByClass("Measure")):
                     measures_map.append({
                         "measure_index": idx,
                         "measure_number": int(m.number),
-                        "start_time": float(start_sec),
-                        "end_time": float(end_sec)
+                        "start_time": float(m.offset * spb),
+                        "end_time": float((m.offset + m.quarterLength) * spb),
                     })
         except Exception as me:
-            print(f"[extract_musical_info] Error building measures_map: {me}")
-        
+            print(f"[extract_musical_info] measures_map error: {me}")
         info["measures_map"] = measures_map
-            
     except Exception as e:
-        info["error"] = f"Failed to parse musical details: {str(e)}"
-        
+        info["error"] = f"Failed to parse musical details: {e}"
     return info
 
 
@@ -469,7 +545,7 @@ def extract_musical_info(mxl_path: Path) -> dict:
 def get_musical_info(
     job_id: str,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     session = db.query(PracticeSession).filter(PracticeSession.id == job_id).first()
     if not session:
@@ -477,46 +553,53 @@ def get_musical_info(
     if session.user_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
-    # Check database cache first
+    # ── 1. DB cache — always present after the first successful call ──────── #
     report_record = db.query(AnalysisReport).filter(AnalysisReport.practice_session_id == job_id).first()
     if report_record:
         return report_record.analysis_json
 
+    # ── 2. Locate MXL — prefer local disk, fall back to Blob download ─────── #
     base_name = safe_folder_name(session.original_filename)
     mxl_path = Path(session.storage_directory) / f"{base_name}.mxl"
 
+    # If local file is gone (server restart) but blob URL is available, download it
+    if not mxl_path.exists() and session.musicxml_blob_url:
+        print(f"[musical-info] Local MXL missing; downloading from Blob for session {job_id}")
+        mxl_path.parent.mkdir(parents=True, exist_ok=True)
+        if not _download_from_blob(session.musicxml_blob_url, mxl_path):
+            raise HTTPException(
+                status_code=503,
+                detail="MusicXML file unavailable. Please re-convert the sheet music.",
+            )
+
     if not mxl_path.exists():
-        raise HTTPException(status_code=404, detail="MusicXML file not found")
+        raise HTTPException(status_code=404, detail="MusicXML file not found. Please re-convert.")
 
     report = extract_musical_info(mxl_path)
 
-    # Save to database AnalysisReport cache if no error
+    # ── 3. Cache analysis in DB so future requests skip parsing ───────────── #
     if report and "error" not in report:
+        notes_text = None
         try:
             from music.analysis import extract_notes_text
             notes_text = extract_notes_text(str(mxl_path))
         except Exception as exc:
-            print(f"[AnalysisReport Cache] Warning: Failed to extract notes text: {exc}")
-            notes_text = None
-
+            print(f"[AnalysisReport] notes_text extraction failed: {exc}")
         try:
-            new_report = AnalysisReport(
+            db.add(AnalysisReport(
                 id=str(uuid.uuid4()),
                 practice_session_id=job_id,
                 analysis_json=report,
                 notes_text=notes_text,
-            )
-            db.add(new_report)
+            ))
             db.commit()
         except Exception as exc:
             db.rollback()
-            print(f"[AnalysisReport Cache] Warning: Failed to save to DB: {exc}")
+            print(f"[AnalysisReport] DB save failed: {exc}")
 
     return report
 
 
 if __name__ == "__main__":
     import uvicorn
-
-    # Reload trigger comment: added JSON parsing regex fallback
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

@@ -112,9 +112,13 @@ class PracticeSession(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     original_filename: Mapped[str] = mapped_column(String(255), nullable=False)
     storage_directory: Mapped[str] = mapped_column(String(512), nullable=False)
-    # URL of the uploaded file in Vercel Blob — stored so the file can be
-    # re-converted after a server restart without asking the user to re-upload.
+    # Vercel Blob URLs — all persisted so files survive server restarts.
+    # blob_url: the original uploaded sheet music (PNG/PDF)
+    # musicxml_blob_url / midi_blob_url / audio_blob_url: pipeline output files
     blob_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    musicxml_blob_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    midi_blob_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
+    audio_blob_url: Mapped[Optional[str]] = mapped_column(String(1024), nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.datetime.now(datetime.timezone.utc),

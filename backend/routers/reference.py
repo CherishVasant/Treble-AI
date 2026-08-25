@@ -1,9 +1,12 @@
-from fastapi import APIRouter, Query, HTTPException
-from fastapi.responses import FileResponse
 import hashlib
+import os
 import shutil
 import subprocess
 from pathlib import Path
+
+import requests as http_requests
+from fastapi import APIRouter, Query, HTTPException
+from fastapi.responses import FileResponse, RedirectResponse
 from music21 import stream, note, tempo
 
 from pipeline import FLUIDSYNTH_PATH, SOUNDFONT
@@ -11,6 +14,70 @@ from reference_library import get_reference_library as load_cached_library
 
 router = APIRouter(prefix="/reference", tags=["reference"])
 
+# --------------------------------------------------------------------------- #
+# Vercel Blob helpers                                                          #
+# --------------------------------------------------------------------------- #
+
+def _blob_token() -> str:
+    return os.getenv("BLOB_READ_WRITE_TOKEN", "")
+
+
+def _blob_exists(pathname: str) -> str | None:
+    """Return the public URL if a blob with this pathname already exists, else None."""
+    token = _blob_token()
+    if not token:
+        return None
+    try:
+        resp = http_requests.get(
+            "https://api.vercel.com/v9/blob",
+            params={"prefix": pathname, "limit": 1},
+            headers={"Authorization": f"Bearer {token}", "x-api-version": "7"},
+            timeout=10,
+        )
+        if not resp.ok:
+            return None
+        blobs = resp.json().get("blobs", [])
+        # Match exact pathname (prefix search can return longer paths)
+        for b in blobs:
+            if b.get("pathname") == pathname:
+                return b.get("url")
+        return None
+    except Exception as exc:
+        print(f"[BlobCheck] {exc}")
+        return None
+
+
+def _upload_to_vercel_blob(file_path: Path, pathname: str) -> str | None:
+    """Upload file_path to Vercel Blob and return the public URL, or None on failure."""
+    token = _blob_token()
+    if not token:
+        return None
+    try:
+        with open(file_path, "rb") as fh:
+            data = fh.read()
+        resp = http_requests.put(
+            "https://api.vercel.com/v9/blob",
+            params={"pathname": pathname, "access": "public"},
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "audio/wav",
+                "x-api-version": "7",
+            },
+            data=data,
+            timeout=30,
+        )
+        if not resp.ok:
+            print(f"[BlobUpload] HTTP {resp.status_code}: {resp.text[:200]}")
+            return None
+        return resp.json().get("url")
+    except Exception as exc:
+        print(f"[BlobUpload] {exc}")
+        return None
+
+
+# --------------------------------------------------------------------------- #
+# Routes                                                                       #
+# --------------------------------------------------------------------------- #
 
 @router.get("/library")
 def get_reference_library() -> dict:
@@ -18,7 +85,18 @@ def get_reference_library() -> dict:
 
 
 @router.get("/scale-audio")
-def get_scale_audio(notes: str = Query(..., description="Comma-separated notes of the scale")) -> FileResponse:
+def get_scale_audio(
+    notes: str = Query(..., description="Comma-separated notes of the scale"),
+):
+    """Return a WAV for the requested scale, synthesising it only once ever.
+
+    Flow:
+      1. Check Vercel Blob for scale-audio/{hash}.wav — instant redirect if found.
+      2. Check local filesystem (pre-generated Docker image layer for the 24 common scales).
+      3. Synthesise with FluidSynth if not found locally.
+      4. Upload to Vercel Blob so future requests skip synthesis entirely.
+      5. Serve local file directly as fallback (no Blob token configured).
+    """
     if not notes:
         raise HTTPException(status_code=400, detail="Notes parameter is required")
 
@@ -26,71 +104,56 @@ def get_scale_audio(notes: str = Query(..., description="Comma-separated notes o
     if not notes_list:
         raise HTTPException(status_code=400, detail="Invalid notes format")
 
-    # Create output scales directory
+    notes_str  = ",".join(notes_list)
+    notes_hash = hashlib.md5(notes_str.encode()).hexdigest()
+    blob_pathname = f"scale-audio/{notes_hash}.wav"
+
+    # ── 1. Already in Vercel Blob? ────────────────────────────────────────── #
+    blob_url = _blob_exists(blob_pathname)
+    if blob_url:
+        return RedirectResponse(url=blob_url, status_code=302)
+
+    # ── 2. Local filesystem (pre-baked or from a previous run) ───────────── #
     scales_dir = Path("output") / "scales"
     scales_dir.mkdir(parents=True, exist_ok=True)
-
-    # Hash notes list for caching
-    notes_str = ",".join(notes_list)
-    notes_hash = hashlib.md5(notes_str.encode("utf-8")).hexdigest()
     output_wav = scales_dir / f"{notes_hash}.wav"
 
-    # Synthesize if not cached
+    # ── 3. Synthesise if not on disk ─────────────────────────────────────── #
     if not output_wav.exists():
         midi_path = scales_dir / f"{notes_hash}.mid"
         try:
-            # 1. Create MIDI file using music21
             s = stream.Stream()
-            # tempo: 150 bpm (corresponds to ~0.4s quarter notes)
             s.append(tempo.MetronomeMark(number=150))
             for n_name in notes_list:
                 nt = note.Note(n_name)
-                nt.quarterLength = 1.0  # 1 beat
+                nt.quarterLength = 1.0
                 s.append(nt)
-
             s.write("midi", fp=str(midi_path))
 
-            # 2. Synthesize using FluidSynth
-            fluidsynth_command = [
-                FLUIDSYNTH_PATH,
-                "-ni",
-                "-F",
-                str(output_wav),
-                "-r",
-                "44100",
-                SOUNDFONT,
-                str(midi_path),
-            ]
-
-            # Use shutil.which so system commands on PATH (e.g. "fluidsynth") are
-            # found correctly — Path('fluidsynth').exists() always returns False
-            # for commands that aren't files in the current directory.
             if not shutil.which(FLUIDSYNTH_PATH) and not Path(FLUIDSYNTH_PATH).is_file():
                 raise FileNotFoundError(f"FluidSynth not found at {FLUIDSYNTH_PATH}")
 
-            result = subprocess.run(fluidsynth_command, capture_output=True, text=True)
+            result = subprocess.run(
+                [FLUIDSYNTH_PATH, "-ni", "-F", str(output_wav),
+                 "-r", "44100", SOUNDFONT, str(midi_path)],
+                capture_output=True, text=True,
+            )
             if result.returncode != 0:
                 raise RuntimeError(f"FluidSynth failed: {result.stderr}")
-
-        except Exception as e:
-            # Clean up partial wav if any
-            if output_wav.exists():
-                try:
-                    output_wav.unlink()
-                except Exception:
-                    pass
-            raise HTTPException(status_code=500, detail=f"Scale synthesis failed: {str(e)}")
+        except Exception as exc:
+            output_wav.unlink(missing_ok=True)
+            raise HTTPException(status_code=500, detail=f"Scale synthesis failed: {exc}")
         finally:
-            # Always clean up the temporary mid file
-            if midi_path.exists():
-                try:
-                    midi_path.unlink()
-                except Exception:
-                    pass
+            midi_path.unlink(missing_ok=True) if midi_path.exists() else None
 
+    # ── 4. Upload to Vercel Blob for permanent storage ────────────────────── #
+    blob_url = _upload_to_vercel_blob(output_wav, blob_pathname)
+    if blob_url:
+        return RedirectResponse(url=blob_url, status_code=302)
+
+    # ── 5. Fallback — serve from local disk (no Blob token) ──────────────── #
     return FileResponse(
         path=str(output_wav),
         media_type="audio/wav",
         filename=f"scale_{notes_hash}.wav",
     )
-

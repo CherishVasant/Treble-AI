@@ -1126,6 +1126,7 @@ def analyze_score(mxl_path: str) -> dict:
     try:
         tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
         tempo_val = tempos[0].number if tempos else 120
+        tempo_val = tempo_val if (tempo_val and tempo_val > 0) else 120  # guard zero/None from bad exports
         seconds_per_beat = 60.0 / tempo_val
         
         try:

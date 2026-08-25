@@ -20,8 +20,11 @@ def _run_column_migrations() -> None:
     migrations = [
         # (table, column, definition)
         ("analysis_reports", "notes_text", "TEXT"),
-        # Vercel Blob URL of the original upload — enables re-conversion after restarts
-        ("practice_sessions", "blob_url", "VARCHAR(1024)"),
+        # Vercel Blob URLs for each file produced per session
+        ("practice_sessions", "blob_url",         "VARCHAR(1024)"),  # original upload
+        ("practice_sessions", "musicxml_blob_url", "VARCHAR(1024)"),  # OMR output
+        ("practice_sessions", "midi_blob_url",     "VARCHAR(1024)"),  # MIDI
+        ("practice_sessions", "audio_blob_url",    "VARCHAR(1024)"),  # synthesised WAV
     ]
     with engine.connect() as conn:
         for table, column, definition in migrations:

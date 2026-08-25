@@ -1,0 +1,26 @@
+# Never copy these into the Docker image
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.env.local
+*.sqlite3
+*.db
+
+# Test uploads and output from local dev sessions
+uploads/
+output/
+
+# Large temp files
+*.pdf
+*.png
+*.jpeg
+*.jpg
+*.wav
+*.mid
+*.mxl
+
+# Keep soundfonts/ — it's needed at runtime (GeneralUser-GS.sf2)
+# Keep audiveris-dist/ — it holds the Linux Audiveris ZIP for Docker COPY

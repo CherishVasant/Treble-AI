@@ -5,9 +5,22 @@ import shutil
 from enhance_quality import process_file
 
 
-AUDIVERIS_PATH = r"C:\Program Files\Audiveris\Audiveris.exe"
-FLUIDSYNTH_PATH = r"C:\tools\fluidsynth\bin\fluidsynth.exe"
 import os
+
+# Both paths are overridable via environment variables so the same code runs on
+# Windows (local dev) and Linux (Docker / production) without changes.
+#   Windows default: C:\Program Files\Audiveris\Audiveris.exe
+#   Linux/Docker:    /opt/audiveris/bin/Audiveris  (set via AUDIVERIS_PATH env var)
+AUDIVERIS_PATH = os.getenv(
+    "AUDIVERIS_PATH",
+    r"C:\Program Files\Audiveris\Audiveris.exe"
+)
+# FluidSynth is on PATH after `apt-get install fluidsynth` in Docker,
+# so the default below works on Linux without setting the env var.
+FLUIDSYNTH_PATH = os.getenv(
+    "FLUIDSYNTH_PATH",
+    r"C:\tools\fluidsynth\bin\fluidsynth.exe"
+)
 SOUNDFONT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "soundfonts", "GeneralUser-GS.sf2")
 
 
@@ -26,8 +39,12 @@ def _friendly_audiveris_error(log: str) -> str | None:
 
 
 def _run_step(label: str, command: list[str]) -> None:
-    if command[0] and not Path(command[0]).exists():
-        raise RuntimeError(f"{label} not found at {command[0]}")
+    exe = command[0]
+    # Only check file existence when the path is absolute.
+    # When it's just a name (e.g. "Audiveris" on PATH after .deb install),
+    # skip the existence check and let subprocess raise if it's missing.
+    if exe and Path(exe).is_absolute() and not Path(exe).exists():
+        raise RuntimeError(f"{label} not found at {exe}")
 
     result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:

@@ -1,0 +1,142 @@
+{
+  "pieces": [
+    {
+      "id": "sample_piece_a",
+      "name": "Sample Piece A",
+      "composer": "Anonymous",
+      "key_signature": "A minor (0 sharps/flats)",
+      "time_signature": "6/4",
+      "tempo": "120 bpm",
+      "total_measures": 8,
+      "difficulty": {
+        "difficulty_score": 2.5,
+        "difficulty_category": "Beginner",
+        "max_hand_span_semitones": 0,
+        "notes_per_second": 2.0,
+        "accidental_notes_count": 5,
+        "average_chord_size": 1.0
+      },
+      "diatonicity": {
+        "ratio_percentage": 89.6,
+        "total_notes_counted": 48,
+        "diatonic_notes_count": 43,
+        "chromatic_notes_count": 5
+      },
+      "intervals": {
+        "total_intervals": 33,
+        "most_common_interval": "Minor 2nd",
+        "largest_leap": "Perfect Octave",
+        "average_melodic_movement": 3.79
+      },
+      "voice_leading_errors_count": 0,
+      "voice_leading_errors": [],
+      "rhythm": {
+        "duration_distribution": {
+          "Quarter Note": 34,
+          "Dotted Half Note": 8,
+          "Half Note": 6
+        },
+        "syncopations_detected": 25
+      },
+      "key_analysis": {
+        "modal_interpretations": [
+          {
+            "mode": "C Ionian",
+            "similarity": 62.5
+          },
+          {
+            "mode": "C Lydian",
+            "similarity": 62.5
+          },
+          {
+            "mode": "D Dorian",
+            "similarity": 62.5
+          }
+        ],
+        "modulations": []
+      }
+    },
+    {
+      "id": "sample_piece_b",
+      "name": "Sample Piece B",
+      "composer": "Anonymous",
+      "key_signature": "C major (0 sharps/flats)",
+      "time_signature": "3/4",
+      "tempo": "120 bpm",
+      "total_measures": 24,
+      "difficulty": {
+        "difficulty_score": 3.3,
+        "difficulty_category": "Beginner",
+        "max_hand_span_semitones": 12,
+        "notes_per_second": 4.0,
+        "accidental_notes_count": 1,
+        "average_chord_size": 2.2
+      },
+      "diatonicity": {
+        "ratio_percentage": 99.4,
+        "total_notes_counted": 160,
+        "diatonic_notes_count": 159,
+        "chromatic_notes_count": 1
+      },
+      "intervals": {
+        "total_intervals": 61,
+        "most_common_interval": "Minor 2nd",
+        "largest_leap": "Perfect 5th",
+        "average_melodic_movement": 1.49
+      },
+      "voice_leading_errors_count": 2,
+      "voice_leading_errors": [
+        {
+          "measure": 20,
+          "type": "Parallel Perfect Fifth",
+          "voice_lower": "F3",
+          "voice_higher": "C4"
+        },
+        {
+          "measure": 22,
+          "type": "Parallel Perfect Octave",
+          "voice_lower": "E3",
+          "voice_higher": "E4"
+        }
+      ],
+      "rhythm": {
+        "duration_distribution": {
+          "Quarter Note": 99,
+          "Half Note": 4,
+          "Dotted Half Note": 9,
+          "Eighth Note": 4,
+          "Dotted Quarter Note": 1
+        },
+        "syncopations_detected": 0
+      },
+      "key_analysis": {
+        "modal_interpretations": [
+          {
+            "mode": "C Ionian",
+            "similarity": 100.0
+          },
+          {
+            "mode": "D Dorian",
+            "similarity": 100.0
+          },
+          {
+            "mode": "E Phrygian",
+            "similarity": 100.0
+          }
+        ],
+        "modulations": [
+          {
+            "measure": 13,
+            "from_key": "C major",
+            "to_key": "F major"
+          },
+          {
+            "measure": 17,
+            "from_key": "F major",
+            "to_key": "C major"
+          }
+        ]
+      }
+    }
+  ]
+}

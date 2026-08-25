@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrebleAI — Technical Capability & Architecture Report</title>
+  <meta name="description" content="Technical report of TrebleAI: an AI-powered self-learning platform engineered with an end-to-end notation OMR pipeline and a LangChain ReAct tutor.">
+  
+  <!-- Font dependencies -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;700&family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #0a0c27;
+      --card-bg: #12122d;
+      --card-border: rgba(236, 72, 153, 0.15);
+      --card-border-hover: rgba(236, 72, 153, 0.35);
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --accent-pink: #ec4899;
+      --accent-purple: #8b5cf6;
+      --accent-gradient: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+      --monospace-font: 'Fira Code', 'Courier New', Courier, monospace;
+      --sans-font: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: var(--sans-font);
+      line-height: 1.6;
+      padding: 2rem 1rem;
+      background-image: 
+        radial-gradient(circle at 10% 20%, rgba(139, 92, 246, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 85% 80%, rgba(236, 72, 153, 0.08) 0%, transparent 45%);
+      background-attachment: fixed;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* Links & Monospace Elements */
+    a {
+      color: var(--accent-pink);
+      text-decoration: none;
+      transition: color 0.2s ease-in-out;
+    }
+
+    a:hover {
+      color: var(--accent-purple);
+    }
+
+    .mono {
+      font-family: var(--monospace-font);
+      font-size: 0.9em;
+      letter-spacing: -0.5px;
+    }
+
+    /* Top Navigation bar */
+    nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .back-link {
+      font-family: var(--monospace-font);
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .github-link {
+      font-family: var(--monospace-font);
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      border: 1px solid var(--accent-pink);
+      padding: 0.4rem 1rem;
+      border-radius: 4px;
+      background: rgba(236, 72, 153, 0.05);
+      transition: all 0.2s ease-in-out;
+    }
+
+    .github-link:hover {
+      background: rgba(236, 72, 153, 0.15);
+      box-shadow: 0 0 10px rgba(236, 72, 153, 0.2);
+    }
+
+    /* Header styling */
+    header {
+      margin-bottom: 4rem;
+    }
+
+    h1 {
+      font-family: var(--monospace-font);
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      background: var(--accent-gradient);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -1px;
+    }
+
+    .subtitle {
+      font-size: 1.15rem;
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      max-width: 850px;
+    }
+
+    .tag-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.6rem;
+      margin-top: 1rem;
+    }
+
+    .tag {
+      font-family: var(--monospace-font);
+      font-size: 0.75rem;
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: var(--text-main);
+    }
+
+    .tag-ai {
+      border-color: var(--accent-purple);
+      background: rgba(139, 92, 246, 0.1);
+      color: #c084fc;
+    }
+
+    .tag-infra {
+      border-color: var(--accent-pink);
+      background: rgba(236, 72, 153, 0.1);
+      color: #f472b6;
+    }
+
+    /* Sections */
+    section {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 2.5rem;
+      margin-bottom: 2.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      backdrop-filter: blur(10px);
+      transition: border-color 0.3s ease;
+    }
+
+    section:hover {
+      border-color: var(--card-border-hover);
+    }
+
+    h2 {
+      font-family: var(--monospace-font);
+      font-size: 1.6rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      border-left: 4px solid var(--accent-pink);
+      padding-left: 0.75rem;
+    }
+
+    h3 {
+      font-family: var(--monospace-font);
+      font-size: 1.25rem;
+      font-weight: 600;
+      margin-top: 1.75rem;
+      margin-bottom: 0.75rem;
+      color: var(--text-main);
+    }
+
+    p {
+      color: var(--text-muted);
+      margin-bottom: 1.25rem;
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    /* Resume highlight block */
+    .resume-highlights {
+      background: rgba(255, 255, 255, 0.02);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+
+    .resume-highlights h3 {
+      margin-top: 0;
+      margin-bottom: 1rem;
+      color: #ffffff;
+    }
+
+    .resume-list {
+      list-style-type: none;
+      margin-left: 0;
+    }
+
+    .resume-list li {
+      position: relative;
+      padding-left: 1.5rem;
+      margin-bottom: 1rem;
+      color: var(--text-main);
+      font-size: 0.95rem;
+    }
+
+    .resume-list li::before {
+      content: "•";
+      position: absolute;
+      left: 0.2rem;
+      top: 0;
+      color: var(--accent-pink);
+      font-weight: bold;
+      font-size: 1.2rem;
+    }
+
+    /* System Architecture Diagram Styles */
+    .arch-diagram-wrapper {
+      margin: 2rem 0;
+      padding: 1rem;
+      background: rgba(0, 0, 0, 0.25);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .arch-node {
+      transition: filter 0.3s ease;
+      cursor: pointer;
+    }
+
+    .arch-node:hover {
+      filter: drop-shadow(0px 0px 8px rgba(139, 92, 246, 0.6));
+    }
+
+    /* Agent Tutor Trace (Hero Section) Styles */
+    .agent-trace-box {
+      background: rgba(10, 11, 26, 0.85);
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      padding: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .chat-bubble {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      max-width: 85%;
+    }
+
+    .chat-bubble.user {
+      margin-left: auto;
+    }
+
+    .chat-bubble.tutor {
+      margin-right: auto;
+    }
+
+    .chat-header {
+      font-family: var(--monospace-font);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .chat-content {
+      padding: 1rem;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      position: relative;
+    }
+
+    .chat-bubble.user .chat-content {
+      background: rgba(236, 72, 153, 0.1);
+      border: 1px solid rgba(236, 72, 153, 0.3);
+      color: #ffffff;
+      border-top-right-radius: 2px;
+    }
+
+    .chat-bubble.tutor .chat-content {
+      background: rgba(139, 92, 246, 0.1);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+      color: #ffffff;
+      border-top-left-radius: 2px;
+    }
+
+    /* ReAct Trace Styling */
+    .react-container {
+      border-left: 2px dashed var(--accent-purple);
+      padding-left: 1.5rem;
+      margin: 1rem 0 1.5rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .react-step {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 6px;
+      padding: 0.75rem 1rem;
+    }
+
+    .react-badge {
+      font-family: var(--monospace-font);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      padding: 0.1rem 0.4rem;
+      border-radius: 3px;
+      font-weight: 600;
+      display: inline-block;
+      margin-bottom: 0.4rem;
+    }
+
+    .react-badge.thought {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+      border: 1px solid rgba(59, 130, 246, 0.3);
+    }
+
+    .react-badge.action {
+      background: rgba(234, 179, 8, 0.2);
+      color: #facc15;
+      border: 1px solid rgba(234, 179, 8, 0.3);
+    }
+
+    .react-badge.observation {
+      background: rgba(34, 197, 94, 0.2);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+    }
+
+    .react-text {
+      font-size: 0.88rem;
+      color: var(--text-muted);
+      font-family: var(--monospace-font);
+      white-space: pre-line;
+      line-height: 1.5;
+    }
+
+    .react-text strong {
+      color: var(--text-main);
+    }
+
+    /* JSON display toggles */
+    .json-wrapper {
+      margin-top: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .json-header {
+      background: rgba(255, 255, 255, 0.04);
+      padding: 0.5rem 1rem;
+      font-family: var(--monospace-font);
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .json-content {
+      background: #05060f;
+      padding: 1rem;
+      font-family: var(--monospace-font);
+      font-size: 0.8rem;
+      color: #34d399;
+      overflow-x: auto;
+      display: block;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .json-content.collapsed {
+      display: none;
+    }
+
+    /* Page-by-page detailing */
+    .pages-details {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 1.5rem;
+      margin: 1.5rem 0;
+    }
+
+    @media (min-width: 900px) {
+      .pages-details {
+        grid-template-columns: 1fr 1fr 1fr;
+      }
+    }
+
+    .page-card {
+      background: rgba(255, 255, 255, 0.02);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 8px;
+      padding: 1.5rem;
+      transition: all 0.25s ease;
+    }
+
+    .page-card:hover {
+      border-color: rgba(139, 92, 246, 0.35);
+      background: rgba(255, 255, 255, 0.035);
+    }
+
+    .page-card h4 {
+      font-family: var(--monospace-font);
+      color: #ffffff;
+      font-size: 1.1rem;
+      margin-bottom: 0.75rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      padding-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .page-card h4 span {
+      color: var(--accent-pink);
+    }
+
+    /* Guide step block styling */
+    .guide-step {
+      display: flex;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      background: rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.02);
+      padding: 1.25rem;
+      border-radius: 8px;
+    }
+
+    .guide-step-num {
+      font-family: var(--monospace-font);
+      font-weight: 700;
+      color: var(--accent-pink);
+      background: rgba(236, 72, 153, 0.1);
+      border: 1px solid rgba(236, 72, 153, 0.3);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .guide-step-content h4 {
+      font-family: var(--monospace-font);
+      color: #ffffff;
+      margin-bottom: 0.4rem;
+      font-size: 1.05rem;
+    }
+
+    .guide-step-content p {
+      margin-bottom: 0;
+      font-size: 0.95rem;
+    }
+
+    /* Rules-based vs Agent split design */
+    .section-split {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2rem;
+      margin-top: 1.5rem;
+    }
+
+    @media (min-width: 800px) {
+      .section-split {
+        grid-template-columns: 1fr 1.2fr;
+      }
+    }
+
+    .info-pane {
+      background: rgba(0, 0, 0, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.03);
+      padding: 1.5rem;
+      border-radius: 8px;
+    }
+
+    /* Layout metrics visualizer & Table */
+    .chart-container {
+      position: relative;
+      width: 100%;
+      height: 320px;
+      margin: 1.5rem 0;
+    }
+
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 1.5rem;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+
+    th, td {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.03);
+      font-family: var(--monospace-font);
+      font-weight: 600;
+      color: #ffffff;
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.5px;
+    }
+
+    tr:nth-child(even) td {
+      background: rgba(255, 255, 255, 0.015);
+    }
+
+    tr:hover td {
+      background: rgba(236, 72, 153, 0.03);
+    }
+
+    .highlight-cell {
+      font-weight: 600;
+      color: var(--accent-pink);
+    }
+
+    /* Bullet points styling */
+    ul, ol {
+      margin-left: 1.5rem;
+      margin-bottom: 1.25rem;
+      color: var(--text-muted);
+    }
+
+    li {
+      margin-bottom: 0.5rem;
+    }
+
+    /* Footer styles */
+    footer {
+      text-align: center;
+      margin-top: 5rem;
+      padding-top: 2rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      color: var(--text-muted);
+      font-size: 0.85rem;
+    }
+
+    footer p {
+      margin-bottom: 0.5rem;
+    }
+
+    footer .mono-links {
+      font-family: var(--monospace-font);
+      display: flex;
+      justify-content: center;
+      gap: 1.5rem;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    
+    <!-- Top Navigation bar -->
+    <nav>
+      <a href="../index.html" class="back-link">← Back to Portfolio</a>
+      <!-- TODO: insert GitHub repo link -->
+      <a href="https://github.com/CherishVasant/Treble-AI" target="_blank" class="github-link">View on GitHub</a>
+    </nav>
+
+    <!-- Header Section -->
+    <header>
+      <h1>TrebleAI: AI-Powered Self-Learning Music Platform</h1>
+      <p class="subtitle">An architectural capability demonstration of automated sheet music parsing, deterministic structural feature extraction, and multi-tool LangChain ReAct tutoring agents.</p>
+      
+      <div class="tag-container">
+        <span class="tag tag-ai">AI: LangChain</span>
+        <span class="tag tag-ai">ReAct Orchestrated Loop</span>
+        <span class="tag tag-infra">Infra: music21 Deterministic Engine</span>
+        <span class="tag tag-infra">Infra: Audiveris OMR Engine</span>
+        <span class="tag tag-infra">Infra: FluidSynth Synth Pipeline</span>
+        <span class="tag">FastAPI</span>
+        <span class="tag">Next.js 16</span>
+        <span class="tag">PostgreSQL</span>
+      </div>
+    </header>
+
+    <!-- Summary of Core Accomplishments -->
+    <section id="summary-highlights">
+      <h2>Project Narrative &amp; Core Highlights</h2>
+      <div class="resume-highlights">
+        <ul class="resume-list">
+          <li><strong>Designed and developed TrebleAI</strong>, an AI-powered self-learning music platform that enables users to independently learn and practice sheet music through intelligent automation, reducing reliance on instructors and tutorial videos.</li>
+          <li><strong>Engineered an end-to-end music processing pipeline</strong> using Audiveris, music21, MIDI generation, and FluidSynth to convert uploaded sheet music into synchronized audio and interactive notation.</li>
+          <li><strong>Built AI-powered tutoring agents using LangChain</strong> with multi-tool integration and structured JSON outputs to answer questions about uploaded scores, retrieve music theory, and provide personalized learning assistance.</li>
+          <li><strong>Architected a full-stack application using FastAPI background tasks</strong>, Next.js, TypeScript, and PostgreSQL, integrating AI tutoring, intelligent search, synchronized sheet music rendering, animated piano visualization, and real-time playback into a unified platform.</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Agentic Tutor: Hero Section -->
+    <section id="agentic-tutor">
+      <h2>Agentic Tutor (LLM + LangChain ReAct)</h2>
+      <p>
+        TrebleAI's AI-powered tutor is built around a custom <strong>Reasoning-Action (ReAct)</strong> loop implemented with <strong>LangChain</strong>.
+        Rather than functioning as a standard conversational chatbot, the tutor acts as an orchestration engine. It retrieves structural attributes from the deterministic music engine and binds to external tools, choosing when to query the local PostgreSQL-backed reference library for definitions versus executing fallback searches on the web.
+      </p>
+
+      <div class="agent-trace-box">
+        <h3>Execution Trace: ReAct Tool-Calling Sequence</h3>
+        <p style="font-size: 0.9rem; margin-bottom: 1.5rem;">The following is a representation of the LangChain executor's decision log when a user queries structural violations within the notation canvas.</p>
+
+        <!-- Chat History User Question -->
+        <div class="chat-bubble user">
+          <div class="chat-header">
+            <span>🧑 Student User</span>
+          </div>
+          <div class="chat-content">
+            I see structural counterpoint violations are flagged in the notation canvas. Can you explain why these are invalid and suggest keyboard practice routines to avoid them?
+          </div>
+        </div>
+
+        <!-- ReAct Trace Loop -->
+        <div class="react-container">
+          
+          <div class="react-step">
+            <span class="react-badge thought">Thought [Turn 1]</span>
+            <div class="react-text">
+              The user is querying structural constraints (voice-leading violations) detected in their score.
+              Looking at the active document context (<strong>Sample Piece B</strong>), the deterministic rules validator has flagged two errors:
+              - <strong>Measure 20:</strong> Parallel Perfect Fifth (voices: F3 and C4)
+              - <strong>Measure 22:</strong> Parallel Perfect Octave (voices: E3 and E4)
+              
+              I need to explain the structural theory of voice independence. I will call the local reference database to pull the exact definition of parallel intervals.
+            </div>
+          </div>
+
+          <div class="react-step">
+            <span class="react-badge action">Action: Search Reference Library</span>
+            <div class="react-text">
+              <strong>Tool:</strong> <code>search_local_reference_library</code>
+              <strong>Input Parameters:</strong> <code>{"query": "parallel perfect intervals voice independence"}</code>
+            </div>
+          </div>
+
+          <div class="react-step">
+            <span class="react-badge observation">Observation: Tool Response</span>
+            <div class="react-text">
+              <strong>Database Result:</strong>
+              [Reference Section: Voice Leading] Prohibited Parallel Perfect Intervals:
+              - Parallel perfect fifths and octaves are prohibited because they reduce voice-leading independence.
+              - When two voices move in parallel perfect intervals, they fuse acoustically, destroying the distinct polyphonic separation of the voice lines.
+            </div>
+          </div>
+
+          <div class="react-step">
+            <span class="react-badge thought">Thought [Turn 2]</span>
+            <div class="react-text">
+              I have the theoretical definition. Now I need keyboard practice guidelines for voice isolation. 
+              The local reference database does not contain pedagogical methods. I must execute an external web query for keyboards practice exercises for avoiding parallel voices.
+            </div>
+          </div>
+
+          <div class="react-step">
+            <span class="react-badge action">Action: Web Search</span>
+            <div class="react-text">
+              <strong>Tool:</strong> <code>search_web</code>
+              <strong>Input Parameters:</strong> <code>{"query": "keyboard exercises voice leading contrary motion chorale"}</code>
+            </div>
+          </div>
+
+          <div class="react-step">
+            <span class="react-badge observation">Observation: Tool Response</span>
+            <div class="react-text">
+              <strong>Search Result:</strong>
+              - Source: "Keyboard Harmony Pedagogy Review" (https://musiced-pedagogy/counterpoint)
+              - Key Exercises: 1. Play outer voices in isolation to verify independence. 2. Sing one voice line while playing the other on the keyboard. 3. Adjust parallel transitions to contrary motion.
+            </div>
+          </div>
+
+          <div class="react-step">
+            <span class="react-badge thought">Thought [Turn 3]</span>
+            <div class="react-text">
+              I have gathered both theoretical definitions and keyboard exercises. 
+              I will format this response into the strict JSON schema required by the FastAPI controller.
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Chat History Tutor Answer -->
+        <div class="chat-bubble tutor">
+          <div class="chat-header">
+            <span>🤖 LangChain Practice Agent</span>
+          </div>
+          <div class="chat-content">
+            <p><strong>Voice-Leading Violations for Sample Piece B:</strong></p>
+            <p>The parser has detected voice-leading violations in your uploaded score:</p>
+            <ul>
+              <li><strong>Measure 20:</strong> Parallel Perfect Fifth between <code>F3</code> and <code>C4</code></li>
+              <li><strong>Measure 22:</strong> Parallel Perfect Octave between <code>E3</code> and <code>E4</code></li>
+            </ul>
+            <p><strong>Theoretical Rationale:</strong><br>
+            Perfect fifths and octaves represent high acoustic consonance. In polyphonic writing, if two voices move in parallel perfect intervals, their harmonic independence is lost. The two lines temporarily merge into a single acoustical line, which violates voice separation principles.</p>
+            <p><strong>Suggested Keyboard Practice Routines:</strong></p>
+            <ol>
+              <li><strong>Outer-Voice Isolation:</strong> Practice playing only the bass and soprano voices together. Parallel octaves/fifths are visually and aurally easiest to spot in outer voices.</li>
+              <li><strong>Sing-and-Play Technique:</strong> Sing the lower voice line while playing the upper voice on the keyboard to develop independent auditory tracking.</li>
+              <li><strong>Contrary Motion Alteration:</strong> Resolve the voices in contrary motion (e.g., if one voice moves up, transpose the resolving voice downward).</li>
+            </ol>
+          </div>
+        </div>
+
+        <!-- JSON Output Section -->
+        <div class="json-wrapper">
+          <div class="json-header" onclick="toggleJson()">
+            <span>📄 Output JSON Payload (Click to Toggle)</span>
+            <span id="json-toggle-icon">▼</span>
+          </div>
+          <pre id="json-block" class="json-content">
+{
+  "response": "### Voice-Leading Violations for Sample Piece B\n\nThe parser has detected...",
+  "suggested_follow_up_questions": [
+    "How do I recognize hidden fifths in chord transitions?",
+    "Why are parallel thirds and sixths allowed while fifths are not?",
+    "Can you suggest a contrary motion keyboard exercise for measure 20?"
+  ],
+  "related_concepts": [
+    "Voice Independence",
+    "Contrary Motion",
+    "Chorale Harmonization Rules"
+  ],
+  "citations": [
+    "Local Reference Library: Counterpoint Rules",
+    "Keyboard Harmony Pedagogy Review (musiced-pedagogy/counterpoint)"
+  ]
+}
+          </pre>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- Platform Pages & System Architecture Section -->
+    <section id="system-architecture">
+      <h2>System Architecture &amp; Interfaces</h2>
+      <p>
+        TrebleAI's frontend architecture is divided into three core user interfaces, which interact with a consolidated backend pipeline handling OMR transcription, deterministic parsing, and multi-tool AI orchestration.
+      </p>
+
+      <div class="pages-details">
+        <div class="page-card">
+          <h4><span>1.</span> Practice Agent</h4>
+          <p>The interactive practice dashboard. Users upload scanned sheet music files to generate dynamic vector notation (rendered via OpenSheetMusicDisplay), synchronized audio playback, and a side-car AI agent contextualized with the analyzed score metrics.</p>
+        </div>
+        <div class="page-card">
+          <h4><span>2.</span> Theory Assistant</h4>
+          <p>A full-screen interactive study interface. The general LangChain tutor answers open-ended music theory queries, scale or chord formulas, and historical concepts, dynamically generating follow-up prompts.</p>
+        </div>
+        <div class="page-card">
+          <h4><span>3.</span> Music Library</h4>
+          <p>The database-driven management page. Stores user history, manages uploaded scores, houses cached analysis reports, and supports search indexes of scales, intervals, and chords stored in a relational PostgreSQL schema.</p>
+        </div>
+      </div>
+      
+      <div class="arch-diagram-wrapper">
+        <svg viewBox="0 0 900 240" width="100%" height="100%">
+          <!-- Definitions -->
+          <defs>
+            <linearGradient id="neonPinkPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ec4899" />
+              <stop offset="100%" stop-color="#8b5cf6" />
+            </linearGradient>
+            <marker id="arrowhead" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1.5 L 7 5 L 0 8.5 z" fill="#8b5cf6" />
+            </marker>
+          </defs>
+
+          <!-- Row 1: Upload and Preprocess -->
+          <g class="arch-node">
+            <rect x="20" y="20" width="180" height="60" rx="6" fill="rgba(255, 255, 255, 0.03)" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1.5" />
+            <text x="35" y="45" fill="#ffffff" font-weight="600" font-size="12">1. Image/PDF Ingestion</text>
+            <text x="35" y="65" fill="var(--text-muted)" font-size="10">Drag &amp; drop canvas upload</text>
+          </g>
+
+          <line x1="200" y1="50" x2="250" y2="50" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead)" />
+
+          <g class="arch-node">
+            <rect x="250" y="20" width="180" height="60" rx="6" fill="rgba(255, 255, 255, 0.03)" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1.5" />
+            <text x="265" y="45" fill="#ffffff" font-weight="600" font-size="12">2. OpenCV Preprocess</text>
+            <text x="265" y="65" fill="#f472b6" font-family="var(--monospace-font)" font-size="9">Adaptive threshold / deskew</text>
+          </g>
+
+          <line x1="430" y1="50" x2="480" y2="50" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead)" />
+
+          <!-- Row 1: Audiveris OMR -->
+          <g class="arch-node">
+            <rect x="480" y="20" width="180" height="60" rx="6" fill="rgba(255, 255, 255, 0.03)" stroke="url(#neonPinkPurple)" stroke-width="1.5" />
+            <text x="495" y="45" fill="#ffffff" font-weight="600" font-size="12">3. OMR Engine</text>
+            <text x="495" y="65" fill="var(--text-muted)" font-size="10">Audiveris parses → MXL output</text>
+          </g>
+
+          <line x1="660" y1="50" x2="710" y2="50" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead)" />
+
+          <!-- Row 1: music21 -->
+          <g class="arch-node">
+            <rect x="710" y="20" width="170" height="60" rx="6" fill="rgba(255, 255, 255, 0.03)" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1.5" />
+            <text x="725" y="45" fill="#ffffff" font-weight="600" font-size="12">4. Stream Parser</text>
+            <text x="725" y="65" fill="#f472b6" font-family="var(--monospace-font)" font-size="9">music21 notation tree mapping</text>
+          </g>
+
+          <!-- Branching arrow from music21 down -->
+          <path d="M 795 80 L 795 130 C 795 135, 790 140, 785 140 L 720 140" fill="none" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead)" />
+
+          <!-- Row 2: Analysis & Synthesis Pipeline -->
+          <g class="arch-node">
+            <rect x="495" y="110" width="220" height="60" rx="6" fill="rgba(255, 255, 255, 0.03)" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1.5" />
+            <text x="510" y="132" fill="#ffffff" font-weight="600" font-size="11">5a. Music Analysis Engine</text>
+            <text x="510" y="152" fill="#38bdf8" font-family="var(--monospace-font)" font-size="9">Rules Engine (Deterministic)</text>
+          </g>
+
+          <g class="arch-node">
+            <rect x="250" y="110" width="220" height="60" rx="6" fill="rgba(255, 255, 255, 0.03)" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1.5" />
+            <text x="265" y="132" fill="#ffffff" font-weight="600" font-size="11">5b. Audio Synthesis</text>
+            <text x="265" y="152" fill="var(--text-muted)" font-size="10">MIDI export + FluidSynth WAV</text>
+          </g>
+
+          <line x1="495" y1="140" x2="475" y2="140" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead)" />
+
+          <!-- Path to Agent -->
+          <path d="M 605 170 L 605 190 C 605 195, 595 200, 590 200 L 440 200" fill="none" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead)" />
+          <!-- Path from Synth to UI -->
+          <path d="M 360 170 L 360 190 C 360 195, 350 200, 340 200 L 190 200" fill="none" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead)" />
+
+          <!-- Row 3: Agent and UI Output -->
+          <g class="arch-node">
+            <rect x="210" y="170" width="220" height="60" rx="6" fill="rgba(255, 255, 255, 0.03)" stroke="url(#neonPinkPurple)" stroke-width="1.5" />
+            <text x="225" y="192" fill="#ffffff" font-weight="600" font-size="11">6. LangChain Agent Layer</text>
+            <text x="225" y="212" fill="#c084fc" font-family="var(--monospace-font)" font-size="9">Dual prompt ReAct executor</text>
+          </g>
+
+          <g class="arch-node">
+            <rect x="20" y="170" width="160" height="60" rx="6" fill="rgba(255, 255, 255, 0.03)" stroke="rgba(255, 255, 255, 0.15)" stroke-width="1.5" />
+            <text x="35" y="192" fill="#ffffff" font-weight="600" font-size="11">7. Next.js Client App</text>
+            <text x="35" y="212" fill="var(--text-muted)" font-size="10">Practice, Theory &amp; Library</text>
+          </g>
+
+          <line x1="210" y1="200" x2="185" y2="200" stroke="#8b5cf6" stroke-width="2" marker-end="url(#arrowhead)" />
+        </svg>
+      </div>
+    </section>
+
+    <!-- Practice Agent: How-To-Use Guide -->
+    <section id="how-to-use">
+      <h2>Practice Agent: Integration &amp; Ingestion Guide</h2>
+      <p>
+        The <strong>Practice Agent</strong> page acts as the primary pipeline orchestrator. It establishes a multi-layered ingestion workflow to process notation files and initialize the LangChain tutor with local context.
+      </p>
+
+      <div class="guide-step">
+        <div class="guide-step-num">1</div>
+        <div class="guide-step-content">
+          <h4>File Upload &amp; Format Resolution</h4>
+          <p>The client uploads scanned sheet music (PDF/PNG/JPEG) or structured XML files. Scanned images are transferred to a FastAPI background worker queue. OpenCV performs adaptive thresholding to eliminate background gradients and deskews the image boundaries, ensuring optimal Audiveris layout reading.</p>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="guide-step-num">2</div>
+        <div class="guide-step-content">
+          <h4>Optical Notation Transcription (OMR)</h4>
+          <p>Audiveris parses the preprocessed binary image to resolve staves, pitches, and durational values. It generates a MusicXML payload, which is ingested by a python-based <code>music21</code> stream parser. The parser structures the notation elements into a relational hierarchical tree cache.</p>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="guide-step-num">3</div>
+        <div class="guide-step-content">
+          <h4>Deterministic Feature Parsing &amp; Synthesis</h4>
+          <p>The backend extracts key signatures, modal overlaps, chord structures, modulations, and voice-leading violations. In parallel, a MIDI file is synthesized and mapped into standard audio files (WAV) via FluidSynth using SoundFonts, serving as synchronized audio playback for the interactive Next.js viewer.</p>
+        </div>
+      </div>
+
+      <div class="guide-step">
+        <div class="guide-step-num">4</div>
+        <div class="guide-step-content">
+          <h4>Tutor Seeding &amp; Interactive Practice</h4>
+          <p>The extracted music analysis metrics are serialized into a JSON context envelope. When the user loads the score, this context is loaded as system prompt parameters for the LangChain agent. The student can click on specific measures, trigger audio loops, or chat directly with the context-aware coach to get targeted scale exercises and theory concepts.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Music Analysis Engine: Deterministic Infrastructure -->
+    <section id="analysis-engine">
+      <h2>Music Analysis Engine (Deterministic Infrastructure)</h2>
+      <p>
+        Before triggering LLM requests, TrebleAI runs the parsed score stream through a rule-based parser. 
+        This engine executes deterministic music theory algorithms to extract architectural attributes, separating rule-based processing from generative AI layers.
+      </p>
+
+      <div class="section-split">
+        <!-- Text details -->
+        <div class="info-pane">
+          <h3>Analysis Extractions</h3>
+          <ul>
+            <li><strong>Key Center Profiling:</strong> Computes pitch-class presence ratios to identify key signatures and shifts.</li>
+            <li><strong>Modal Overlaps:</strong> Computes Jaccard similarity indices between pitch distributions and diatonic modes.</li>
+            <li><strong>Structural Audit:</strong> Scans voice transitions for perfect fifth and octave voice-leading violations.</li>
+            <li><strong>Rhythmic Mapping:</strong> Evaluates syncopations and durations to compile rhythmic motif matches.</li>
+            <li><strong>Technical Profiling:</strong> Generates scale fingering recommendations via heuristic rules.</li>
+          </ul>
+        </div>
+
+        <!-- Single Radar Chart Visualization -->
+        <div>
+          <h3>Sample Score Characteristic Profile</h3>
+          <p style="font-size: 0.85rem; margin-bottom: 0.5rem; color: var(--text-muted);">
+            Visualizing the output fingerprint of the deterministic engine for a sample input piece.
+          </p>
+          <div class="chart-container">
+            <canvas id="radarChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Compact Metrics Table -->
+      <h3>Capability Verification Log</h3>
+      <p style="font-size: 0.9rem; margin-bottom: 1rem;">This table validates that the deterministic engine parses distinct scores (here represented as Sample Piece A and B) and extracts distinct, clean musical descriptors.</p>
+      
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>Metric / Descriptor</th>
+              <th>Sample Piece A</th>
+              <th>Sample Piece B</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Analyzed Key Signature</td>
+              <td>A minor (0 sharps/flats)</td>
+              <td>C major (0 sharps/flats)</td>
+            </tr>
+            <tr>
+              <td>Time Signature / Tempo</td>
+              <td>6/4 @ 120 bpm</td>
+              <td>3/4 @ 120 bpm</td>
+            </tr>
+            <tr>
+              <td>Total Measures</td>
+              <td>8 measures</td>
+              <td>24 measures</td>
+            </tr>
+            <tr>
+              <td>Diatonicity Ratio</td>
+              <td class="highlight-cell">89.6%</td>
+              <td class="highlight-cell">99.4%</td>
+            </tr>
+            <tr>
+              <td>Diatonic / Chromatic Notes</td>
+              <td>43 diatonic / 5 chromatic</td>
+              <td>159 diatonic / 1 chromatic</td>
+            </tr>
+            <tr>
+              <td>Average Melodic Movement</td>
+              <td>3.79 semitones</td>
+              <td>1.49 semitones</td>
+            </tr>
+            <tr>
+              <td>Range of Notes</td>
+              <td>24 semitones (Perfect Double-octave)</td>
+              <td>31 semitones (Perfect Nineteenth)</td>
+            </tr>
+            <tr>
+              <td>Max Hand Span Requirement</td>
+              <td>0 semitones (single-notes)</td>
+              <td>12 semitones (full octaves)</td>
+            </tr>
+            <tr>
+              <td>Voice Leading Errors Detected</td>
+              <td>0 errors</td>
+              <td class="highlight-cell">2 errors (1 Parallel 5th, 1 Parallel 8ve)</td>
+            </tr>
+            <tr>
+              <td>Detected Modulations</td>
+              <td>None</td>
+              <td>Measure 13 (C major → F major)<br>Measure 17 (F major → C major)</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Key Learnings / Challenges -->
+    <section id="learnings">
+      <h2>Key Learnings &amp; Challenges</h2>
+      <ul>
+        <li>
+          <strong>OMR Noise Control:</strong> Optical Music Recognition has high error propagation. Scanned page skewing or low-contrast inputs trigger pitch offsets in Audiveris, causing errors in key extraction. Incorporating OpenCV adaptive thresholding and binarization significantly reduced parsing noise.
+        </li>
+        <li>
+          <strong>LLM Structured Parsing Failures:</strong> Under complex multi-tool execution paths, LLM engines sometimes violate structured output schemas. We resolved this by building a custom regex fallback parser in <code>agent.py</code> to extract valid JSON blocks from unstructured message streams.
+        </li>
+        <li>
+          <strong>FluidSynth Audio Generation Latency:</strong> Synthesizing WAV files from MusicXML streams can block the main request thread. To resolve this, we offloaded audio rendering to FastAPI background tasks and cached the generated analysis report per session so repeat requests are served without reprocessing.
+        </li>
+      </ul>
+    </section>
+
+    <!-- Final Approach & Results Summary -->
+    <section id="conclusion">
+      <h2>Final Approach &amp; Summary</h2>
+      <p>
+        <strong>TrebleAI</strong> bridges the gap between text-based music study and practical execution by integrating a deterministic processing pipeline with a LangChain-based tutoring agent. 
+        By parsing inputs into structured streams, extracting rule-based music descriptors, and passing these descriptors as structured context into a multi-tool ReAct agent, we prevent tutor hallucinations and provide students with a context-aware practice companion. 
+        The resulting pipeline enables students to receive reliable, context-aware instruction based directly on their uploaded sheet music.
+      </p>
+    </section>
+
+    <!-- Footer Section -->
+    <footer>
+      <p>TrebleAI Portfolio Project Report — Built with FastAPI, Next.js, LangChain, and Chart.js</p>
+      <p class="mono">&copy; 2026 Cherish Vasant. All rights reserved.</p>
+      <div class="mono-links">
+        <a href="../index.html">Portfolio</a>
+        <a href="https://github.com/CherishVasant/Treble-AI" target="_blank">GitHub Repository</a>
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- Inline report data structure -->
+  <script id="report-data" type="application/json">
+  {
+    "pieces": [
+      {
+        "id": "sample_piece_a",
+        "name": "Sample Piece A",
+        "key_signature": "A minor (0 sharps/flats)",
+        "time_signature": "6/4",
+        "tempo": "120 bpm",
+        "total_measures": 8,
+        "difficulty": {
+          "difficulty_score": 2.5,
+          "difficulty_category": "Beginner",
+          "max_hand_span_semitones": 0,
+          "notes_per_second": 2.0,
+          "accidental_notes_count": 5,
+          "average_chord_size": 1.0
+        },
+        "diatonicity": {
+          "ratio_percentage": 89.6,
+          "total_notes_counted": 48,
+          "diatonic_notes_count": 43,
+          "chromatic_notes_count": 5
+        },
+        "intervals": {
+          "total_intervals": 33,
+          "most_common_interval": "Minor 2nd",
+          "largest_leap": "Perfect Octave",
+          "average_melodic_movement": 3.79
+        },
+        "voice_leading_errors_count": 0,
+        "key_analysis": {
+          "modal_interpretations": [
+            {"mode": "C Ionian", "similarity": 62.5},
+            {"mode": "C Lydian", "similarity": 62.5},
+            {"mode": "D Dorian", "similarity": 62.5}
+          ]
+        }
+      },
+      {
+        "id": "sample_piece_b",
+        "name": "Sample Piece B",
+        "key_signature": "C major (0 sharps/flats)",
+        "time_signature": "3/4",
+        "tempo": "120 bpm",
+        "total_measures": 24,
+        "difficulty": {
+          "difficulty_score": 3.3,
+          "difficulty_category": "Beginner",
+          "max_hand_span_semitones": 12,
+          "notes_per_second": 4.0,
+          "accidental_notes_count": 1,
+          "average_chord_size": 2.2
+        },
+        "diatonicity": {
+          "ratio_percentage": 99.4,
+          "total_notes_counted": 160,
+          "diatonic_notes_count": 159,
+          "chromatic_notes_count": 1
+        },
+        "intervals": {
+          "total_intervals": 61,
+          "most_common_interval": "Minor 2nd",
+          "largest_leap": "Perfect 5th",
+          "average_melodic_movement": 1.49
+        },
+        "voice_leading_errors_count": 2,
+        "key_analysis": {
+          "modal_interpretations": [
+            {"mode": "C Ionian", "similarity": 100.0},
+            {"mode": "D Dorian", "similarity": 100.0},
+            {"mode": "E Phrygian", "similarity": 100.0}
+          ]
+        }
+      }
+    ]
+  }
+  </script>
+
+  <script>
+    // Collapsible JSON helper
+    function toggleJson() {
+      const block = document.getElementById('json-block');
+      const icon = document.getElementById('json-toggle-icon');
+      if (block.classList.contains('collapsed')) {
+        block.classList.remove('collapsed');
+        icon.innerText = '▼';
+      } else {
+        block.classList.add('collapsed');
+        icon.innerText = '►';
+      }
+    }
+    
+    // Initialize collapsed by default
+    document.addEventListener('DOMContentLoaded', () => {
+      const block = document.getElementById('json-block');
+      block.classList.add('collapsed');
+      const icon = document.getElementById('json-toggle-icon');
+      icon.innerText = '►';
+      
+      // Load and render Chart
+      renderRadarChart();
+    });
+
+    // Render Radar Chart for Sample Piece B (capability demo)
+    function renderRadarChart() {
+      const ctx = document.getElementById('radarChart').getContext('2d');
+      
+      // Data values extracted from Sample Piece B
+      // Normalized to 0-100% scale
+      // 1. Difficulty: 3.3/10 -> 33%
+      // 2. Diatonicity: 99.4%
+      // 3. Avg Melodic Movement: 1.49 semitones -> scaled relative to 6 semitones max -> 24.8%
+      // 4. Notes Per Second Density: 4.0 notes/sec -> scaled relative to 8 max -> 50%
+      // 5. Semitone Range: 31 semitones -> scaled relative to 48 max (4 octaves) -> 64.6%
+      // 6. Voice Leading Errors: 2 errors -> scaled relative to 5 max -> 40%
+      
+      const radarData = {
+        labels: [
+          'Difficulty (Score: 3.3/10)', 
+          'Diatonicity Ratio (99.4%)', 
+          'Avg Melodic Movement (1.49 st)', 
+          'Notes density (4.0/s)', 
+          'Range (31 st)', 
+          'Voice Leading Errors (2)'
+        ],
+        datasets: [{
+          label: 'Deterministic Engine Extraction Profile',
+          data: [33, 99.4, 24.8, 50, 64.6, 40],
+          fill: true,
+          backgroundColor: 'rgba(236, 72, 153, 0.2)',
+          borderColor: '#ec4899',
+          pointBackgroundColor: '#8b5cf6',
+          pointBorderColor: '#fff',
+          pointHoverBackgroundColor: '#fff',
+          pointHoverBorderColor: '#ec4899'
+        }]
+      };
+
+      const chartConfig = {
+        type: 'radar',
+        data: radarData,
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: false
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  return context.label + ': ' + context.raw.toFixed(1) + '% of scale';
+                }
+              }
+            }
+          },
+          scales: {
+            r: {
+              grid: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              },
+              angleLines: {
+                color: 'rgba(255, 255, 255, 0.1)'
+              },
+              pointLabels: {
+                color: '#94a3b8',
+                font: {
+                  family: "'Fira Code', monospace",
+                  size: 9
+                }
+              },
+              ticks: {
+                backdropColor: 'transparent',
+                color: '#64748b',
+                showLabelBackdrop: false,
+                stepSize: 20
+              },
+              suggestedMin: 0,
+              suggestedMax: 100
+            }
+          }
+        }
+      };
+
+      new Chart(ctx, chartConfig);
+    }
+  </script>
+</body>
+</html>

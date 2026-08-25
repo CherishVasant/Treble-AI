@@ -1,0 +1,25 @@
+# Treble-AI/docker-compose.yml
+# This spins up your backend + a local Postgres for testing.
+# Do NOT use this in production — it's local dev only.
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: treble
+      POSTGRES_PASSWORD: treble
+      POSTGRES_DB: treble
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql+psycopg://treble:treble@db:5432/treble
+      JWT_SECRET_KEY: local-dev-secret-change-in-prod
+      CORS_ORIGINS: http://localhost:3000
+      AUDIVERIS_PATH: /opt/audiveris/bin/Audiveris
+      FLUIDSYNTH_PATH: fluidsynth

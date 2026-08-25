@@ -3,7 +3,7 @@ import { proxyToBackend } from '@/lib/backend-proxy';
 
 export async function POST(request: NextRequest) {
   try {
-    const { fileId, blobUrl } = await request.json();
+    const { fileId, blobUrl, originalName } = await request.json();
 
     if (!fileId || typeof fileId !== 'string') {
       return NextResponse.json({ error: 'fileId is required' }, { status: 400 });
@@ -22,9 +22,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Derive the original filename from the blob URL path
+    // Derive filename: prefer the user's original name, fall back to blob URL basename.
     const blobPathname = new URL(blobUrl).pathname;
     const blobFilename = blobPathname.split('/').pop() || 'upload.bin';
+    const filename = (originalName && typeof originalName === 'string') ? originalName : blobFilename;
     const contentType = fileResponse.headers.get('content-type') || 'application/octet-stream';
 
     const fileBuffer = await fileResponse.arrayBuffer();
@@ -33,8 +34,14 @@ export async function POST(request: NextRequest) {
     formData.append(
       'file',
       new Blob([fileBuffer], { type: contentType }),
-      blobFilename
+      filename
     );
+    // Pass the blob URL and original filename as extra form fields so the backend
+    // can store them — enables re-conversion after a server restart.
+    formData.append('blob_url', blobUrl);
+    if (originalName) {
+      formData.append('original_name', originalName);
+    }
 
     return proxyToBackend(request, '/process', {
       method: 'POST',

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState, Suspense, useRef } from 'react';
-import { Search, ChevronRight, Star, Home, Play, Square, Info } from 'lucide-react';
+import { Search, ChevronRight, Star, Home, Play, Square, Info, Loader2 } from 'lucide-react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import ReferenceCard from '@/components/reference-card';
@@ -414,6 +414,8 @@ function MusicLibraryContent() {
   const [selectedCircleKeyMode, setSelectedCircleKeyMode] = useState<'major' | 'minor'>('major');
   const [circlePlayingNoteIdx, setCirclePlayingNoteIdx] = useState<number | null>(null);
   const [isPlayingCircleAudio, setIsPlayingCircleAudio] = useState(false);
+  // true while the WAV is being generated/downloaded (before first timeupdate)
+  const [isCircleAudioLoading, setIsCircleAudioLoading] = useState(false);
   const circleAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const [intervalRoot, setIntervalRoot] = useState('C');
@@ -431,6 +433,20 @@ function MusicLibraryContent() {
       }
     };
   }, []);
+
+  // Pre-warm the backend WAV cache whenever the selected sector or mode changes.
+  // FluidSynth takes 2–4 s to synthesise a new scale; firing this background
+  // request before the user clicks Play ensures the cache is hot so playback
+  // starts immediately.
+  useEffect(() => {
+    const sector = CIRCLE_SECTORS[selectedCircleSector];
+    const notes = selectedCircleKeyMode === 'major' ? sector.playNotesMajor : sector.playNotesMinor;
+    const notesToPlay = [...notes, ...[...notes].reverse().slice(1)];
+    const queryNotes = notesToPlay.join(',');
+    const audioUrl = `/api/reference/audio?notes=${encodeURIComponent(queryNotes)}`;
+    // Fire-and-forget: just warm the server cache; we don't need the response here.
+    fetch(audioUrl).catch(() => {});
+  }, [selectedCircleSector, selectedCircleKeyMode]);
 
   // Sync category and search query from URL params
   useEffect(() => {
@@ -496,30 +512,38 @@ function MusicLibraryContent() {
   }, []);
 
   const playCircleScale = () => {
-    if (isPlayingCircleAudio) {
+    if (isPlayingCircleAudio || isCircleAudioLoading) {
       stopCircleScale();
       return;
     }
     const sector = CIRCLE_SECTORS[selectedCircleSector];
     const notes = selectedCircleKeyMode === 'major' ? sector.playNotesMajor : sector.playNotesMinor;
-    
+
     const notesToPlay = [...notes, ...[...notes].reverse().slice(1)];
     const queryNotes = notesToPlay.join(',');
     const audioUrl = `/api/reference/audio?notes=${encodeURIComponent(queryNotes)}`;
-    
+
     setIsPlayingCircleAudio(true);
-    setCirclePlayingNoteIdx(0);
-    
+    setIsCircleAudioLoading(true);
+    // Don't light any piano key yet — wait until the audio actually starts
+    // playing. Previously we called setCirclePlayingNoteIdx(0) here which lit
+    // the first key immediately and kept it lit for 3–4 s while the server
+    // synthesised the WAV, making the UI feel broken.
+
     const audio = new Audio(audioUrl);
     circleAudioRef.current = audio;
-    
+
     audio.play().catch(err => {
       console.error('Circle audio play error:', err);
       setIsPlayingCircleAudio(false);
+      setIsCircleAudioLoading(false);
       setCirclePlayingNoteIdx(null);
     });
-    
+
     audio.ontimeupdate = () => {
+      // First timeupdate fires when audio is actually playing — clear the
+      // loading state and start the piano key animation.
+      setIsCircleAudioLoading(false);
       const idx = Math.floor(audio.currentTime / 0.4);
       if (idx >= 0 && idx < notesToPlay.length) {
         setCirclePlayingNoteIdx(idx);
@@ -527,14 +551,16 @@ function MusicLibraryContent() {
         setCirclePlayingNoteIdx(null);
       }
     };
-    
+
     audio.onended = () => {
       setIsPlayingCircleAudio(false);
+      setIsCircleAudioLoading(false);
       setCirclePlayingNoteIdx(null);
     };
-    
+
     audio.onerror = () => {
       setIsPlayingCircleAudio(false);
+      setIsCircleAudioLoading(false);
       setCirclePlayingNoteIdx(null);
     };
   };
@@ -547,6 +573,7 @@ function MusicLibraryContent() {
       circleAudioRef.current = null;
     }
     setIsPlayingCircleAudio(false);
+    setIsCircleAudioLoading(false);
     setCirclePlayingNoteIdx(null);
   };
 
@@ -1250,12 +1277,19 @@ function MusicLibraryContent() {
                             <button
                               onClick={playCircleScale}
                               className={`px-4 py-2.5 rounded-xl border flex items-center gap-2 font-bold text-xs transition-all duration-200 ${
-                                isPlayingCircleAudio
+                                isPlayingCircleAudio && !isCircleAudioLoading
                                   ? 'bg-red-500/10 border-red-500/20 text-red-400 hover:bg-red-500/20'
-                                  : 'bg-primary border-primary/20 text-white hover:bg-primary/85 shadow-glow'
+                                  : isCircleAudioLoading
+                                    ? 'bg-primary/60 border-primary/20 text-white cursor-wait'
+                                    : 'bg-primary border-primary/20 text-white hover:bg-primary/85 shadow-glow'
                               }`}
                             >
-                              {isPlayingCircleAudio ? (
+                              {isCircleAudioLoading ? (
+                                <>
+                                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  Loading…
+                                </>
+                              ) : isPlayingCircleAudio ? (
                                 <>
                                   <Square className="w-3.5 h-3.5 fill-red-400 text-red-400" />
                                   Stop Scale

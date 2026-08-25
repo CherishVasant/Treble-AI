@@ -126,7 +126,19 @@ export async function proxyToBackend(
     const contentType = response.headers.get('content-type') || '';
     let responseBody: any;
     if (contentType.includes('application/json')) {
-      responseBody = await response.json();
+      // Read body as text first so we can recover if the payload isn't valid
+      // JSON (e.g. the backend crashes and returns "An error occurred…" with
+      // content-type: application/json, which would throw a SyntaxError whose
+      // raw message then showed up in the UI).
+      const rawText = await response.text();
+      try {
+        responseBody = JSON.parse(rawText);
+      } catch {
+        responseBody = {
+          error: 'The server returned an invalid response',
+          details: rawText.slice(0, 300) || 'Response body was not valid JSON',
+        };
+      }
     } else {
       responseBody = Buffer.from(await response.arrayBuffer());
     }

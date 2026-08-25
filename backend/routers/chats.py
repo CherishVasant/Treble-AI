@@ -123,7 +123,9 @@ def get_practice_sessions(current_user: User = Depends(get_current_user), db: Se
             "timestamp": session.updated_at.isoformat(),
             "uploadedFileData": {
                 "id": session.id,
-                "name": original_name
+                "name": original_name,
+                # blob_url lets the frontend re-convert without a fresh upload
+                "blobUrl": session.blob_url or None,
             },
             "processedMetadata": {
                 "jobId": session.id,

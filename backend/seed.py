@@ -20,6 +20,8 @@ def _run_column_migrations() -> None:
     migrations = [
         # (table, column, definition)
         ("analysis_reports", "notes_text", "TEXT"),
+        # Vercel Blob URL of the original upload — enables re-conversion after restarts
+        ("practice_sessions", "blob_url", "VARCHAR(1024)"),
     ]
     with engine.connect() as conn:
         for table, column, definition in migrations:

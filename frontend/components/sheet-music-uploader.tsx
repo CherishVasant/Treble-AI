@@ -260,7 +260,13 @@ export default function SheetMusicUploader({
       const convertResponse = await fetch('/api/convert-sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId: activeFile.id, blobUrl: activeFile.blobUrl }),
+        body: JSON.stringify({
+          fileId: activeFile.id,
+          blobUrl: activeFile.blobUrl,
+          // Pass the user's original filename so the backend stores it instead
+          // of the Vercel Blob generated ID (file_1234_abc.png).
+          originalName: activeFile.name,
+        }),
       });
 
       const convertData = await convertResponse.json();

@@ -9,7 +9,7 @@ export interface ChatSession {
   title: string;
   timestamp: string;
   messages: Message[];
-  uploadedFileData?: { id: string; name: string } | null;
+  uploadedFileData?: { id: string; name: string; blobUrl?: string | null } | null;
   processedMetadata?: any | null;
 }
 
@@ -29,7 +29,7 @@ interface ChatContextType {
       apiPath: string;
       context?: string;
       systemPrompt?: string;
-      uploadedFileData?: { id: string; name: string } | null;
+      uploadedFileData?: { id: string; name: string; blobUrl?: string | null } | null;
       processedMetadata?: any | null;
     }
   ) => Promise<string>;
@@ -255,7 +255,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       apiPath: string;
       context?: string;
       systemPrompt?: string;
-      uploadedFileData?: { id: string; name: string } | null;
+      uploadedFileData?: { id: string; name: string; blobUrl?: string | null } | null;
       processedMetadata?: any | null;
     }
   ): Promise<string> => {

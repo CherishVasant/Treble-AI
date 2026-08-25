@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks, Depends
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from database import get_db
@@ -140,10 +140,20 @@ def run_background_pipeline(process_image_to_audio, temp_path: str, job_dir: str
 async def process_sheet_music(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    # Optional metadata fields sent as extra form fields alongside the file.
+    # blob_url: Vercel Blob URL of the original upload — stored so the file can
+    #   be re-converted after a server restart without asking the user to re-upload.
+    # original_name: the user's actual filename (not the blob-generated ID).
+    blob_url: Optional[str] = Form(None),
+    original_name: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     process_image_to_audio = _get_pipeline_runner()
+
+    # Use the caller-supplied original filename if provided, otherwise fall back
+    # to the multipart field filename (which may be a Vercel Blob generated ID).
+    display_filename = original_name or file.filename or "upload"
 
     # Create UUID for session/folder
     session_uuid = str(uuid.uuid4())
@@ -151,8 +161,8 @@ async def process_sheet_music(
     job_dir = Path(storage_directory)
     job_dir.mkdir(parents=True, exist_ok=True)
 
-    base_name = safe_folder_name(file.filename or "upload")
-    temp_path = job_dir / (file.filename or "upload.bin")
+    base_name = safe_folder_name(display_filename)
+    temp_path = job_dir / display_filename
     with open(temp_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
@@ -162,8 +172,9 @@ async def process_sheet_music(
         id=session_uuid,
         user_id=current_user.id,
         title=session_title,
-        original_filename=file.filename or "upload",
-        storage_directory=storage_directory
+        original_filename=display_filename,
+        storage_directory=storage_directory,
+        blob_url=blob_url or None,
     )
     db.add(new_session)
     db.commit()

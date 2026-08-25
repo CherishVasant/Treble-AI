@@ -221,12 +221,25 @@ export default function AIChat({
       }
 
       if (!response.ok) {
-        const detail =
-          typeof data.details === 'string'
-            ? data.details
-            : typeof data.error === 'string'
-              ? data.error
-              : 'Failed to get response';
+        // Prefer a clean backend error message; fall back to a generic one.
+        // Never surface raw JSON parse errors ("Unexpected token…") to the user.
+        const rawDetail =
+          typeof data.detail === 'string'
+            ? data.detail
+            : typeof data.details === 'string'
+              ? data.details
+              : typeof data.error === 'string'
+                ? data.error
+                : '';
+        const isInternalError =
+          !rawDetail ||
+          rawDetail.startsWith('Unexpected token') ||
+          rawDetail.startsWith('Response body was not valid JSON') ||
+          rawDetail.includes('SyntaxError') ||
+          rawDetail.includes('JSON');
+        const detail = isInternalError
+          ? 'The AI service returned an unexpected response. Please try again.'
+          : rawDetail;
         throw new Error(detail);
       }
 

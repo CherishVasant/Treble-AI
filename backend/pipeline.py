@@ -117,6 +117,11 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
             str(output_dir_path),
             actual_image_path,
         ]
+        # On Linux (Docker / Render) JavaFX requires a display server even in
+        # batch mode — it links to GTK/X11 at JVM startup. xvfb-run provides a
+        # virtual framebuffer so the process can start without a real monitor.
+        if os.name != "nt":
+            audiveris_command = ["xvfb-run", "-a", "--server-args=-screen 0 1280x1024x24"] + audiveris_command
         _run_step("Audiveris", audiveris_command)
 
         if not input_mxl.exists():

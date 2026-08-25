@@ -18,6 +18,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         libglib2.0-0 \
         libsm6 \
         libxext6 \
+        # GTK-3 + X11 libs — JavaFX (used by Audiveris) links to these even in
+        # batch/headless mode; without them the JVM throws UnsatisfiedLinkError.
+        libgtk-3-0 \
+        libxtst6 \
+        libxrender1 \
+        libxi6 \
+        libasound2 \
+        # Xvfb provides a virtual framebuffer so JavaFX can initialise its
+        # display subsystem without a real monitor attached.
+        xvfb \
         # Tesseract — Audiveris uses it for text recognition on scores
         tesseract-ocr \
     && rm -rf /var/lib/apt/lists/*

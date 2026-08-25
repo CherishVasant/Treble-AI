@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Query, HTTPException
 from fastapi.responses import FileResponse
 import hashlib
+import shutil
 import subprocess
 from pathlib import Path
 from music21 import stream, note, tempo
@@ -61,7 +62,10 @@ def get_scale_audio(notes: str = Query(..., description="Comma-separated notes o
                 str(midi_path),
             ]
 
-            if not Path(FLUIDSYNTH_PATH).exists():
+            # Use shutil.which so system commands on PATH (e.g. "fluidsynth") are
+            # found correctly — Path('fluidsynth').exists() always returns False
+            # for commands that aren't files in the current directory.
+            if not shutil.which(FLUIDSYNTH_PATH) and not Path(FLUIDSYNTH_PATH).is_file():
                 raise FileNotFoundError(f"FluidSynth not found at {FLUIDSYNTH_PATH}")
 
             result = subprocess.run(fluidsynth_command, capture_output=True, text=True)

@@ -104,6 +104,8 @@ function getChatContext(uploadedFileData: any, processedMetadata: any): string {
   - Fingering Suggestions: ${JSON.stringify(info.fingerings || {})}`;
 }
 
+const LAST_SESSION_KEY = 'treble_last_practice_session';
+
 function PracticeStudioContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -115,7 +117,24 @@ function PracticeStudioContent() {
   useEffect(() => {
     activeSessionIdRef.current = sessionId;
     setLastActiveSession('practice', sessionId);
+    // Persist the active session so navigating away and back restores it
+    if (sessionId) {
+      try { localStorage.setItem(LAST_SESSION_KEY, sessionId); } catch {}
+    }
   }, [sessionId, setLastActiveSession]);
+
+  // On mount with no sessionId in URL, redirect to last known session
+  useEffect(() => {
+    if (!sessionId) {
+      try {
+        const saved = localStorage.getItem(LAST_SESSION_KEY);
+        if (saved) {
+          router.replace(`/practice-studio?sessionId=${saved}`, { scroll: false });
+        }
+      } catch {}
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const activeSession = practiceSessions.find(s => s.id === sessionId);
   const messages = activeSession ? activeSession.messages : [];

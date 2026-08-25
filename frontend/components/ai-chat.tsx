@@ -208,7 +208,17 @@ export default function AIChat({
         }),
       });
 
-      const data = await response.json();
+      // Guard against empty/non-JSON responses (e.g. Vercel timeout returns empty body)
+      let data: any = {};
+      try {
+        data = await response.json();
+      } catch {
+        throw new Error(
+          response.status === 504 || response.status === 408
+            ? 'The request timed out — the AI is taking too long. Please try again.'
+            : 'The server returned an unexpected response. Please try again.'
+        );
+      }
 
       if (!response.ok) {
         const detail =

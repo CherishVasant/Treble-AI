@@ -434,19 +434,8 @@ function MusicLibraryContent() {
     };
   }, []);
 
-  // Pre-warm the backend WAV cache whenever the selected sector or mode changes.
-  // FluidSynth takes 2–4 s to synthesise a new scale; firing this background
-  // request before the user clicks Play ensures the cache is hot so playback
-  // starts immediately.
-  useEffect(() => {
-    const sector = CIRCLE_SECTORS[selectedCircleSector];
-    const notes = selectedCircleKeyMode === 'major' ? sector.playNotesMajor : sector.playNotesMinor;
-    const notesToPlay = [...notes, ...[...notes].reverse().slice(1)];
-    const queryNotes = notesToPlay.join(',');
-    const audioUrl = `/api/reference/audio?notes=${encodeURIComponent(queryNotes)}`;
-    // Fire-and-forget: just warm the server cache; we don't need the response here.
-    fetch(audioUrl).catch(() => {});
-  }, [selectedCircleSector, selectedCircleKeyMode]);
+  // NOTE: scale audio WAV files are pre-generated into the Docker image at build
+  // time via generate_scale_cache.py, so no pre-fetch warm-up is needed here.
 
   // Sync category and search query from URL params
   useEffect(() => {

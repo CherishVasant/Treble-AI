@@ -61,6 +61,15 @@ COPY . .
 # Create runtime directories that the app writes into
 RUN mkdir -p uploads
 
+# ── Pre-generate scale audio cache ────────────────────────────────────────────
+# Synthesise all 24 scale WAV files (12 major + 12 minor) and bake them into
+# the image.  This means the music library "Play Scale" button plays instantly
+# on every request — no FluidSynth synthesis delay on first play after a restart.
+# (Without this, output/scales/ starts empty on every container boot because the
+# Render filesystem is ephemeral and .dockerignore excludes *.wav from the build
+# context.)
+RUN python3 generate_scale_cache.py
+
 # ── Environment defaults ──────────────────────────────────────────────────────
 # The .deb installer puts Audiveris on PATH — "Audiveris" works without a full path.
 # If the build fails with "Audiveris not found", uncomment the line below and

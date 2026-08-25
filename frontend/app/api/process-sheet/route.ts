@@ -1,8 +1,4 @@
-import { readFile } from 'fs/promises';
-import path from 'path';
 import { NextRequest, NextResponse } from 'next/server';
-
-const STORE = path.join(process.cwd(), '.upload-store');
 
 type FileMeta = {
   originalName: string;
@@ -16,9 +12,7 @@ function previewKindFromMeta(meta: FileMeta): 'pdf' | 'image' | null {
   if (ext === 'pdf' || meta.mimeType === 'application/pdf') return 'pdf';
   if (meta.mimeType.startsWith('image/')) return 'image';
   if (
-    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tif', 'tiff', 'heic', 'avif', 'svg'].includes(
-      ext
-    )
+    ['jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tif', 'tiff', 'heic', 'avif', 'svg'].includes(ext)
   ) {
     return 'image';
   }
@@ -27,23 +21,23 @@ function previewKindFromMeta(meta: FileMeta): 'pdf' | 'image' | null {
 
 export async function POST(request: NextRequest) {
   try {
-    const { fileId } = await request.json();
+    const body = await request.json();
+    const { fileId, blobUrl, meta } = body as {
+      fileId?: string;
+      blobUrl?: string;
+      meta?: FileMeta;
+    };
 
     if (!fileId || typeof fileId !== 'string') {
       return NextResponse.json({ error: 'fileId is required' }, { status: 400 });
     }
 
-    const metaPath = path.join(STORE, `${fileId}.meta.json`);
-    let metaRaw: string;
-    try {
-      metaRaw = await readFile(metaPath, 'utf-8');
-    } catch {
-      return NextResponse.json({ error: 'Upload not found or expired' }, { status: 404 });
+    // Meta was sent directly from the upload response — no disk read needed
+    if (!meta) {
+      return NextResponse.json({ error: 'File metadata missing. Please re-upload.' }, { status: 400 });
     }
 
-    const meta = JSON.parse(metaRaw) as FileMeta;
     const kind = previewKindFromMeta(meta);
-
     if (!kind) {
       return NextResponse.json(
         { error: 'This file type is not supported for the practice viewer.' },
@@ -53,18 +47,18 @@ export async function POST(request: NextRequest) {
 
     const baseTitle = (meta.originalName || 'Score').replace(/\.[^.]+$/, '');
 
-    const metadata = {
-      title: baseTitle,
-      composer: 'Unknown',
-      timeSignature: undefined as string | undefined,
-      tempo: undefined as number | undefined,
-    };
-
-    const previewUrl = `/api/upload/${fileId}`;
+    // Use the Vercel Blob URL as the preview URL so it loads directly from CDN
+    const previewUrl = blobUrl || `/api/upload/${fileId}`;
 
     return NextResponse.json({
       fileId,
-      metadata,
+      blobUrl,
+      metadata: {
+        title: baseTitle,
+        composer: 'Unknown',
+        timeSignature: undefined as string | undefined,
+        tempo: undefined as number | undefined,
+      },
       previewKind: kind,
       previewUrl,
       audioUrl: null,

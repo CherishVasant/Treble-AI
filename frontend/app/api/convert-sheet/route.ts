@@ -1,55 +1,48 @@
-import { readFile } from 'fs/promises';
-import path from 'path';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { proxyToBackend } from '@/lib/backend-proxy';
-
-// Vercel serverless functions have a read-only filesystem except for /tmp
-const STORE = '/tmp/.upload-store';
-
-type FileMeta = {
-  originalName: string;
-  mimeType: string;
-  ext: string;
-};
 
 export async function POST(request: NextRequest) {
   try {
-    const { fileId } = await request.json();
+    const { fileId, blobUrl } = await request.json();
 
     if (!fileId || typeof fileId !== 'string') {
-      const { NextResponse } = await import('next/server');
       return NextResponse.json({ error: 'fileId is required' }, { status: 400 });
     }
 
-    const metaPath = path.join(STORE, `${fileId}.meta.json`);
-    const binPath = path.join(STORE, `${fileId}.bin`);
-
-    let metaRaw: string;
-    try {
-      metaRaw = await readFile(metaPath, 'utf-8');
-    } catch {
-      const { NextResponse } = await import('next/server');
-      return NextResponse.json({ error: 'Upload not found or expired' }, { status: 404 });
+    if (!blobUrl || typeof blobUrl !== 'string') {
+      return NextResponse.json({ error: 'blobUrl is required' }, { status: 400 });
     }
 
-    const meta = JSON.parse(metaRaw) as FileMeta;
-    const buf = await readFile(binPath);
+    // Fetch the file from Vercel Blob (works across serverless invocations)
+    const fileResponse = await fetch(blobUrl);
+    if (!fileResponse.ok) {
+      return NextResponse.json(
+        { error: 'Could not retrieve uploaded file. Please re-upload.' },
+        { status: 404 }
+      );
+    }
+
+    // Derive the original filename from the blob URL path
+    const blobPathname = new URL(blobUrl).pathname;
+    const blobFilename = blobPathname.split('/').pop() || 'upload.bin';
+    const contentType = fileResponse.headers.get('content-type') || 'application/octet-stream';
+
+    const fileBuffer = await fileResponse.arrayBuffer();
 
     const formData = new FormData();
     formData.append(
       'file',
-      new Blob([buf], { type: meta.mimeType || 'application/octet-stream' }),
-      meta.originalName || 'upload.bin'
+      new Blob([fileBuffer], { type: contentType }),
+      blobFilename
     );
 
     return proxyToBackend(request, '/process', {
       method: 'POST',
       body: formData,
-      isMultipart: true
+      isMultipart: true,
     });
   } catch (error) {
     console.error('[convert-sheet] proxy error:', error);
-    const { NextResponse } = await import('next/server');
     return NextResponse.json(
       {
         error: 'Failed to convert sheet music',

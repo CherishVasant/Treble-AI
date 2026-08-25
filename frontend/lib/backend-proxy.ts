@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// BACKEND_URL is a server-side env var (no NEXT_PUBLIC_ prefix) — safe to keep secret.
+// Local dev: falls back to http://127.0.0.1:8000 automatically.
+// Vercel: set BACKEND_URL = your Render service URL in Vercel → Settings → Environment Variables.
+if (!process.env.BACKEND_URL && process.env.NODE_ENV === 'production') {
+  console.error(
+    '[backend-proxy] BACKEND_URL is not set. Every API call will fail. ' +
+    'Add it in Vercel → your project → Settings → Environment Variables.'
+  );
+}
 const BACKEND_URL = process.env.BACKEND_URL ?? 'http://127.0.0.1:8000';
 
 /**

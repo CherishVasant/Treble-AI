@@ -1,28 +1,14 @@
-import { mkdir, writeFile } from 'fs/promises';
-import path from 'path';
+import { put } from '@vercel/blob';
 import { NextRequest, NextResponse } from 'next/server';
 
-// Vercel serverless functions have a read-only filesystem except for /tmp
-const STORE = '/tmp/.upload-store';
+const IMAGE_EXT = new Set([
+  'jpg', 'jpeg', 'png', 'webp', 'gif', 'bmp', 'tif', 'tiff', 'heic', 'avif', 'svg',
+]);
 
 function extFromName(filename: string): string {
   const m = filename.match(/\.([^.]+)$/);
   return m ? m[1].toLowerCase() : '';
 }
-
-const IMAGE_EXT = new Set([
-  'jpg',
-  'jpeg',
-  'png',
-  'webp',
-  'gif',
-  'bmp',
-  'tif',
-  'tiff',
-  'heic',
-  'avif',
-  'svg',
-]);
 
 function isVisualScoreAllowed(file: File): boolean {
   const ext = extFromName(file.name);
@@ -44,15 +30,10 @@ export async function POST(request: NextRequest) {
 
     if (!isVisualScoreAllowed(file)) {
       return NextResponse.json(
-        {
-          error:
-            'Invalid file type. Use PDF or an image (JPEG, PNG, WebP, GIF, TIFF, HEIC, SVG, etc.).',
-        },
+        { error: 'Invalid file type. Use PDF or an image (JPEG, PNG, WebP, GIF, TIFF, HEIC, SVG, etc.).' },
         { status: 400 }
       );
     }
-
-
 
     const fileId = `file_${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
     const ext = extFromName(file.name);
@@ -63,29 +44,31 @@ export async function POST(request: NextRequest) {
           ? 'application/pdf'
           : 'application/octet-stream';
 
-    await mkdir(STORE, { recursive: true });
-    const buf = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(STORE, `${fileId}.bin`), buf);
-    await writeFile(
-      path.join(STORE, `${fileId}.meta.json`),
-      JSON.stringify({
-        originalName: file.name,
-        mimeType,
-        ext,
-        size: file.size,
-        uploadedAt: new Date().toISOString(),
-      })
-    );
+    // Upload to Vercel Blob — survives across serverless invocations
+    const blob = await put(`uploads/${fileId}.${ext || 'bin'}`, file, {
+      access: 'public',
+      contentType: mimeType,
+    });
+
+    const meta = {
+      originalName: file.name,
+      mimeType,
+      ext,
+      size: file.size,
+      uploadedAt: new Date().toISOString(),
+    };
 
     return NextResponse.json({
       fileId,
+      blobUrl: blob.url,
+      meta,
       message: 'File uploaded successfully',
       file: {
         id: fileId,
         name: file.name,
         size: file.size,
         type: mimeType,
-        uploadedAt: new Date().toISOString(),
+        uploadedAt: meta.uploadedAt,
       },
     });
   } catch (error) {

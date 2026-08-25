@@ -46,7 +46,7 @@ export default function SheetMusicUploader({
   onConvertingChange,
 }: SheetMusicUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
-  const [activeFile, setActiveFile] = useState<{ id: string; name: string; size: number } | null>(null);
+  const [activeFile, setActiveFile] = useState<{ id: string; name: string; size: number; blobUrl?: string } | null>(null);
   const [isConvertingLocal, setIsConvertingLocal] = useState(false);
   const [conversionError, setConversionError] = useState<string | null>(null);
   const [conversionSteps, setConversionSteps] = useState<Record<string, 'pending' | 'processing' | 'completed' | 'failed'>>({
@@ -207,11 +207,15 @@ export default function SheetMusicUploader({
       const uploadData = await uploadResponse.json();
       setConversionSteps(prev => ({ ...prev, upload: 'completed', omr: 'pending' }));
 
-      // 2. Process / Preview Generation
+      // 2. Process / Preview Generation — pass blobUrl + meta so the server doesn't need disk access
       const processResponse = await fetch('/api/process-sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId: uploadData.fileId }),
+        body: JSON.stringify({
+          fileId: uploadData.fileId,
+          blobUrl: uploadData.blobUrl,
+          meta: uploadData.meta,
+        }),
       });
 
       if (!processResponse.ok) {
@@ -220,7 +224,7 @@ export default function SheetMusicUploader({
       }
 
       const processData = await processResponse.json();
-      const fileRecord = { id: uploadData.fileId, name: file.name, size: file.size };
+      const fileRecord = { id: uploadData.fileId, name: file.name, size: file.size, blobUrl: uploadData.blobUrl };
       setActiveFile(fileRecord);
       
       onFileUpload?.(fileRecord);
@@ -256,7 +260,7 @@ export default function SheetMusicUploader({
       const convertResponse = await fetch('/api/convert-sheet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fileId: activeFile.id }),
+        body: JSON.stringify({ fileId: activeFile.id, blobUrl: activeFile.blobUrl }),
       });
 
       const convertData = await convertResponse.json();

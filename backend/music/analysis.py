@@ -1084,7 +1084,7 @@ def analyze_score(mxl_path: str) -> dict:
             dur_sec = entry.get('durationSeconds')
             start_val = float(offset_sec) if offset_sec is not None else 0.0
             dur_val = float(dur_sec) if dur_sec is not None else 0.0
-            
+
             if isinstance(el, note.Note):
                 note_events.append({
                     "start": start_val,
@@ -1098,9 +1098,11 @@ def analyze_score(mxl_path: str) -> dict:
                         "duration": dur_val,
                         "midi": int(p.midi)
                     })
+        # Free the flattened copy — it's no longer needed.
+        del flat_score
     except Exception:
         pass
-        
+
     key_analysis = analyze_keys_and_modulations(score, analyzed_key)
     chords_info, chordified = analyze_chords(score, analyzed_key)
     roman_numerals = analyze_roman_numerals(chords_info, analyzed_key)
@@ -1111,12 +1113,12 @@ def analyze_score(mxl_path: str) -> dict:
     motifs = detect_motifs(score)
     difficulty = analyze_difficulty(score, analyzed_key, key_analysis, rhythm, intervals)
     fingerings = suggest_fingerings(score, analyzed_key, key_analysis)
-    
+
     register_and_contour = analyze_register_and_contour(score)
     diatonicity = calculate_diatonicity(score, analyzed_key)
     voice_leading_errors = detect_voice_leading_errors(score)
     practice_recommendations = get_practice_recommendations(key_analysis, analyzed_key)
-    
+
     serializable_chords = []
     for c in chords_info:
         serializable_chords.append({
@@ -1127,19 +1129,19 @@ def analyze_score(mxl_path: str) -> dict:
             "inversion": c["inversion"],
             "pitches": c["pitches"]
         })
-        
+
     measures_map = []
     try:
         tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
         tempo_val = tempos[0].number if tempos else 120
         tempo_val = tempo_val if (tempo_val and tempo_val > 0) else 120  # guard zero/None from bad exports
         seconds_per_beat = 60.0 / tempo_val
-        
+
         try:
             expanded = score.expandRepeats()
         except Exception:
             expanded = score
-            
+
         parts = expanded.parts
         if parts:
             measures = parts[0].getElementsByClass('Measure')
@@ -1152,8 +1154,16 @@ def analyze_score(mxl_path: str) -> dict:
                     "start_time": float(start_sec),
                     "end_time": float(end_sec)
                 })
+        # Free the expanded copy (separate object from score when repeats exist).
+        if expanded is not score:
+            del expanded
     except Exception as me:
         print(f"[analysis] Error building measures_map: {me}")
+
+    # All analysis passes are done.  Free the score object now — it can be
+    # hundreds of MB for long pieces — before assembling the report dict.
+    del score
+    import gc as _gc; _gc.collect()
 
     report = {
         "title": title,

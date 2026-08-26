@@ -2,6 +2,7 @@ from music21 import converter, tempo as m21_tempo
 from pathlib import Path
 import subprocess
 import shutil
+import gc
 from enhance_quality import process_file
 
 
@@ -186,6 +187,11 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
             score.insert(0, m21_tempo.MetronomeMark(number=effective_bpm))
 
         score.write("midi", fp=str(output_midi))
+        # Free the parsed score immediately — analysis.py re-parses the MusicXML
+        # independently. Holding two large score objects in memory at once is the
+        # primary cause of Render OOM kills on long scores.
+        del score
+        gc.collect()
 
         if not output_midi.exists():
             raise RuntimeError("Failed to convert MusicXML to MIDI.")

@@ -68,11 +68,17 @@ export default function SheetMusicUploader({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  // How many consecutive polling errors we tolerate before giving up.
-  // Render's free tier can spin down and take 15-30 s to wake up, which causes
-  // a chain of Vercel-side timeouts.  We absorb up to 25 before surfacing an error
-  // (~37.5 s at 1.5 s poll interval), comfortably covering the full cold-start window.
+  // Time-based polling resilience: we track WHEN consecutive errors started
+  // rather than just counting them.  Render's free tier restarts (OOM kill or
+  // dyno cycle) can take 30-60 s.  A count-based limit can be exhausted in
+  // seconds when TCP connections are refused immediately.  Instead we allow
+  // up to POLLING_ERROR_TIMEOUT_MS of consecutive errors before giving up.
   const pollingErrorCountRef = useRef(0);
+  // Timestamp (ms) when the first error in the current consecutive run started.
+  // null means no errors are currently running.
+  const pollingErrorStartRef = useRef<number | null>(null);
+  // 3 minutes — covers OOM-restart + DB reconnect + cache init time.
+  const POLLING_ERROR_TIMEOUT_MS = 3 * 60 * 1000;
   // Track the current sessionId synchronously (updated on every render, before
   // effects) so the poll callback can detect navigation to another session and
   // self-cancel rather than writing stale data into the wrong session.
@@ -334,8 +340,9 @@ export default function SheetMusicUploader({
 
   function startStatusPolling(jobId: string) {
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-    // Reset transient-error counter for this new polling session.
+    // Reset error tracking for this new polling session.
     pollingErrorCountRef.current = 0;
+    pollingErrorStartRef.current = null;
     // Snapshot the session this poll belongs to.  If the user navigates to a
     // different session while conversion is still running, currentSessionIdRef
     // will be updated on the next render and the mismatch check below will
@@ -358,8 +365,9 @@ export default function SheetMusicUploader({
           throw new Error(`Status check returned ${response.status}`);
         }
 
-        // Successful response — reset the transient-error counter.
+        // Successful response — reset error tracking.
         pollingErrorCountRef.current = 0;
+        pollingErrorStartRef.current = null;
 
         const data = await response.json();
         setConversionSteps(data.steps);
@@ -394,19 +402,25 @@ export default function SheetMusicUploader({
         }
       } catch (error: any) {
         pollingErrorCountRef.current += 1;
-        const MAX_CONSECUTIVE_ERRORS = 25; // absorbs ~37.5 s of retries at 1.5 s interval
+        // Record when consecutive errors first started.
+        if (pollingErrorStartRef.current === null) {
+          pollingErrorStartRef.current = Date.now();
+        }
+        const elapsedMs = Date.now() - pollingErrorStartRef.current;
         console.warn(
-          `[SheetMusicUploader] status poll error #${pollingErrorCountRef.current}/${MAX_CONSECUTIVE_ERRORS}:`,
+          `[SheetMusicUploader] status poll error #${pollingErrorCountRef.current} ` +
+          `(${Math.round(elapsedMs / 1000)}s elapsed):`,
           error.message
         );
 
-        if (pollingErrorCountRef.current < MAX_CONSECUTIVE_ERRORS) {
-          // Transient error (Render wake-up delay, Vercel edge blip) — keep polling.
+        if (elapsedMs < POLLING_ERROR_TIMEOUT_MS) {
+          // Within the tolerance window — keep polling.
+          // Render OOM restarts take 30-60 s; POLLING_ERROR_TIMEOUT_MS (3 min) covers them.
           return;
         }
 
-        // Too many consecutive failures — surface the error and stop.
-        console.error('[SheetMusicUploader] polling stopped after repeated errors');
+        // Errors have been continuous for too long — give up.
+        console.error('[SheetMusicUploader] polling stopped: errors exceeded timeout');
         clearInterval(pollingIntervalRef.current!);
         pollingIntervalRef.current = null;
         setConversionError('Could not reach the server after several attempts. Please wait and try again.');

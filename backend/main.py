@@ -354,16 +354,21 @@ def get_job_status(
                 "error": None,
                 "steps": {k: "completed" for k in ["upload", "omr", "musicxml", "midi", "audio", "analysis"]},
             }
+        # status.json is created by _init_status() at the very beginning of each
+        # conversion job — before any pipeline step runs.  If it's gone now, the
+        # server restarted (OOM kill / dyno cycle) and wiped the ephemeral
+        # filesystem.  The conversion process was killed and will never finish.
+        # Return "failed" so the frontend stops polling and prompts the user to retry.
         return {
-            "status": "processing",
-            "error": None,
+            "status": "failed",
+            "error": "Conversion was interrupted when the server restarted. Please try converting again.",
             "steps": {
                 "upload": "completed",
-                "omr": "pending",
-                "musicxml": "pending",
-                "midi": "pending",
-                "audio": "pending",
-                "analysis": "pending",
+                "omr": "failed",
+                "musicxml": "failed",
+                "midi": "failed",
+                "audio": "failed",
+                "analysis": "failed",
             },
         }
     try:
@@ -530,11 +535,14 @@ def extract_musical_info(mxl_path: Path) -> dict:
 
         note_events = []
         try:
-            # Guard: music21's secondsMap divides by tempo internally.
-            # If the score has no MetronomeMark or tempo=0, inject a default
-            # before calling flatten().secondsMap to prevent ZeroDivisionError.
+            # Guard: music21's secondsMap divides by tempo internally for each
+            # MetronomeMark it encounters.  Fix ALL zero/invalid marks (not just
+            # the first) to prevent ZeroDivisionError on mid-score tempo changes.
             _sm_tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
-            if not _sm_tempos or not _sm_tempos[0].number or _sm_tempos[0].number <= 0:
+            for _sm_tm in _sm_tempos:
+                if not _sm_tm.number or _sm_tm.number <= 0:
+                    _sm_tm.number = 120
+            if not _sm_tempos:
                 score.insert(0, tempo.MetronomeMark(number=120))
             for entry in score.flatten().secondsMap:
                 el = entry.get("element")

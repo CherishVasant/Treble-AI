@@ -171,19 +171,29 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
 
         score = converter.parse(str(input_mxl))
 
-        # Guard: music21's MIDI writer computes 60/tempo internally.
-        # A zero or missing MetronomeMark causes "ZeroDivisionError: float division by zero".
-        # Determine the effective BPM for audio synthesis — used both here and to
-        # stamp the analysis report so piano roll and sheet tracker agree with the audio.
+        # Guard: music21's MIDI writer computes 60/tempo internally for EVERY
+        # MetronomeMark it encounters — not just the first one.  A mid-score
+        # tempo change with number=0 or number=None causes
+        # "ZeroDivisionError: float division by zero" even when the opening
+        # tempo is valid.
         _DEFAULT_BPM = 120
         _score_tempos = score.flat.getElementsByClass(m21_tempo.MetronomeMark)
-        _found_tempo = (
-            _score_tempos[0].number
-            if _score_tempos and _score_tempos[0].number and _score_tempos[0].number > 0
-            else None
-        )
+
+        # Determine the effective BPM from the first VALID tempo mark.
+        _found_tempo = None
+        for _tm in _score_tempos:
+            if _tm.number and _tm.number > 0:
+                _found_tempo = _tm.number
+                break
         effective_bpm = int(_found_tempo) if _found_tempo else _DEFAULT_BPM
-        if not _found_tempo:
+
+        # Fix ALL zero/invalid tempo marks in place (including mid-score marks).
+        for _tm in _score_tempos:
+            if not _tm.number or _tm.number <= 0:
+                _tm.number = effective_bpm
+
+        # If the score had no tempo marks at all, insert one at beat 0.
+        if not _score_tempos:
             score.insert(0, m21_tempo.MetronomeMark(number=effective_bpm))
 
         score.write("midi", fp=str(output_midi))

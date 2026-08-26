@@ -12,6 +12,9 @@ interface SheetMusicUploaderProps {
   /** Pre-generated UUID for the practice session — passed to backend so
    *  session IDs are stable before the convert response arrives. */
   sessionId?: string;
+  /** Vercel Blob URL for the original uploaded file — stored in the DB as
+   *  session.blob_url and needed when the user re-converts a loaded session. */
+  fileBlobUrl?: string | null;
   conversionState?: {
     jobId?: string;
     steps?: Record<string, 'pending' | 'processing' | 'completed' | 'failed'>;
@@ -44,6 +47,7 @@ export default function SheetMusicUploader({
   fileName,
   hasAudio = false,
   sessionId,
+  fileBlobUrl,
   conversionState,
   onFileUpload,
   onProcessing,
@@ -98,7 +102,9 @@ export default function SheetMusicUploader({
       }
     } else {
       if (fileId) {
-        setActiveFile({ id: fileId, name: fileName || 'Loaded Score', size: 0 });
+        // Preserve fileBlobUrl so re-convert can fetch the original file from
+        // Vercel Blob without requiring a fresh upload by the user.
+        setActiveFile({ id: fileId, name: fileName || 'Loaded Score', size: 0, blobUrl: fileBlobUrl || undefined });
         setConversionSteps({
           upload: 'completed',
           omr: hasAudio ? 'completed' : 'pending',
@@ -133,7 +139,7 @@ export default function SheetMusicUploader({
         }
       }
     }
-  }, [fileId, fileName, hasAudio, conversionState]);
+  }, [fileId, fileName, hasAudio, fileBlobUrl, conversionState]);
 
   // Cleanup polling interval on unmount
   useEffect(() => {

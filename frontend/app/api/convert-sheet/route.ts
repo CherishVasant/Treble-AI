@@ -10,7 +10,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (!blobUrl || typeof blobUrl !== 'string') {
-      return NextResponse.json({ error: 'blobUrl is required' }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Original file no longer available. Please re-upload the sheet music to convert.' },
+        { status: 400 }
+      );
     }
 
     // Fetch the file from Vercel Blob (works across serverless invocations)

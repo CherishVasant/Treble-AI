@@ -342,6 +342,7 @@ function PracticeStudioContent() {
           fileName={uploadedFileData?.name}
           hasAudio={Boolean(processedMetadata?.audioUrl)}
           sessionId={sessionId || undefined}
+          fileBlobUrl={uploadedFileData?.blobUrl}
           conversionState={processedMetadata?.conversionState}
           onFileUpload={handleFileUpload}
           onProcessing={handleMetadataUpdate}

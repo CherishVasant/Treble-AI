@@ -75,56 +75,71 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [lastActivePracticeSessionId, setLastActivePracticeSessionId] = useState<string>('');
 
   const loadSessions = useCallback(async () => {
-    try {
-      const [theoryRes, practiceRes] = await Promise.all([
-        fetch('/api/chats/theory'),
-        fetch('/api/chats/practice')
-      ]);
+    // Render free-tier sleeps and takes 15-30 s to wake. Retry up to 3 times
+    // with a 15-second delay so a cold-start doesn't permanently empty the sidebar.
+    const MAX_ATTEMPTS = 3;
+    const RETRY_DELAY_MS = 15_000;
 
-      if (theoryRes.ok) {
-        const theoryData = await theoryRes.json();
-        setTheorySessions(theoryData);
-      }
-      if (practiceRes.ok) {
-        const practiceData: ChatSession[] = await practiceRes.json();
-        setPracticeSessions(prev => {
-          // Build a map of sessions returned by the backend.
-          const dbMap = new Map(practiceData.map(s => [s.id, s]));
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        const [theoryRes, practiceRes] = await Promise.all([
+          fetch('/api/chats/theory'),
+          fetch('/api/chats/practice')
+        ]);
 
-          // Keep sessions that only exist in local state (e.g. created by the
-          // uploader but not yet written to DB because convert hasn't run yet).
-          const localOnly = prev.filter(s => !dbMap.has(s.id));
+        if (theoryRes.ok) {
+          const theoryData = await theoryRes.json();
+          setTheorySessions(theoryData);
+        }
 
-          // For sessions that exist in the DB, use DB data as the base but carry
-          // over any in-flight conversionState so the UI doesn't flicker back to
-          // "completed" while a pipeline is still running.
-          const merged = practiceData.map(dbSession => {
-            const localSession = prev.find(s => s.id === dbSession.id);
-            if (localSession?.processedMetadata?.conversionState) {
-              return {
-                ...dbSession,
-                processedMetadata: {
-                  ...dbSession.processedMetadata,
-                  conversionState: localSession.processedMetadata.conversionState,
-                },
-              };
-            }
-            return dbSession;
+        if (practiceRes.ok) {
+          const practiceData: ChatSession[] = await practiceRes.json();
+          setPracticeSessions(prev => {
+            // Build a map of sessions returned by the backend.
+            const dbMap = new Map(practiceData.map(s => [s.id, s]));
+
+            // Keep sessions that only exist in local state (e.g. created by the
+            // uploader but not yet written to DB because convert hasn't run yet).
+            const localOnly = prev.filter(s => !dbMap.has(s.id));
+
+            // For sessions that exist in the DB, use DB data as the base but carry
+            // over any in-flight conversionState so the UI doesn't flicker back to
+            // "completed" while a pipeline is still running.
+            const merged = practiceData.map(dbSession => {
+              const localSession = prev.find(s => s.id === dbSession.id);
+              if (localSession?.processedMetadata?.conversionState) {
+                return {
+                  ...dbSession,
+                  processedMetadata: {
+                    ...dbSession.processedMetadata,
+                    conversionState: localSession.processedMetadata.conversionState,
+                  },
+                };
+              }
+              return dbSession;
+            });
+
+            // Local-only sessions at the front (newest), then DB sessions
+            // already sorted by updated_at desc from the backend.
+            return [...localOnly, ...merged];
           });
+        }
 
-          // Keep local-only sessions at the front (newest), then DB sessions
-          // already sorted by updated_at desc from the backend.
-          return [...localOnly, ...merged];
-        });
+        const activeTheory = localStorage.getItem('treble_last_active_theory_session_id');
+        if (activeTheory) setLastActiveTheorySessionId(activeTheory);
+
+        const activePractice = localStorage.getItem('treble_last_active_practice_session_id');
+        if (activePractice) setLastActivePracticeSessionId(activePractice);
+
+        // Both requests returned — stop retrying regardless of status codes.
+        break;
+      } catch (e) {
+        console.error(`[loadSessions] attempt ${attempt + 1} failed:`, e);
+        if (attempt < MAX_ATTEMPTS - 1) {
+          // Render may still be waking up — wait then retry.
+          await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+        }
       }
-
-      const activeTheory = localStorage.getItem('treble_last_active_theory_session_id');
-      if (activeTheory) setLastActiveTheorySessionId(activeTheory);
-
-      const activePractice = localStorage.getItem('treble_last_active_practice_session_id');
-      if (activePractice) setLastActivePracticeSessionId(activePractice);
-    } catch (e) {
-      console.error('Failed to load chat sessions from backend:', e);
     }
   }, []);
 

@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { Message } from '@/components/ai-chat';
@@ -41,7 +41,8 @@ interface ChatContextType {
   ) => void;
   initializePracticeSession: (
     fileData: { id: string; name: string } | null,
-    metadata: any | null
+    metadata: any | null,
+    explicitId?: string
   ) => string;
   migratePracticeSessionId: (
     oldId: string,
@@ -199,9 +200,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   const initializePracticeSession = useCallback((
     fileData: { id: string; name: string } | null,
-    metadata: any | null
+    metadata: any | null,
+    explicitId?: string
   ): string => {
-    const sessionId = fileData?.id || generateUUID();
+    // Prefer caller-supplied UUID so the session ID is stable before conversion.
+    const sessionId = explicitId || generateUUID();
     
     setPracticeSessions(prev => {
       const exists = prev.some(s => s.id === sessionId);

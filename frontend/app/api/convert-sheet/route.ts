@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { proxyToBackend } from '@/lib/backend-proxy';
 
 export async function POST(request: NextRequest) {
   try {
-    const { fileId, blobUrl, originalName } = await request.json();
+    const { fileId, blobUrl, originalName, clientSessionId } = await request.json();
 
     if (!fileId || typeof fileId !== 'string') {
       return NextResponse.json({ error: 'fileId is required' }, { status: 400 });
@@ -41,6 +41,11 @@ export async function POST(request: NextRequest) {
     formData.append('blob_url', blobUrl);
     if (originalName) {
       formData.append('original_name', originalName);
+    }
+    // Forward the client-generated session UUID so the backend session ID is
+    // known before the response arrives — avoids frontend session-ID migration.
+    if (clientSessionId) {
+      formData.append('client_session_id', clientSessionId);
     }
 
     return proxyToBackend(request, '/process', {

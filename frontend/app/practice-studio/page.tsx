@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import dynamic from 'next/dynamic';
 import { useState, useRef, useEffect, useMemo, Suspense } from 'react';
@@ -68,6 +68,16 @@ type ProcessedMeta = {
 
 import { useChat } from '@/context/chat-context';
 
+function newUUID(): string {
+  if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
+    return window.crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
 const SYSTEM_PROMPT = `You are Treble, your AI music learning companion inside TrebleAI. Always refer to yourself as Treble. If the user asks 'Who are you?', you must respond exactly with: 'I'm Treble, your AI music learning companion inside TrebleAI.' You are a professional music coach and tutor.
 
 You have access to a detailed, algorithmically generated deterministic music analysis report for the active piece. Use this report as your absolute source of truth. DO NOT recalculate keys, chords, intervals, cadences, or fingerings yourself. Use the provided details (difficulty score/factors, chord lists, Roman numerals, cadences, rhythm stats, phrase boundaries, and fingering suggestions) to explain concepts, answer theoretical or practical questions, teach the user, and offer structured practice advice.`;
@@ -110,8 +120,11 @@ function PracticeStudioContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionId = searchParams.get('sessionId') || '';
+  // ?new=1 is set by the "New Chat" button to signal a truly fresh session
+  // (suppress the saved-last-session redirect).
+  const isNewChat = searchParams.get('new') === '1';
 
-  const { practiceSessions, loadingSessions, sendChatMessage, updatePracticeSessionAssets, initializePracticeSession, migratePracticeSessionId, setLastActiveSession } = useChat();
+  const { practiceSessions, loadingSessions, sendChatMessage, updatePracticeSessionAssets, initializePracticeSession, setLastActiveSession } = useChat();
 
   const activeSessionIdRef = useRef(sessionId);
   useEffect(() => {
@@ -123,9 +136,10 @@ function PracticeStudioContent() {
     }
   }, [sessionId, setLastActiveSession]);
 
-  // On mount with no sessionId in URL, redirect to last known session
+  // On mount with no sessionId in URL, redirect to last known session —
+  // unless ?new=1 is set (user clicked "New Chat" and wants a blank slate).
   useEffect(() => {
-    if (!sessionId) {
+    if (!sessionId && !isNewChat) {
       try {
         const saved = localStorage.getItem(LAST_SESSION_KEY);
         if (saved) {
@@ -188,13 +202,17 @@ function PracticeStudioContent() {
     }
   }, [processedMetadata]);
 
-  const handleFileUpload = (file: { id: string; name: string }) => {
+  const handleFileUpload = (file: { id: string; name: string; blobUrl?: string | null }) => {
     const nextFile = file.id ? file : null;
     const currentSessionId = activeSessionIdRef.current;
     if (currentSessionId) {
+      // Existing session — just update the file reference.
       updatePracticeSessionAssets(currentSessionId, nextFile, processedMetadata);
     } else {
-      const newId = initializePracticeSession(nextFile, processedMetadata);
+      // New session: generate the UUID now so the backend can use the same ID
+      // when convert is called — no post-convert session migration needed.
+      const newId = newUUID();
+      initializePracticeSession(nextFile, processedMetadata, newId);
       activeSessionIdRef.current = newId;
       router.replace(`/practice-studio?sessionId=${newId}`, { scroll: false });
     }
@@ -203,19 +221,16 @@ function PracticeStudioContent() {
   const handleMetadataUpdate = (meta: any) => {
     const nextMeta = meta ? { ...processedMetadata, ...meta } : null;
     const currentSessionId = activeSessionIdRef.current;
-    const backendJobId = meta?.jobId || meta?.conversionState?.jobId;
 
     if (currentSessionId) {
-      if (backendJobId && backendJobId !== currentSessionId) {
-        console.log(`[PracticeStudio] Migrating local sessionId ${currentSessionId} to backend jobId ${backendJobId}`);
-        migratePracticeSessionId(currentSessionId, backendJobId, uploadedFileData, nextMeta);
-        activeSessionIdRef.current = backendJobId;
-        router.replace(`/practice-studio?sessionId=${backendJobId}`, { scroll: false });
-      } else {
-        updatePracticeSessionAssets(currentSessionId, uploadedFileData, nextMeta);
-      }
+      // Session already exists — update metadata in place.
+      // We no longer migrate session IDs: the frontend UUID was forwarded to
+      // the backend at convert time, so jobId === currentSessionId always.
+      updatePracticeSessionAssets(currentSessionId, uploadedFileData, nextMeta);
     } else {
-      const newId = initializePracticeSession(uploadedFileData, nextMeta);
+      // No session yet (e.g. metadata arrived before file-upload callback).
+      const newId = newUUID();
+      initializePracticeSession(uploadedFileData, nextMeta, newId);
       activeSessionIdRef.current = newId;
       router.replace(`/practice-studio?sessionId=${newId}`, { scroll: false });
     }
@@ -326,6 +341,7 @@ function PracticeStudioContent() {
           fileId={uploadedFileData?.id}
           fileName={uploadedFileData?.name}
           hasAudio={Boolean(processedMetadata?.audioUrl)}
+          sessionId={sessionId || undefined}
           conversionState={processedMetadata?.conversionState}
           onFileUpload={handleFileUpload}
           onProcessing={handleMetadataUpdate}

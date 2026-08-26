@@ -1,4 +1,4 @@
-from contextlib import asynccontextmanager
+﻿from contextlib import asynccontextmanager
 from typing import Optional
 import json
 import os
@@ -263,6 +263,9 @@ async def process_sheet_music(
     file: UploadFile = File(...),
     blob_url: Optional[str] = Form(None),
     original_name: Optional[str] = Form(None),
+    # The frontend can pre-generate a UUID so the session ID is known before
+    # the backend responds — this eliminates the need to migrate session IDs.
+    client_session_id: Optional[str] = Form(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -270,7 +273,8 @@ async def process_sheet_music(
 
     display_filename = original_name or file.filename or "upload"
 
-    session_uuid = str(uuid.uuid4())
+    # Use the client-supplied UUID when provided; otherwise generate one.
+    session_uuid = client_session_id if client_session_id else str(uuid.uuid4())
     storage_directory = f"uploads/{session_uuid}"
     job_dir = Path(storage_directory)
     job_dir.mkdir(parents=True, exist_ok=True)

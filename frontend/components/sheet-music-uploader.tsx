@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,9 @@ interface SheetMusicUploaderProps {
   fileId?: string;
   fileName?: string;
   hasAudio?: boolean;
+  /** Pre-generated UUID for the practice session — passed to backend so
+   *  session IDs are stable before the convert response arrives. */
+  sessionId?: string;
   conversionState?: {
     jobId?: string;
     steps?: Record<string, 'pending' | 'processing' | 'completed' | 'failed'>;
@@ -40,6 +43,7 @@ export default function SheetMusicUploader({
   fileId,
   fileName,
   hasAudio = false,
+  sessionId,
   conversionState,
   onFileUpload,
   onProcessing,
@@ -60,6 +64,10 @@ export default function SheetMusicUploader({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  // How many consecutive polling errors we tolerate before giving up.
+  // Render's free tier can spin down and take 15-30 s to wake up, which causes
+  // a chain of Vercel-side timeouts.  We absorb up to 8 before surfacing an error.
+  const pollingErrorCountRef = useRef(0);
 
   // Sync state from parent session when loading
   useEffect(() => {
@@ -266,6 +274,9 @@ export default function SheetMusicUploader({
           // Pass the user's original filename so the backend stores it instead
           // of the Vercel Blob generated ID (file_1234_abc.png).
           originalName: activeFile.name,
+          // Forward the pre-generated UUID so backend uses the same session ID
+          // the frontend already knows about — no post-convert migration needed.
+          clientSessionId: sessionId,
         }),
       });
 
@@ -311,6 +322,8 @@ export default function SheetMusicUploader({
 
   function startStatusPolling(jobId: string) {
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    // Reset transient-error counter for this new polling session.
+    pollingErrorCountRef.current = 0;
 
     pollingIntervalRef.current = setInterval(async () => {
       try {
@@ -319,8 +332,11 @@ export default function SheetMusicUploader({
         });
 
         if (!response.ok) {
-          throw new Error('Failed to query conversion status');
+          throw new Error(`Status check returned ${response.status}`);
         }
+
+        // Successful response — reset the transient-error counter.
+        pollingErrorCountRef.current = 0;
 
         const data = await response.json();
         setConversionSteps(data.steps);
@@ -354,17 +370,30 @@ export default function SheetMusicUploader({
           });
         }
       } catch (error: any) {
-        console.error('[SheetMusicUploader] status polling error:', error);
+        pollingErrorCountRef.current += 1;
+        const MAX_CONSECUTIVE_ERRORS = 8; // absorbs ~12 s of retries at 1.5 s interval
+        console.warn(
+          `[SheetMusicUploader] status poll error #${pollingErrorCountRef.current}/${MAX_CONSECUTIVE_ERRORS}:`,
+          error.message
+        );
+
+        if (pollingErrorCountRef.current < MAX_CONSECUTIVE_ERRORS) {
+          // Transient error (Render wake-up delay, Vercel edge blip) — keep polling.
+          return;
+        }
+
+        // Too many consecutive failures — surface the error and stop.
+        console.error('[SheetMusicUploader] polling stopped after repeated errors');
         clearInterval(pollingIntervalRef.current!);
         pollingIntervalRef.current = null;
-        setConversionError(error.message || 'Status polling failed');
+        setConversionError('Could not reach the server after several attempts. Please wait and try again.');
         onConvertingChange?.(false);
         setIsConvertingLocal(false);
         onProcessing?.({
           conversionState: {
             jobId,
             steps: conversionSteps,
-            error: error.message || 'Status polling failed',
+            error: 'Could not reach the server after several attempts.',
             status: 'failed'
           }
         });

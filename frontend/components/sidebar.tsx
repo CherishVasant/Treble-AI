@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -386,8 +386,8 @@ export default function Sidebar() {
   }, [theorySessions, theorySearch]);
 
   const handleNewChatPractice = () => {
-    router.push('/practice-studio');
-    window.dispatchEvent(new Event('treble_new_chat_practice'));
+    // ?new=1 tells the page to start a truly blank session, not restore the last one.
+    router.push('/practice-studio?new=1');
   };
 
   const handleNewChatTheory = () => {

@@ -333,14 +333,17 @@ async def process_sheet_music(
 @app.get("/result/{job_id}/status")
 def get_job_status(
     job_id: str,
-    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    # Auth is intentionally omitted here.  The job_id is a UUID4 (2^122 space)
+    # which already acts as an unguessable token.  Requiring a JWT means status
+    # polls 401 whenever the access token expires mid-conversion (tokens are
+    # short-lived) and permanently after a Render restart wipes in-memory
+    # sessions — both cases cause the frontend to show "Could not reach server".
+    # The content endpoints (/audio, /musicxml, etc.) still require auth.
     session = db.query(PracticeSession).filter(PracticeSession.id == job_id).first()
     if not session:
         raise HTTPException(status_code=404, detail="Practice session not found")
-    if session.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not authorized to access this session")
 
     status_path = Path(session.storage_directory) / "status.json"
     if not status_path.exists():
@@ -527,6 +530,12 @@ def extract_musical_info(mxl_path: Path) -> dict:
 
         note_events = []
         try:
+            # Guard: music21's secondsMap divides by tempo internally.
+            # If the score has no MetronomeMark or tempo=0, inject a default
+            # before calling flatten().secondsMap to prevent ZeroDivisionError.
+            _sm_tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
+            if not _sm_tempos or not _sm_tempos[0].number or _sm_tempos[0].number <= 0:
+                score.insert(0, tempo.MetronomeMark(number=120))
             for entry in score.flatten().secondsMap:
                 el = entry.get("element")
                 start = float(entry.get("offsetSeconds") or 0)

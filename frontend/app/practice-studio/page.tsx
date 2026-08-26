@@ -136,6 +136,14 @@ function PracticeStudioContent() {
     }
   }, [sessionId, setLastActiveSession]);
 
+  // Tracks the file just passed to handleFileUpload, updated synchronously so
+  // handleMetadataUpdate (called in the same tick) never reads a stale closure.
+  const lastUploadedFileRef = useRef<{ id: string; name: string; blobUrl?: string | null } | null>(null);
+  // Reset on every session change so it never bleeds into a different session.
+  useEffect(() => {
+    lastUploadedFileRef.current = null;
+  }, [sessionId]);
+
   // On mount with no sessionId in URL, redirect to last known session —
   // unless ?new=1 is set (user clicked "New Chat" and wants a blank slate).
   useEffect(() => {
@@ -204,6 +212,9 @@ function PracticeStudioContent() {
 
   const handleFileUpload = (file: { id: string; name: string; blobUrl?: string | null }) => {
     const nextFile = file.id ? file : null;
+    // Update synchronously so handleMetadataUpdate (called in the same tick by
+    // the uploader right after onFileUpload) always reads the correct file data.
+    lastUploadedFileRef.current = nextFile;
     const currentSessionId = activeSessionIdRef.current;
     if (currentSessionId) {
       // Existing session — just update the file reference.
@@ -221,16 +232,19 @@ function PracticeStudioContent() {
   const handleMetadataUpdate = (meta: any) => {
     const nextMeta = meta ? { ...processedMetadata, ...meta } : null;
     const currentSessionId = activeSessionIdRef.current;
+    // Use the synchronously-updated ref so we never read a stale uploadedFileData
+    // from the render closure (null on ?new=1) when both callbacks fire in one tick.
+    const currentFileData = lastUploadedFileRef.current ?? uploadedFileData;
 
     if (currentSessionId) {
       // Session already exists — update metadata in place.
       // We no longer migrate session IDs: the frontend UUID was forwarded to
       // the backend at convert time, so jobId === currentSessionId always.
-      updatePracticeSessionAssets(currentSessionId, uploadedFileData, nextMeta);
+      updatePracticeSessionAssets(currentSessionId, currentFileData, nextMeta);
     } else {
       // No session yet (e.g. metadata arrived before file-upload callback).
       const newId = newUUID();
-      initializePracticeSession(uploadedFileData, nextMeta, newId);
+      initializePracticeSession(currentFileData, nextMeta, newId);
       activeSessionIdRef.current = newId;
       router.replace(`/practice-studio?sessionId=${newId}`, { scroll: false });
     }

@@ -1,4 +1,4 @@
-from music21 import converter
+from music21 import converter, tempo as m21_tempo
 from pathlib import Path
 import subprocess
 import shutil
@@ -169,6 +169,14 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
         _set_status(output_dir, "midi", "processing")
 
         score = converter.parse(str(input_mxl))
+
+        # Guard: music21's MIDI writer computes 60/tempo internally.
+        # A zero or missing MetronomeMark causes "ZeroDivisionError: float division by zero".
+        # Inject a default 60 BPM mark at beat 0 when the score has no valid tempo.
+        _score_tempos = score.flat.getElementsByClass(m21_tempo.MetronomeMark)
+        if not _score_tempos or not _score_tempos[0].number or _score_tempos[0].number <= 0:
+            score.insert(0, m21_tempo.MetronomeMark(number=60))
+
         score.write("midi", fp=str(output_midi))
 
         if not output_midi.exists():

@@ -75,10 +75,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   const [lastActivePracticeSessionId, setLastActivePracticeSessionId] = useState<string>('');
 
   const loadSessions = useCallback(async () => {
-    // Render free-tier sleeps and takes 15-30 s to wake. Retry up to 3 times
-    // with a 15-second delay so a cold-start doesn't permanently empty the sidebar.
-    const MAX_ATTEMPTS = 3;
-    const RETRY_DELAY_MS = 15_000;
+    // Render free-tier sleeps and takes 15-30 s to wake. During cold-start its
+    // proxy returns 503/504 immediately — that's an HTTP response, NOT a network
+    // error, so the catch block never fires. We must check status codes too.
+    const MAX_ATTEMPTS = 5;
+    const RETRY_DELAY_MS = 8_000;
 
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       try {
@@ -86,6 +87,20 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           fetch('/api/chats/theory'),
           fetch('/api/chats/practice')
         ]);
+
+        // Render cold-start: 503/504 → retry, not just catch-block errors.
+        if (practiceRes.status >= 500 || theoryRes.status >= 500) {
+          console.warn(
+            `[loadSessions] attempt ${attempt + 1}: server error ` +
+            `(practice: ${practiceRes.status}, theory: ${theoryRes.status})`
+          );
+          if (attempt < MAX_ATTEMPTS - 1) {
+            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+            continue;
+          }
+          // All retries exhausted — fall through so we at least record
+          // what partial data we might have.
+        }
 
         if (theoryRes.ok) {
           const theoryData = await theoryRes.json();
@@ -131,12 +146,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         const activePractice = localStorage.getItem('treble_last_active_practice_session_id');
         if (activePractice) setLastActivePracticeSessionId(activePractice);
 
-        // Both requests returned — stop retrying regardless of status codes.
+        // Both requests returned successfully (or gave client errors we won't retry).
         break;
       } catch (e) {
+        // Network-level failure (no response at all — DNS, connection refused, etc.)
         console.error(`[loadSessions] attempt ${attempt + 1} failed:`, e);
         if (attempt < MAX_ATTEMPTS - 1) {
-          // Render may still be waking up — wait then retry.
           await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
         }
       }

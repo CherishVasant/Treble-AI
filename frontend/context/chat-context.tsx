@@ -86,8 +86,36 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         setTheorySessions(theoryData);
       }
       if (practiceRes.ok) {
-        const practiceData = await practiceRes.json();
-        setPracticeSessions(practiceData);
+        const practiceData: ChatSession[] = await practiceRes.json();
+        setPracticeSessions(prev => {
+          // Build a map of sessions returned by the backend.
+          const dbMap = new Map(practiceData.map(s => [s.id, s]));
+
+          // Keep sessions that only exist in local state (e.g. created by the
+          // uploader but not yet written to DB because convert hasn't run yet).
+          const localOnly = prev.filter(s => !dbMap.has(s.id));
+
+          // For sessions that exist in the DB, use DB data as the base but carry
+          // over any in-flight conversionState so the UI doesn't flicker back to
+          // "completed" while a pipeline is still running.
+          const merged = practiceData.map(dbSession => {
+            const localSession = prev.find(s => s.id === dbSession.id);
+            if (localSession?.processedMetadata?.conversionState) {
+              return {
+                ...dbSession,
+                processedMetadata: {
+                  ...dbSession.processedMetadata,
+                  conversionState: localSession.processedMetadata.conversionState,
+                },
+              };
+            }
+            return dbSession;
+          });
+
+          // Keep local-only sessions at the front (newest), then DB sessions
+          // already sorted by updated_at desc from the backend.
+          return [...localOnly, ...merged];
+        });
       }
 
       const activeTheory = localStorage.getItem('treble_last_active_theory_session_id');

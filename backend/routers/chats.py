@@ -1,3 +1,5 @@
+import os
+import re
 import shutil
 from pathlib import Path
 from typing import List, Optional
@@ -10,6 +12,13 @@ from models import TheoryTutorChat, TheoryTutorMessage, PracticeSession, Practic
 from routers.auth import get_current_user, User
 
 router = APIRouter(prefix="/chats", tags=["chats"])
+
+
+def _safe_folder_name(filename: str) -> str:
+    """Mirror of main.py safe_folder_name — sanitizes a filename stem for filesystem paths."""
+    name = os.path.splitext(filename)[0]
+    name = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
+    return name
 
 
 class RenameChatPayload(BaseModel):
@@ -113,9 +122,26 @@ def get_practice_sessions(current_user: User = Depends(get_current_user), db: Se
         preview_kind = "pdf" if original_name.lower().endswith(".pdf") else "image"
         preview_url = f"/api/upload/{session.id}"
 
-        # Calculate backend outputs if processing is complete
-        audio_url = f"/api/audio/{session.id}"
-        musicxml_url = f"/api/musicxml/{session.id}"
+        # Only return audio/musicxml URLs when the output files actually exist so
+        # hasAudio is accurate and the uploader shows the correct "Convert" state.
+        # Prefer Vercel Blob (survives Render restarts); fall back to local disk.
+        base_safe = _safe_folder_name(original_name)
+
+        audio_url = None
+        if session.audio_blob_url:
+            audio_url = f"/api/audio/{session.id}"
+        else:
+            local_wav = Path(session.storage_directory) / f"{base_safe}.wav"
+            if local_wav.exists():
+                audio_url = f"/api/audio/{session.id}"
+
+        musicxml_url = None
+        if session.musicxml_blob_url:
+            musicxml_url = f"/api/musicxml/{session.id}"
+        else:
+            local_mxl = Path(session.storage_directory) / f"{base_safe}.mxl"
+            if local_mxl.exists():
+                musicxml_url = f"/api/musicxml/{session.id}"
 
         result.append({
             "id": session.id,

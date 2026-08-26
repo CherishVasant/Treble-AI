@@ -285,16 +285,36 @@ async def process_sheet_music(
         shutil.copyfileobj(file.file, buffer)
 
     session_title = base_name.replace("_", " ").capitalize()
-    new_session = PracticeSession(
-        id=session_uuid,
-        user_id=current_user.id,
-        title=session_title,
-        original_filename=display_filename,
-        storage_directory=storage_directory,
-        blob_url=blob_url or None,
+
+    # --- Session upsert: update existing row on re-conversion, insert for new sessions ---
+    existing_session = (
+        db.query(PracticeSession).filter(PracticeSession.id == session_uuid).first()
+        if client_session_id else None
     )
-    db.add(new_session)
-    db.commit()
+
+    if existing_session:
+        if existing_session.user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not authorized to access this session")
+        # Re-conversion of an existing session: clear stale pipeline outputs so
+        # the new run writes fresh blob URLs when it completes.
+        existing_session.original_filename = display_filename
+        existing_session.storage_directory = storage_directory
+        existing_session.blob_url = blob_url or existing_session.blob_url
+        existing_session.musicxml_blob_url = None
+        existing_session.midi_blob_url = None
+        existing_session.audio_blob_url = None
+        db.commit()
+    else:
+        new_session = PracticeSession(
+            id=session_uuid,
+            user_id=current_user.id,
+            title=session_title,
+            original_filename=display_filename,
+            storage_directory=storage_directory,
+            blob_url=blob_url or None,
+        )
+        db.add(new_session)
+        db.commit()
 
     _init_status(job_dir)
 

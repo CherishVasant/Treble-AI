@@ -582,9 +582,9 @@ def analyze_difficulty(score, analyzed_key, key_info, rhythm_info, interval_info
             
     tempo_mark = score.flat.getElementsByClass(tempo.MetronomeMark)
     _raw_bpm = tempo_mark[0].number if tempo_mark else None
-    # Default to 60 bpm when the mark is absent or explicitly set to 0/None —
+    # Default to 120 bpm when the mark is absent or explicitly set to 0/None —
     # a 0 BPM propagates as division-by-zero inside music21's secondsMap.
-    bpm = _raw_bpm if (_raw_bpm and _raw_bpm > 0) else 60
+    bpm = _raw_bpm if (_raw_bpm and _raw_bpm > 0) else 120
     
     notes_per_second = (bpm / 60.0) * (1.0 / shortest_dur) if shortest_dur > 0 else 1.0
     
@@ -1051,7 +1051,7 @@ def analyze_score(mxl_path: str) -> dict:
     _raw_tempo = tempos[0].number if tempos else None
     # Guard against 0 or None BPM which causes float division by zero in music21's
     # internal secondsMap calculation and produces misleading "0 bpm" in the report.
-    tempo_bpm = f"{int(_raw_tempo)} bpm" if (_raw_tempo and _raw_tempo > 0) else "60 bpm"
+    tempo_bpm = f"{int(_raw_tempo)} bpm" if (_raw_tempo and _raw_tempo > 0) else "120 bpm"
     
     total_measures = 0
     parts_info = []

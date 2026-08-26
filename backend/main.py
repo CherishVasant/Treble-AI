@@ -508,8 +508,10 @@ def extract_musical_info(mxl_path: Path) -> dict:
         if times:
             info["time_signature"] = times[0].ratioString
         tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
-        if tempos:
-            info["tempo"] = f"{tempos[0].number} bpm"
+        if tempos and tempos[0].number and tempos[0].number > 0:
+            info["tempo"] = f"{int(tempos[0].number)} bpm"
+        else:
+            info["tempo"] = "120 bpm"
         for part in score.parts:
             pi = {"name": part.partName or "Unknown Part", "measures_count": len(part.getElementsByClass("Measure"))}
             info["parts"].append(pi)

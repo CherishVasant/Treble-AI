@@ -172,10 +172,18 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
 
         # Guard: music21's MIDI writer computes 60/tempo internally.
         # A zero or missing MetronomeMark causes "ZeroDivisionError: float division by zero".
-        # Inject a default 60 BPM mark at beat 0 when the score has no valid tempo.
+        # Determine the effective BPM for audio synthesis — used both here and to
+        # stamp the analysis report so piano roll and sheet tracker agree with the audio.
+        _DEFAULT_BPM = 120
         _score_tempos = score.flat.getElementsByClass(m21_tempo.MetronomeMark)
-        if not _score_tempos or not _score_tempos[0].number or _score_tempos[0].number <= 0:
-            score.insert(0, m21_tempo.MetronomeMark(number=60))
+        _found_tempo = (
+            _score_tempos[0].number
+            if _score_tempos and _score_tempos[0].number and _score_tempos[0].number > 0
+            else None
+        )
+        effective_bpm = int(_found_tempo) if _found_tempo else _DEFAULT_BPM
+        if not _found_tempo:
+            score.insert(0, m21_tempo.MetronomeMark(number=effective_bpm))
 
         score.write("midi", fp=str(output_midi))
 
@@ -208,16 +216,33 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
         try:
             from music.analysis import analyze_score
             report = analyze_score(str(input_mxl))
+            # Stamp the effective BPM used for audio synthesis so the frontend
+            # can synchronise piano roll and sheet tracker with the audio playback.
+            if isinstance(report, dict):
+                mi = report.setdefault("musicalInfo", {})
+                if not isinstance(mi, dict):
+                    mi = {}
+                    report["musicalInfo"] = mi
+                try:
+                    _parsed_bpm = float(str(mi.get("tempo", "")).split()[0])
+                except (ValueError, IndexError):
+                    _parsed_bpm = 0
+                if _parsed_bpm <= 0:
+                    mi["tempo"] = f"{effective_bpm} bpm"
             report_path = output_dir_path / "analysis_report.json"
             with open(report_path, "w", encoding="utf-8") as f:
                 json.dump(report, f, indent=2)
         except Exception as ae:
             print(f"[pipeline] Analysis failed: {ae}")
-            # Write a minimal analysis report so we don't break subsequent steps
+            # Write a minimal report including the effective BPM so the frontend
+            # always has a tempo even when full analysis fails.
             report_path = output_dir_path / "analysis_report.json"
             try:
                 with open(report_path, "w", encoding="utf-8") as f:
-                    json.dump({"error": str(ae)}, f)
+                    json.dump({
+                        "error": str(ae),
+                        "musicalInfo": {"tempo": f"{effective_bpm} bpm"},
+                    }, f)
             except Exception:
                 pass
 

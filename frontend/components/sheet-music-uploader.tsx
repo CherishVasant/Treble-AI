@@ -70,8 +70,14 @@ export default function SheetMusicUploader({
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   // How many consecutive polling errors we tolerate before giving up.
   // Render's free tier can spin down and take 15-30 s to wake up, which causes
-  // a chain of Vercel-side timeouts.  We absorb up to 8 before surfacing an error.
+  // a chain of Vercel-side timeouts.  We absorb up to 25 before surfacing an error
+  // (~37.5 s at 1.5 s poll interval), comfortably covering the full cold-start window.
   const pollingErrorCountRef = useRef(0);
+  // Track the current sessionId synchronously (updated on every render, before
+  // effects) so the poll callback can detect navigation to another session and
+  // self-cancel rather than writing stale data into the wrong session.
+  const currentSessionIdRef = useRef(sessionId);
+  currentSessionIdRef.current = sessionId;
 
   // Sync state from parent session when loading
   useEffect(() => {
@@ -330,8 +336,19 @@ export default function SheetMusicUploader({
     if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
     // Reset transient-error counter for this new polling session.
     pollingErrorCountRef.current = 0;
+    // Snapshot the session this poll belongs to.  If the user navigates to a
+    // different session while conversion is still running, currentSessionIdRef
+    // will be updated on the next render and the mismatch check below will
+    // self-cancel the stale interval so it cannot write into the wrong session.
+    const pollingForSessionId = currentSessionIdRef.current;
 
     pollingIntervalRef.current = setInterval(async () => {
+      // Abort if the user has navigated away to a different session.
+      if (currentSessionIdRef.current !== pollingForSessionId) {
+        clearInterval(pollingIntervalRef.current!);
+        pollingIntervalRef.current = null;
+        return;
+      }
       try {
         const response = await fetch(`/api/convert-sheet/status?jobId=${jobId}`, {
           cache: 'no-store'
@@ -377,7 +394,7 @@ export default function SheetMusicUploader({
         }
       } catch (error: any) {
         pollingErrorCountRef.current += 1;
-        const MAX_CONSECUTIVE_ERRORS = 8; // absorbs ~12 s of retries at 1.5 s interval
+        const MAX_CONSECUTIVE_ERRORS = 25; // absorbs ~37.5 s of retries at 1.5 s interval
         console.warn(
           `[SheetMusicUploader] status poll error #${pollingErrorCountRef.current}/${MAX_CONSECUTIVE_ERRORS}:`,
           error.message

@@ -97,6 +97,40 @@ def _audiveris_cmd(image_path: str, out_dir: str) -> list[str]:
     return cmd
 
 
+def _ocr_strip(image_path: Path) -> str:
+    """
+    Try to extract text from a non-music image strip using pytesseract.
+    Returns an empty string if pytesseract is unavailable or OCR fails.
+    """
+    try:
+        import pytesseract  # type: ignore
+        from PIL import Image as _PIL_Image
+        img = _PIL_Image.open(image_path)
+        # --psm 6: assume a single uniform block of text (suitable for title/
+        # composer lines which typically span the full width of the page).
+        raw = pytesseract.image_to_string(img, config="--psm 6").strip()
+        # Collapse newlines and multiple spaces into a single space so we get
+        # a clean one-liner.
+        return " ".join(raw.split())
+    except ImportError:
+        return ""
+    except Exception:
+        return ""
+
+
+def _patch_mxl_metadata(mxl_path: str, *, title: str, composer: str) -> None:
+    """Re-parse a single-system MXL and write back with updated metadata."""
+    if not title and not composer:
+        return
+    try:
+        from merge_musicxml import _apply_metadata
+        score = converter.parse(mxl_path)
+        _apply_metadata(score, title, composer)
+        score.write("musicxml", fp=mxl_path)
+    except Exception as exc:
+        print(f"[pipeline] Metadata patch failed ({exc}); continuing without title fix.")
+
+
 def _run_audiveris_on_image(image_path: str, out_dir: str, label: str) -> Path:
     """Run Audiveris on one image; return the path to the produced MXL."""
     Path(out_dir).mkdir(parents=True, exist_ok=True)
@@ -224,6 +258,9 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
     )
 
     skipped: list[int] = []
+    # Text extracted by OCR from non-music strips (title, composer/arranger).
+    # First OCR'd line -> title, second -> composer.
+    skipped_texts: list[str] = []
 
     for strip in strips:
         idx = strip.index
@@ -246,10 +283,14 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
             )
         except RuntimeError as err:
             # This strip is not recognisable as music (likely a title, header,
-            # page number, or decorative element).  Log and skip -- do not abort
-            # the whole job unless no music strips succeed at all.
+            # page number, or decorative element).  OCR it so we can use the
+            # text as the score title / composer in the merged output.
             print(f"[pipeline] System {idx + 1}/{total} skipped (not music): {err}")
             skipped.append(idx)
+            ocr_text = _ocr_strip(strip.path)
+            if ocr_text:
+                print(f"[pipeline] OCR from skipped strip {idx}: {ocr_text!r}")
+                skipped_texts.append(ocr_text)
             shutil.rmtree(str(strip_out_dir), ignore_errors=True)
             continue
 
@@ -280,12 +321,21 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
     ordered_mxl_paths = [mxl_by_index[i] for i in sorted(mxl_by_index)]
     final_mxl = output_dir_path / f"{base_name}.mxl"
 
+    # Title / composer: prefer OCR from non-music strips; fall back to filename.
+    score_title    = skipped_texts[0] if len(skipped_texts) > 0 else ""
+    score_composer = skipped_texts[1] if len(skipped_texts) > 1 else ""
+
     if len(ordered_mxl_paths) == 1:
         shutil.copy2(ordered_mxl_paths[0], str(final_mxl))
+        _patch_mxl_metadata(str(final_mxl), title=score_title, composer=score_composer)
         print("[pipeline] Single system -- no merge needed.")
     else:
         print(f"[pipeline] Merging {len(ordered_mxl_paths)} system MXL files...")
-        merged_score = merge_system_mxls(ordered_mxl_paths)
+        merged_score = merge_system_mxls(
+            ordered_mxl_paths,
+            title=score_title,
+            composer=score_composer,
+        )
         merged_score.write("musicxml", fp=str(final_mxl))
         del merged_score
         gc.collect()

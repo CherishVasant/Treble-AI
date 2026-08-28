@@ -25,5 +25,8 @@ music21>=9.1.0
 opencv-python-headless>=4.10.0
 Pillow>=10.0.0
 pymupdf>=1.24.0
+# OCR for non-music strips (title, composer) -- needs tesseract-ocr system package
+# (already installed via apt-get in Dockerfile)
+pytesseract>=0.3.10
 argon2-cffi>=23.1.0
 python-jose[cryptography]>=3.3.0

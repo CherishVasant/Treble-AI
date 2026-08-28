@@ -203,9 +203,15 @@ function PracticeStudioContent() {
     setLoopEndMeasure(8);
   }, [sessionId]);
 
-  // Set the loopEndMeasure to the total measures count from backend when metadata is ready
+  // Set loopEndMeasure to the full expanded playback length when metadata loads.
+  // measures_map is built from the repeat-expanded score so its length reflects
+  // the true number of playback steps (including repeated sections).
+  // Fall back to total_measures if the map is not yet available.
   useEffect(() => {
-    if (processedMetadata?.musicalInfo?.total_measures) {
+    const map = processedMetadata?.musicalInfo?.measures_map;
+    if (Array.isArray(map) && map.length > 0) {
+      setLoopEndMeasure(map.length);
+    } else if (processedMetadata?.musicalInfo?.total_measures) {
       setLoopEndMeasure(processedMetadata.musicalInfo.total_measures);
     }
   }, [processedMetadata]);

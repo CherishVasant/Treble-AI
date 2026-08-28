@@ -333,8 +333,17 @@ export default function SheetMusicViewer({
       }
       const idx = foundIndex !== -1 ? foundIndex : 0;
       const mEntry = measuresMap[idx];
-      writtenIndex = Math.max(0, Math.min(measures.length - 1, mEntry.measure_number - 1));
-      
+
+      // Use the OSMD repeat-aware timeline (timelineRef) so the cursor correctly
+      // follows repeats: tl[idx] maps sequential playback position → source measure index.
+      // Fall back to (measure_number - 1) when the timeline is shorter than measuresMap
+      // (e.g. OSMD and the backend disagree on repeat structure).
+      if (tl.length > idx) {
+        writtenIndex = Math.max(0, Math.min(measures.length - 1, tl[idx]));
+      } else {
+        writtenIndex = Math.max(0, Math.min(measures.length - 1, mEntry.measure_number - 1));
+      }
+
       const start = mEntry.start_time;
       const end = mEntry.end_time;
       fractionalMeasure = end > start

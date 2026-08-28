@@ -1075,9 +1075,16 @@ def analyze_score(mxl_path: str) -> dict:
             note_sequence.append(f"Chord:{'+'.join(pitches)} ({nc.duration.quarterLength} beats)")
     note_summary = ", ".join(note_sequence)
     
+    # Expand repeat barlines so note timings reflect the full playback
+    # (repeated sections appear at their actual playback time).
+    try:
+        score_for_events = score.expandRepeats()
+    except Exception:
+        score_for_events = score
+
     note_events = []
     try:
-        flat_score = score.flatten()
+        flat_score = score_for_events.flatten()
         for entry in flat_score.secondsMap:
             el = entry.get('element')
             offset_sec = entry.get('offsetSeconds')
@@ -1102,6 +1109,9 @@ def analyze_score(mxl_path: str) -> dict:
         del flat_score
     except Exception:
         pass
+
+    if score_for_events is not score:
+        del score_for_events
 
     key_analysis = analyze_keys_and_modulations(score, analyzed_key)
     chords_info, chordified = analyze_chords(score, analyzed_key)
@@ -1150,7 +1160,11 @@ def analyze_score(mxl_path: str) -> dict:
                 end_sec = (m.offset + m.quarterLength) * seconds_per_beat
                 measures_map.append({
                     "measure_index": idx,
-                    "measure_number": int(m.number),
+                    # Use sequential 1-based numbering so the frontend can
+                    # always find each entry with a simple equality lookup,
+                    # even when repeats cause music21 to reuse the same
+                    # notation measure number across multiple timeline positions.
+                    "measure_number": idx + 1,
                     "start_time": float(start_sec),
                     "end_time": float(end_sec)
                 })
@@ -1159,6 +1173,11 @@ def analyze_score(mxl_path: str) -> dict:
             del expanded
     except Exception as me:
         print(f"[analysis] Error building measures_map: {me}")
+
+    # Update total_measures to reflect the full expanded playback length
+    # (includes repeated sections), not just the written measure count.
+    if measures_map:
+        total_measures = len(measures_map)
 
     # All analysis passes are done.  Free the score object now â€” it can be
     # hundreds of MB for long pieces â€” before assembling the report dict.

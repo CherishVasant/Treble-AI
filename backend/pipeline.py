@@ -389,6 +389,18 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
         output_midi = output_dir_path / f"{base_name}.mid"
         score = converter.parse(str(final_mxl))
         effective_bpm = _fix_tempos(score)
+
+        # Expand repeat barlines so the MIDI contains the full playback,
+        # including every repeated section.  Falls back to the unexpanded
+        # score if the repeat structure is malformed (e.g. mismatched barlines
+        # from imperfect OMR output).
+        try:
+            score = score.expandRepeats()
+            # Re-fix tempos after expansion (expanded copy is a new object).
+            _fix_tempos(score)
+        except Exception as _rep_err:
+            print(f"[pipeline] expandRepeats() skipped ({_rep_err}), using unexpanded score.")
+
         score.write("midi", fp=str(output_midi))
         del score
         gc.collect()

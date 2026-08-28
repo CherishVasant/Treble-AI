@@ -76,6 +76,7 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
 }, ref) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const isSeekingRef = useRef(false);
+  const isLoopingRef = useRef(isLooping);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -103,6 +104,7 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
   const playbackSpeedRef = useRef(playbackSpeed);
   volumeRef.current = volume;
   playbackSpeedRef.current = playbackSpeed;
+  isLoopingRef.current = isLooping;
 
   const onTimeUpdateRef = useRef(onTimeUpdate);
   const onDurationChangeRef = useRef(onDurationChange);
@@ -158,15 +160,18 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
     if (!audio || isSeekingRef.current) return;
     
     let newTime = audio.currentTime;
-    
-    // Play Range Limit Enforcement (Synchronous and lag-free)
-    const { endTime } = getPlayRangeTimes();
-    const effectiveEndTime = Math.max(0, endTime - 0.05); // Stop 50ms early to avoid next measure buffer trigger
-    
-    if (newTime >= effectiveEndTime && !audio.paused) {
-      audio.pause();
-      audio.currentTime = effectiveEndTime;
-      newTime = effectiveEndTime;
+
+    // Play Range Limit Enforcement — only active when the user has explicitly
+    // enabled loop/range mode.  Without this guard the player always stopped
+    // at the loop-end measure even during normal full-song playback.
+    if (isLoopingRef.current) {
+      const { endTime } = getPlayRangeTimes();
+      const effectiveEndTime = Math.max(0, endTime - 0.05);
+      if (newTime >= effectiveEndTime && !audio.paused) {
+        audio.pause();
+        audio.currentTime = effectiveEndTime;
+        newTime = effectiveEndTime;
+      }
     }
 
     if (Math.abs(currentTimeRef.current - newTime) >= 0.01) {
@@ -318,15 +323,17 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
     if (isPlaying) {
       audio.pause();
     } else {
-      const { startTime, endTime } = getPlayRangeTimes();
-      const effectiveEndTime = Math.max(0, endTime - 0.05);
-      
-      // If playhead is outside the range, jump to the start of the range before playing
-      if (audio.currentTime < startTime || audio.currentTime >= effectiveEndTime) {
-        audio.currentTime = startTime;
-        currentTimeRef.current = startTime;
-        setCurrentTime(startTime);
-        onTimeUpdateRef.current?.(startTime);
+      // Only snap to the loop range boundaries when range mode is active.
+      // In normal playback the user's playhead position is respected.
+      if (isLoopingRef.current) {
+        const { startTime, endTime } = getPlayRangeTimes();
+        const effectiveEndTime = Math.max(0, endTime - 0.05);
+        if (audio.currentTime < startTime || audio.currentTime >= effectiveEndTime) {
+          audio.currentTime = startTime;
+          currentTimeRef.current = startTime;
+          setCurrentTime(startTime);
+          onTimeUpdateRef.current?.(startTime);
+        }
       }
 
       audio.play().catch((err) => {

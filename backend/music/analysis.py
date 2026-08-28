@@ -1,4 +1,4 @@
-import collections
+﻿import collections
 import math
 from pathlib import Path
 from music21 import converter, key, meter, tempo, note, chord, roman, spanner, expressions, clef, dynamics
@@ -44,7 +44,7 @@ def analyze_keys_and_modulations(score, analyzed_key):
     Key Analysis: Key signature, actual tonal center, relative major/minor,
     possible modal interpretation, and modulations.
     """
-    key_sig = score.flat.getElementsByClass(key.KeySignature)
+    key_sig = score.flatten().getElementsByClass(key.KeySignature)
     sharps = key_sig[0].sharps if key_sig else 0
     
     # 1. Tonal Center
@@ -58,7 +58,7 @@ def analyze_keys_and_modulations(score, analyzed_key):
     # Get pitch-class frequencies based on note durations
     pc_durations = collections.defaultdict(float)
     total_duration = 0.0
-    for n in score.flat.notes:
+    for n in score.flatten().notes:
         dur = float(n.duration.quarterLength)
         total_duration += dur
         if isinstance(n, note.Note):
@@ -149,7 +149,7 @@ def analyze_chords(score, analyzed_key):
     except Exception:
         return [], None
         
-    for c in chordified.flat.getElementsByClass(chord.Chord):
+    for c in chordified.flatten().getElementsByClass(chord.Chord):
         if c.duration.quarterLength == 0:
             continue
             
@@ -239,7 +239,7 @@ def analyze_roman_numerals(chords_info, analyzed_key):
         borrowed = False
         if analyzed_key.mode == "major":
             # Typical borrowed chords in major from parallel minor
-            if rn_figure in ["iv", "ii°", "bVI", "bIII", "bVII", "v"]:
+            if rn_figure in ["iv", "iiÂ°", "bVI", "bIII", "bVII", "v"]:
                 borrowed = True
         else:
             # Typical borrowed chords in minor from parallel major
@@ -284,7 +284,7 @@ def detect_cadences(rn_info, analyzed_key):
         cad_type = None
         
         # 1. Perfect Authentic Cadence (PAC) & Imperfect Authentic Cadence (IAC)
-        if base_rn1 in ["V", "vii°", "v"] and base_rn2 in ["I", "i"]:
+        if base_rn1 in ["V", "viiÂ°", "v"] and base_rn2 in ["I", "i"]:
             # PAC: V -> I, both root position
             if base_rn1 == "V" and base_rn2 in ["I", "i"]:
                 cad_type = "Perfect Authentic Cadence"
@@ -300,7 +300,7 @@ def detect_cadences(rn_info, analyzed_key):
             cad_type = "Deceptive Cadence"
             
         # 4. Half Cadence
-        elif base_rn2 in ["V", "v"] and base_rn1 in ["I", "i", "ii", "ii°", "IV", "iv", "vi", "VI"]:
+        elif base_rn2 in ["V", "v"] and base_rn1 in ["I", "i", "ii", "iiÂ°", "IV", "iv", "vi", "VI"]:
             cad_type = "Half Cadence"
             
         if cad_type:
@@ -320,9 +320,9 @@ def analyze_intervals(score):
     """
     # Extract melody sequence from the top part
     try:
-        melody_notes = score.parts[0].flat.notes
+        melody_notes = score.parts[0].flatten().notes
     except Exception:
-        melody_notes = score.flat.notes
+        melody_notes = score.flatten().notes
         
     intervals_semitones = []
     prev_pitch = None
@@ -407,7 +407,7 @@ def analyze_rhythm(score):
     }
     
     # 2. Syncopation & Tuplets
-    for n in score.flat.notes:
+    for n in score.flatten().notes:
         # Check tuplets
         if n.duration.tuplets:
             tuplet_count += 1
@@ -426,7 +426,7 @@ def analyze_rhythm(score):
     try:
         melody_part = score.parts[0]
         for m in melody_part.getElementsByClass('Measure'):
-            sig = tuple(float(nt.duration.quarterLength) for nt in m.flat.notes)
+            sig = tuple(float(nt.duration.quarterLength) for nt in m.flatten().notes)
             if sig:
                 measure_rhythms[sig] += 1
     except Exception:
@@ -440,7 +440,7 @@ def analyze_rhythm(score):
             
     # 4. Meter Changes
     time_signatures = []
-    for ts in score.flat.getElementsByClass(meter.TimeSignature):
+    for ts in score.flatten().getElementsByClass(meter.TimeSignature):
         time_signatures.append({
             "measure": ts.measureNumber or 1,
             "ratio": ts.ratioString
@@ -450,7 +450,7 @@ def analyze_rhythm(score):
     has_pickup = False
     try:
         first_measure = score.parts[0].getElementsByClass('Measure')[0]
-        if first_measure.duration.quarterLength < score.flat.getElementsByClass(meter.TimeSignature)[0].barDuration.quarterLength:
+        if first_measure.duration.quarterLength < score.flatten().getElementsByClass(meter.TimeSignature)[0].barDuration.quarterLength:
             has_pickup = True
     except Exception:
         pass
@@ -477,7 +477,7 @@ def detect_phrases(score, cadences):
         
     # 2. Rests (duration >= 1.0 beat)
     try:
-        for r in score.flat.getElementsByClass(note.Rest):
+        for r in score.flatten().getElementsByClass(note.Rest):
             if r.duration.quarterLength >= 1.0:
                 phrase_measures.add(r.measureNumber)
     except Exception:
@@ -485,7 +485,7 @@ def detect_phrases(score, cadences):
         
     # 3. Slurs
     try:
-        for sl in score.flat.getElementsByClass(spanner.Slur):
+        for sl in score.flatten().getElementsByClass(spanner.Slur):
             end_el = sl.getLast()
             if end_el and end_el.measureNumber:
                 phrase_measures.add(end_el.measureNumber)
@@ -494,7 +494,7 @@ def detect_phrases(score, cadences):
         
     # 4. Long note values followed by note
     try:
-        notes_list = list(score.flat.notes)
+        notes_list = list(score.flatten().notes)
         for i in range(len(notes_list) - 1):
             n1 = notes_list[i]
             if n1.duration.quarterLength >= 3.0:
@@ -513,9 +513,9 @@ def detect_motifs(score):
     Motif Detection: Find repeated melodic fragments.
     """
     try:
-        melody_notes = score.parts[0].flat.notes
+        melody_notes = score.parts[0].flatten().notes
     except Exception:
-        melody_notes = score.flat.notes
+        melody_notes = score.flatten().notes
         
     melody_pitches = []
     for entry in melody_notes:
@@ -565,7 +565,7 @@ def analyze_difficulty(score, analyzed_key, key_info, rhythm_info, interval_info
     max_span = 0
     chords_count = 0
     total_chord_pitches = 0
-    for c in score.flat.getElementsByClass(chord.Chord):
+    for c in score.flatten().getElementsByClass(chord.Chord):
         chords_count += 1
         total_chord_pitches += len(c.pitches)
         midis = [p.midi for p in c.pitches]
@@ -575,14 +575,14 @@ def analyze_difficulty(score, analyzed_key, key_info, rhythm_info, interval_info
                 max_span = span
                 
     shortest_dur = 4.0
-    for n in score.flat.notes:
+    for n in score.flatten().notes:
         ql = float(n.duration.quarterLength)
         if 0 < ql < shortest_dur:
             shortest_dur = ql
             
-    tempo_mark = score.flat.getElementsByClass(tempo.MetronomeMark)
+    tempo_mark = score.flatten().getElementsByClass(tempo.MetronomeMark)
     _raw_bpm = tempo_mark[0].number if tempo_mark else None
-    # Default to 120 bpm when the mark is absent or explicitly set to 0/None —
+    # Default to 120 bpm when the mark is absent or explicitly set to 0/None â€”
     # a 0 BPM propagates as division-by-zero inside music21's secondsMap.
     bpm = _raw_bpm if (_raw_bpm and _raw_bpm > 0) else 120
     
@@ -590,7 +590,7 @@ def analyze_difficulty(score, analyzed_key, key_info, rhythm_info, interval_info
     
     accidental_notes = 0
     key_pitch_names = [p.name for p in analyzed_key.pitches]
-    for n in score.flat.notes:
+    for n in score.flatten().notes:
         if isinstance(n, note.Note):
             if n.pitch.accidental is not None and n.pitch.name not in key_pitch_names:
                 accidental_notes += 1
@@ -606,7 +606,7 @@ def analyze_difficulty(score, analyzed_key, key_info, rhythm_info, interval_info
         large_leaps += 5
         
     ornaments = 0
-    for n in score.flat.notes:
+    for n in score.flatten().notes:
         for exp in n.expressions:
             if isinstance(exp, (expressions.Trill, expressions.Mordent, expressions.Turn)):
                 ornaments += 1
@@ -710,9 +710,9 @@ def suggest_fingerings(score, analyzed_key, key_info):
             source = "Scale Database"
             
     try:
-        melody_notes = list(score.parts[0].flat.notes)[:20]
+        melody_notes = list(score.parts[0].flatten().notes)[:20]
     except Exception:
-        melody_notes = list(score.flat.notes)[:20]
+        melody_notes = list(score.flatten().notes)[:20]
         
     pitches = []
     for n in melody_notes:
@@ -768,7 +768,7 @@ def analyze_register_and_contour(score):
     for part in score.parts:
         for m in part.getElementsByClass('Measure'):
             m_num = m.number
-            for n in m.flat.notes:
+            for n in m.flatten().notes:
                 if isinstance(n, note.Note):
                     pitches_with_measures.append((n.pitch, m_num))
                 elif isinstance(n, chord.Chord):
@@ -800,7 +800,7 @@ def analyze_register_and_contour(score):
     melody_pitches = []
     if score.parts:
         first_part = score.parts[0]
-        for n in first_part.flat.notes:
+        for n in first_part.flatten().notes:
             if isinstance(n, note.Note):
                 melody_pitches.append(n.pitch.midi)
             elif isinstance(n, chord.Chord):
@@ -848,7 +848,7 @@ def calculate_diatonicity(score, analyzed_key):
     diatonic_notes = 0
     key_pitch_names = [p.name for p in analyzed_key.pitches]
     
-    for n in score.flat.notes:
+    for n in score.flatten().notes:
         if isinstance(n, note.Note):
             total_notes += 1
             if n.pitch.name in key_pitch_names:
@@ -876,7 +876,7 @@ def detect_voice_leading_errors(score):
     errors = []
     
     chordified = score.chordify()
-    chords = list(chordified.flat.getElementsByClass(chord.Chord))
+    chords = list(chordified.flatten().getElementsByClass(chord.Chord))
     
     for idx in range(len(chords) - 1):
         c1 = chords[idx]
@@ -986,7 +986,7 @@ def extract_notes_text(mxl_path: str, max_measures: int = 300) -> str:
         for part_idx, part in enumerate(score.parts):
             # Determine a human-readable part name
             part_name = part.partName or part.id or f"Part {part_idx + 1}"
-            instruments = part.flat.getElementsByClass(m21instrument.Instrument)
+            instruments = part.flatten().getElementsByClass(m21instrument.Instrument)
             if instruments:
                 instr_name = instruments[0].instrumentName
                 if instr_name:
@@ -1044,10 +1044,10 @@ def analyze_score(mxl_path: str) -> dict:
         
     analyzed_key = score.analyze('key')
     
-    times = score.flat.getElementsByClass(meter.TimeSignature)
+    times = score.flatten().getElementsByClass(meter.TimeSignature)
     time_signature = times[0].ratioString if times else "4/4"
     
-    tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
+    tempos = score.flatten().getElementsByClass(tempo.MetronomeMark)
     _raw_tempo = tempos[0].number if tempos else None
     # Guard against 0 or None BPM which causes float division by zero in music21's
     # internal secondsMap calculation and produces misleading "0 bpm" in the report.
@@ -1065,7 +1065,7 @@ def analyze_score(mxl_path: str) -> dict:
         if not total_measures:
             total_measures = measures_count
             
-    notes_and_chords = score.flat.notes
+    notes_and_chords = score.flatten().notes
     note_sequence = []
     for nc in list(notes_and_chords)[:100]:
         if isinstance(nc, note.Note):
@@ -1098,7 +1098,7 @@ def analyze_score(mxl_path: str) -> dict:
                         "duration": dur_val,
                         "midi": int(p.midi)
                     })
-        # Free the flattened copy — it's no longer needed.
+        # Free the flattened copy â€” it's no longer needed.
         del flat_score
     except Exception:
         pass
@@ -1132,7 +1132,7 @@ def analyze_score(mxl_path: str) -> dict:
 
     measures_map = []
     try:
-        tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
+        tempos = score.flatten().getElementsByClass(tempo.MetronomeMark)
         tempo_val = tempos[0].number if tempos else 120
         tempo_val = tempo_val if (tempo_val and tempo_val > 0) else 120  # guard zero/None from bad exports
         seconds_per_beat = 60.0 / tempo_val
@@ -1160,8 +1160,8 @@ def analyze_score(mxl_path: str) -> dict:
     except Exception as me:
         print(f"[analysis] Error building measures_map: {me}")
 
-    # All analysis passes are done.  Free the score object now — it can be
-    # hundreds of MB for long pieces — before assembling the report dict.
+    # All analysis passes are done.  Free the score object now â€” it can be
+    # hundreds of MB for long pieces â€” before assembling the report dict.
     del score
     import gc as _gc; _gc.collect()
 
@@ -1195,3 +1195,4 @@ def analyze_score(mxl_path: str) -> dict:
     }
     
     return report
+

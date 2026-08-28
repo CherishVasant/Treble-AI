@@ -501,7 +501,7 @@ def extract_musical_info(mxl_path: Path) -> dict:
         if score.metadata:
             info["title"] = score.metadata.title or ""
             info["composer"] = score.metadata.composer or ""
-        keys = score.flat.getElementsByClass(key.KeySignature)
+        keys = score.flatten().getElementsByClass(key.KeySignature)
         if keys:
             try:
                 info["key_signature"] = f"{keys[0].asKey().name} ({keys[0].sharps} sharps/flats)"
@@ -512,10 +512,10 @@ def extract_musical_info(mxl_path: Path) -> dict:
                 info["key_signature"] = f"{score.analyze('key').name} (deduced)"
             except Exception:
                 pass
-        times = score.flat.getElementsByClass(meter.TimeSignature)
+        times = score.flatten().getElementsByClass(meter.TimeSignature)
         if times:
             info["time_signature"] = times[0].ratioString
-        tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
+        tempos = score.flatten().getElementsByClass(tempo.MetronomeMark)
         if tempos and tempos[0].number and tempos[0].number > 0:
             info["tempo"] = f"{int(tempos[0].number)} bpm"
         else:
@@ -526,7 +526,7 @@ def extract_musical_info(mxl_path: Path) -> dict:
             if not info["total_measures"]:
                 info["total_measures"] = pi["measures_count"]
         note_seq = []
-        for nc in list(score.flat.notes)[:100]:
+        for nc in list(score.flatten().notes)[:100]:
             if isinstance(nc, note.Note):
                 note_seq.append(f"{nc.nameWithOctave} ({nc.duration.quarterLength} beats)")
             elif isinstance(nc, chord.Chord):
@@ -538,7 +538,7 @@ def extract_musical_info(mxl_path: Path) -> dict:
             # Guard: music21's secondsMap divides by tempo internally for each
             # MetronomeMark it encounters.  Fix ALL zero/invalid marks (not just
             # the first) to prevent ZeroDivisionError on mid-score tempo changes.
-            _sm_tempos = score.flat.getElementsByClass(tempo.MetronomeMark)
+            _sm_tempos = score.flatten().getElementsByClass(tempo.MetronomeMark)
             for _sm_tm in _sm_tempos:
                 if not _sm_tm.number or _sm_tm.number <= 0:
                     _sm_tm.number = 120
@@ -563,7 +563,7 @@ def extract_musical_info(mxl_path: Path) -> dict:
                 expanded = score.expandRepeats()
             except Exception:
                 expanded = score
-            tv = (expanded.flat.getElementsByClass(tempo.MetronomeMark) or [None])[0]
+            tv = (expanded.flatten().getElementsByClass(tempo.MetronomeMark) or [None])[0]
             tempo_val = (tv.number if tv else None) or 120
             tempo_val = tempo_val if tempo_val > 0 else 120
             spb = 60.0 / tempo_val
@@ -646,3 +646,4 @@ def get_musical_info(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+

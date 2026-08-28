@@ -92,6 +92,13 @@ export default function SheetMusicViewer({
   const [osmdFailed, setOsmdFailed] = useState(false);
   const osmdRef = useRef<any>(null);
   const timelineRef = useRef<number[]>([]);
+  // Pre-built lookup table: cursorTimestamps[step] = OSMD timestamp (whole notes)
+  // for the cursor position reached after `step` cursor.next() calls.
+  // Binary search lets us find the last step ≤ targetTimestamp in O(log N),
+  // which prevents the off-by-one where the old while-loop advanced one note
+  // too far (stopping at the FIRST position ≥ target instead of the LAST ≤ target).
+  const cursorTimestampsRef = useRef<number[]>([]);
+  const cursorStepRef = useRef<number>(0);
 
 
   // Reset fallback state when xml inputs change
@@ -271,6 +278,28 @@ export default function SheetMusicViewer({
           } catch (e) {
             console.warn('[SheetMusicViewer] Initial cursor show failed:', e);
           }
+
+          // Build cursor position → timestamp lookup table.
+          // We iterate through every cursor step once here so the sync effect
+          // can binary-search for the LAST step ≤ targetTimestamp instead of
+          // the old while-loop that stopped at the FIRST step ≥ target
+          // (which put the cursor one note ahead of the audio for the entire
+          // duration of every note).
+          const cursorTimestamps: number[] = [];
+          try {
+            osmd.cursor.reset();
+            let buildIter = osmd.cursor.iterator || osmd.cursor.Iterator;
+            while (buildIter && !(buildIter.endReached || buildIter.EndReached)) {
+              cursorTimestamps.push(getFractionRealValue(buildIter.currentTimeStamp));
+              osmd.cursor.next();
+              buildIter = osmd.cursor.iterator || osmd.cursor.Iterator;
+            }
+            osmd.cursor.reset();
+          } catch (buildErr) {
+            console.warn('[SheetMusicViewer] Could not build cursor timestamp table:', buildErr);
+          }
+          cursorTimestampsRef.current = cursorTimestamps;
+          cursorStepRef.current = 0;
         } catch (loadError: any) {
           console.error('[SheetMusicViewer] OSMD load pipeline error:', loadError);
           throw loadError;
@@ -376,36 +405,64 @@ export default function SheetMusicViewer({
       const targetTimestamp = measureStart + (fractionalMeasure * measureDuration);
       
       const cursor = osmd.cursor;
-      let iterator = cursor.iterator || cursor.Iterator;
-      if (!iterator) return;
+      const timestamps = cursorTimestampsRef.current;
 
-      const beforeRealValue = getFractionRealValue(iterator.currentTimeStamp);
+      if (timestamps.length > 0) {
+        // Binary search: find the LAST cursor step whose timestamp ≤ targetTimestamp.
+        // This is the note currently sounding, not the next one.
+        // The old while-loop stopped at the FIRST step ≥ target — one note too far.
+        let lo = 0, hi = timestamps.length - 1, targetStep = 0;
+        while (lo <= hi) {
+          const mid = (lo + hi) >> 1;
+          if (timestamps[mid] <= targetTimestamp) {
+            targetStep = mid;
+            lo = mid + 1;
+          } else {
+            hi = mid - 1;
+          }
+        }
 
-      // If targetTimestamp is behind current cursor position, reset first
-      if (targetTimestamp < beforeRealValue) {
-        cursor.reset();
-        iterator = cursor.iterator || cursor.Iterator;
-        if (!iterator) return;
-      }
+        // If we need to move backward, reset and replay from the start.
+        if (targetStep < cursorStepRef.current) {
+          cursor.reset();
+          cursorStepRef.current = 0;
+        }
 
-      let currentRealValue = getFractionRealValue(iterator.currentTimeStamp);
-
-      // Incrementally advance cursor forward to match targetTimestamp
-      let steps = 0;
-      const maxSteps = 5000;
-
-      while (steps < maxSteps) {
-        const endReached = iterator.endReached || iterator.EndReached || false;
-        if (endReached) break;
-
-        if (currentRealValue >= targetTimestamp) break;
-
-        cursor.next();
-        steps++;
-
-        const newRealValue = getFractionRealValue(iterator.currentTimeStamp);
-        if (newRealValue === currentRealValue) break;
-        currentRealValue = newRealValue;
+        // Advance incrementally from current step to targetStep.
+        let stepsMoved = 0;
+        while (cursorStepRef.current < targetStep && stepsMoved < 5000) {
+          const iter = cursor.iterator || cursor.Iterator;
+          if (!iter || iter.endReached || iter.EndReached) break;
+          cursor.next();
+          cursorStepRef.current++;
+          stepsMoved++;
+        }
+      } else {
+        // Fallback when the timestamp table could not be built (rare).
+        // Uses the old approach — may be one note ahead.
+        let iterator = cursor.iterator || cursor.Iterator;
+        if (!iterator) {
+          cursor.show();
+          forceCursorVisible(cursor);
+          return;
+        }
+        const beforeRealValue = getFractionRealValue(iterator.currentTimeStamp);
+        if (targetTimestamp < beforeRealValue) {
+          cursor.reset();
+          iterator = cursor.iterator || cursor.Iterator;
+          if (!iterator) { cursor.show(); forceCursorVisible(cursor); return; }
+        }
+        let currentRealValue = getFractionRealValue(iterator.currentTimeStamp);
+        let steps = 0;
+        while (steps < 5000) {
+          const endReached = iterator.endReached || iterator.EndReached || false;
+          if (endReached) break;
+          if (currentRealValue >= targetTimestamp) break;
+          cursor.next(); steps++;
+          const nv = getFractionRealValue(iterator.currentTimeStamp);
+          if (nv === currentRealValue) break;
+          currentRealValue = nv;
+        }
       }
 
       cursor.show();

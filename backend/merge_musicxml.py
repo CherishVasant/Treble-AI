@@ -18,6 +18,7 @@ overwritten).
 from __future__ import annotations
 
 import copy
+import traceback
 
 from music21 import (
     clef as m21_clef,
@@ -28,6 +29,25 @@ from music21 import (
     meter,
     stream,
 )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _safe_ts_quarterLength(ts: meter.TimeSignature) -> float:
+    """
+    Return barDuration.quarterLength for a TimeSignature, or 0.0 on any error.
+
+    Audiveris occasionally produces malformed time signatures whose denominator
+    is 0 (or whose barDuration property raises ZeroDivisionError internally).
+    Callers should treat a return value of 0.0 as "this TS is unusable".
+    """
+    try:
+        ql = ts.barDuration.quarterLength
+        return float(ql) if ql else 0.0
+    except Exception:
+        return 0.0
 
 
 def merge_system_mxls(
@@ -67,7 +87,13 @@ def merge_system_mxls(
         return score
 
     print(f"[merge] Parsing {len(mxl_paths)} system MXL files...")
-    scores = [converter.parse(p) for p in mxl_paths]
+    scores: list[stream.Score] = []
+    for idx, path in enumerate(mxl_paths):
+        try:
+            scores.append(converter.parse(path))
+        except Exception:
+            print(f"[merge] Error parsing system MXL {idx} ({path}):\n{traceback.format_exc()}")
+            raise
 
     num_parts = len(scores[0].parts)
     if num_parts == 0:
@@ -79,7 +105,11 @@ def merge_system_mxls(
 
     # ---- Metadata -----------------------------------------------------------
     # Prefer explicit args; fall back to the first source score's metadata.
-    _apply_metadata(merged, title, composer, fallback_score=scores[0])
+    try:
+        _apply_metadata(merged, title, composer, fallback_score=scores[0])
+    except Exception:
+        print(f"[merge] Warning: metadata could not be applied:\n{traceback.format_exc()}")
+        # Non-fatal — carry on without metadata rather than crashing.
 
     # ---- Parts --------------------------------------------------------------
     for part_idx in range(num_parts):
@@ -96,14 +126,18 @@ def merge_system_mxls(
                     merged_part.partName = src.partName
 
                 # Copy any instrument object sitting directly on the part.
-                src_insts = list(src.getElementsByClass(m21_instrument.Instrument))
-                if src_insts:
-                    merged_part.insert(0, copy.deepcopy(src_insts[0]))
+                try:
+                    src_insts = list(src.getElementsByClass(m21_instrument.Instrument))
+                    if src_insts:
+                        merged_part.insert(0, copy.deepcopy(src_insts[0]))
+                except Exception:
+                    print(f"[merge] Warning: could not copy instrument for part {part_idx}.")
                 break
 
         measure_number = 1
 
-        # Carry-over state updated after every processed measure
+        # Carry-over state updated after every processed measure.
+        # last_time is only set to a TimeSignature that passes the safety check.
         last_clef: m21_clef.Clef | None = None
         last_key: m21_key.KeySignature | None = None
         last_time: meter.TimeSignature | None = None
@@ -136,11 +170,35 @@ def merge_system_mxls(
                     # Only inject when Audiveris produced nothing -- never overwrite
                     # a genuine key/clef change present in the strip image.
                     if not has_clef and last_clef is not None:
-                        new_measure.insert(0, copy.deepcopy(last_clef))
+                        try:
+                            new_measure.insert(0, copy.deepcopy(last_clef))
+                        except Exception:
+                            print(f"[merge] Warning: clef carry-over failed for m{measure_number}.")
+
                     if not has_key and last_key is not None:
-                        new_measure.insert(0, copy.deepcopy(last_key))
+                        try:
+                            new_measure.insert(0, copy.deepcopy(last_key))
+                        except Exception:
+                            print(f"[merge] Warning: key carry-over failed for m{measure_number}.")
+
                     if not has_time and last_time is not None:
-                        new_measure.insert(0, copy.deepcopy(last_time))
+                        # Guard: only inject a time signature whose barDuration is valid.
+                        # Audiveris can produce a TS with denominator=0, whose
+                        # barDuration.quarterLength == 0 → ZeroDivisionError when
+                        # music21 later tries to compute measure offsets.
+                        ts_ql = _safe_ts_quarterLength(last_time)
+                        if ts_ql > 0:
+                            try:
+                                new_measure.insert(0, copy.deepcopy(last_time))
+                            except Exception:
+                                print(
+                                    f"[merge] Warning: time-sig carry-over failed for m{measure_number}."
+                                )
+                        else:
+                            print(
+                                f"[merge] Warning: skipping malformed carry-over time signature "
+                                f"(ql={ts_ql}) for m{measure_number}."
+                            )
 
                 # -- Update carry-over state from this measure --
                 clefs = list(new_measure.getElementsByClass(m21_clef.Clef))
@@ -152,9 +210,44 @@ def merge_system_mxls(
                 if keys:
                     last_key = keys[-1]
                 if times:
-                    last_time = times[-1]
+                    # Only track a TS that music21 can actually use — a malformed
+                    # one (barDuration.quarterLength == 0) would propagate and later
+                    # cause ZeroDivisionError when appending measures.
+                    candidate_ts = times[-1]
+                    if _safe_ts_quarterLength(candidate_ts) > 0:
+                        last_time = candidate_ts
+                    else:
+                        print(
+                            f"[merge] Warning: ignoring malformed time signature in "
+                            f"sys {sys_idx}, part {part_idx}, measure index {m_idx}."
+                        )
 
-                merged_part.append(new_measure)
+                # Append the measure with a ZeroDivisionError fallback.
+                # When music21 appends a Measure it computes the next offset via
+                # highestTime, which calls Measure.barDuration.quarterLength.  A
+                # malformed TS can make that 0, causing a crash here.
+                try:
+                    merged_part.append(new_measure)
+                except ZeroDivisionError:
+                    print(
+                        f"[merge] Warning: ZeroDivisionError appending m{measure_number} "
+                        f"(sys {sys_idx}, part {part_idx}); inserting 4/4 fallback and retrying."
+                    )
+                    # Replace any zero-length TS with a sane 4/4 and retry.
+                    for bad_ts in list(new_measure.getElementsByClass(meter.TimeSignature)):
+                        if _safe_ts_quarterLength(bad_ts) == 0:
+                            new_measure.remove(bad_ts)
+                    new_measure.insert(0, meter.TimeSignature("4/4"))
+                    try:
+                        merged_part.append(new_measure)
+                    except Exception as _retry_err:
+                        print(
+                            f"[merge] Retry also failed ({_retry_err}); skipping measure "
+                            f"{measure_number}."
+                        )
+                        measure_number += 1
+                        continue
+
                 measure_number += 1
 
         merged.append(merged_part)
@@ -162,10 +255,6 @@ def merge_system_mxls(
     print(f"[merge] Merged {measure_number - 1} total measures across {num_parts} part(s).")
     return merged
 
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
 def _apply_metadata(
     score: stream.Score,

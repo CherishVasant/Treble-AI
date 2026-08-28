@@ -24,6 +24,7 @@ import gc
 import json
 import os
 import shutil
+import traceback
 from pathlib import Path
 
 from music21 import converter, tempo as m21_tempo
@@ -331,11 +332,15 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
         print("[pipeline] Single system -- no merge needed.")
     else:
         print(f"[pipeline] Merging {len(ordered_mxl_paths)} system MXL files...")
-        merged_score = merge_system_mxls(
-            ordered_mxl_paths,
-            title=score_title,
-            composer=score_composer,
-        )
+        try:
+            merged_score = merge_system_mxls(
+                ordered_mxl_paths,
+                title=score_title,
+                composer=score_composer,
+            )
+        except Exception:
+            print(f"[pipeline] merge_system_mxls raised:\n{traceback.format_exc()}")
+            raise
         merged_score.write("musicxml", fp=str(final_mxl))
         del merged_score
         gc.collect()
@@ -444,8 +449,16 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
         _set_status(output_dir, "midi", "processing")
 
         output_midi = output_dir_path / f"{base_name}.mid"
+        print("[pipeline] Parsing merged MXL for MIDI synthesis...")
         score = converter.parse(str(final_mxl))
-        effective_bpm = _fix_tempos(score)
+        print("[pipeline] Fixing tempos...")
+        try:
+            effective_bpm = _fix_tempos(score)
+        except Exception:
+            print(f"[pipeline] _fix_tempos raised:\n{traceback.format_exc()}")
+            effective_bpm = _DEFAULT_BPM
+            score.insert(0, m21_tempo.MetronomeMark(number=effective_bpm))
+        print(f"[pipeline] Effective BPM: {effective_bpm}")
 
         # Expand repeat barlines so the MIDI contains the full playback,
         # including every repeated section.  Falls back to the unexpanded

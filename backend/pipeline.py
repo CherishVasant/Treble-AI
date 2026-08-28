@@ -363,8 +363,15 @@ def _fix_tempos(score) -> int:
     """
     Ensure every MetronomeMark in the score has a valid (> 0) BPM.
     Returns the effective BPM used for audio synthesis.
+
+    Important: convert the StreamIterator to a concrete list immediately.
+    A StreamIterator is logically re-iterable but its __bool__ check can
+    return False after the iterator has been advanced, causing the "insert
+    if empty" branch to fire even when marks exist — leaving the original
+    zero-BPM mark in place and ultimately triggering a ZeroDivisionError
+    inside music21's MIDI writer.
     """
-    marks = score.flatten().getElementsByClass(m21_tempo.MetronomeMark)
+    marks = list(score.flatten().getElementsByClass(m21_tempo.MetronomeMark))
 
     # Find the first valid tempo
     effective_bpm = _DEFAULT_BPM
@@ -451,7 +458,15 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
         except Exception as _rep_err:
             print(f"[pipeline] expandRepeats() skipped ({_rep_err}), using unexpanded score.")
 
-        score.write("midi", fp=str(output_midi))
+        try:
+            score.write("midi", fp=str(output_midi))
+        except ZeroDivisionError:
+            # music21's MIDI writer divides by tempo; a residual 0-BPM mark
+            # can escape _fix_tempos (e.g. nested inside a container).
+            # Hard-insert a 120-BPM mark at offset 0 and retry once.
+            print("[pipeline] MIDI write hit ZeroDivisionError; inserting fallback tempo and retrying.")
+            score.insert(0, m21_tempo.MetronomeMark(number=_DEFAULT_BPM))
+            score.write("midi", fp=str(output_midi))
         del score
         gc.collect()
 

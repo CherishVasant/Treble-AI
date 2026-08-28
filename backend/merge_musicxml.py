@@ -189,8 +189,10 @@ def _apply_metadata(
         if explicit and explicit.lower() not in MUSIC21_PLACEHOLDERS:
             return explicit
         if src_meta:
-            val = getattr(src_meta, attr, None) or ""
-            if val.lower() not in MUSIC21_PLACEHOLDERS:
+            raw = getattr(src_meta, attr, None)
+            # music21 can return a Text object instead of a plain str
+            val = str(raw).strip() if raw is not None else ""
+            if val and val.lower() not in MUSIC21_PLACEHOLDERS:
                 return val
         return ""
 
@@ -200,9 +202,13 @@ def _apply_metadata(
     if not eff_title and not eff_composer:
         return  # nothing to write; leave whatever was there (could be blank)
 
-    # Ensure the score has a Metadata object
+    # Ensure the score has a Metadata object.
+    # Use assignment (`score.metadata = ...`) — NOT `score.insert(0, ...)`.
+    # The `metadata` property reads from `score._metadata`; inserting into the
+    # stream does not update that attribute, so subsequent property reads would
+    # still return None and raise AttributeError on `.title = ...`.
     if not getattr(score, "metadata", None):
-        score.insert(0, m21_metadata.Metadata())
+        score.metadata = m21_metadata.Metadata()
 
     if eff_title:
         score.metadata.title = eff_title

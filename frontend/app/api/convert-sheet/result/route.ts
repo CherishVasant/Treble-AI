@@ -3,6 +3,12 @@ import { readFile } from 'fs/promises';
 import path from 'path';
 import { proxyToBackend } from '@/lib/backend-proxy';
 
+// The backend may take up to 30 s to return the analysis report for complex
+// scores (Audiveris + music21 analysis on first call).  Vercel's default 10 s
+// function timeout kills the request before it gets a response, causing the
+// player to stay disabled.  Bump to 60 s to match the status-polling route.
+export const maxDuration = 60;
+
 // Vercel serverless functions have a read-only filesystem except for /tmp
 const STORE = '/tmp/.upload-store';
 

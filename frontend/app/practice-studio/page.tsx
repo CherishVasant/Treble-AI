@@ -187,8 +187,52 @@ function PracticeStudioContent() {
   // ── Studio layout state ─────────────────────────────────────────────────────
   const { layoutMode } = useSidebar();
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [rightPanelWidth, setRightPanelWidth] = useState(360);
   const [pianoOpen, setPianoOpen] = useState(true);
   const [activeTab, setActiveTab] = useState<'chat' | 'analysis'>('chat');
+
+  // Load persisted panel width on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('treble_right_panel_width');
+      if (stored) {
+        const n = parseInt(stored, 10);
+        if (!isNaN(n) && n >= 220 && n <= 760) setRightPanelWidth(n);
+      }
+    } catch {}
+  }, []);
+
+  // Drag-to-resize handler for the right panel divider.
+  // Single click (< 4 px movement) toggles collapse; drag changes width.
+  const handleRightPanelResizeStart = useCallback((e: React.PointerEvent) => {
+    e.preventDefault();
+    const startX   = e.clientX;
+    const startW   = rightPanelWidth;
+    let moved      = false;
+    let lastW      = startW;
+
+    const onMove = (ev: PointerEvent) => {
+      const delta = startX - ev.clientX; // left drag → wider
+      if (Math.abs(delta) > 4) moved = true;
+      if (moved) {
+        lastW = Math.max(220, Math.min(760, startW + delta));
+        setRightPanelWidth(lastW);
+      }
+    };
+
+    const onUp = () => {
+      document.removeEventListener('pointermove', onMove);
+      document.removeEventListener('pointerup', onUp);
+      if (!moved) {
+        setRightPanelOpen(v => !v);
+      } else {
+        try { localStorage.setItem('treble_right_panel_width', String(Math.round(lastW))); } catch {}
+      }
+    };
+
+    document.addEventListener('pointermove', onMove);
+    document.addEventListener('pointerup', onUp);
+  }, [rightPanelWidth]);
 
   const playerRef = useRef<MusicPlayerRef>(null);
 
@@ -468,20 +512,28 @@ function PracticeStudioContent() {
             )}
           </div>
 
-          {/* Right-panel collapse toggle strip */}
-          <button
-            onClick={() => setRightPanelOpen(v => !v)}
-            className="w-5 shrink-0 flex items-center justify-center bg-card/20 border-l border-border/20 hover:bg-card/40 transition-colors text-muted-foreground hover:text-foreground"
-            title={rightPanelOpen ? 'Collapse chat panel' : 'Expand chat panel'}
+          {/* Right-panel resize handle — drag to resize, click to collapse/expand */}
+          <div
+            onPointerDown={handleRightPanelResizeStart}
+            className="w-[6px] shrink-0 relative group cursor-col-resize select-none flex items-center justify-center bg-transparent hover:bg-primary/15 active:bg-primary/25 transition-colors"
+            title={rightPanelOpen ? 'Drag to resize · Click to collapse' : 'Click to expand'}
           >
-            {rightPanelOpen
-              ? <ChevronRight className="w-3 h-3" />
-              : <ChevronLeft className="w-3 h-3" />}
-          </button>
+            {/* Thin divider line */}
+            <div className="absolute inset-y-0 left-[2px] w-px bg-border/30 group-hover:bg-primary/40 transition-colors" />
+            {/* Collapse/expand chevron — appears on hover */}
+            <div className="absolute opacity-0 group-hover:opacity-100 transition-opacity bg-card/80 rounded-full p-0.5 shadow z-10">
+              {rightPanelOpen
+                ? <ChevronRight className="w-3 h-3 text-muted-foreground" />
+                : <ChevronLeft className="w-3 h-3 text-muted-foreground" />}
+            </div>
+          </div>
 
           {/* Right panel: uploader strip + chat / analysis tabs */}
           {rightPanelOpen && (
-            <div className="w-[360px] shrink-0 flex flex-col border-l border-border/20 overflow-hidden bg-card/10">
+            <div
+              className="shrink-0 flex flex-col border-l border-border/20 overflow-hidden bg-card/10"
+              style={{ width: `${rightPanelWidth}px` }}
+            >
 
               {/* Compact upload strip */}
               <SheetMusicUploader

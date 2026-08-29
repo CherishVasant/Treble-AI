@@ -289,7 +289,7 @@ export default function SheetMusicViewer({
           try {
             osmd.cursor.reset();
             let buildIter = osmd.cursor.iterator || osmd.cursor.Iterator;
-            while (buildIter && !(buildIter.endReached || buildIter.EndReached)) {
+            while (buildIter && !((buildIter as any).endReached || buildIter.EndReached)) {
               cursorTimestamps.push(getFractionRealValue(buildIter.currentTimeStamp));
               osmd.cursor.next();
               buildIter = osmd.cursor.iterator || osmd.cursor.Iterator;

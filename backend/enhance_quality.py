@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 import cv2
-import fitz  # PyMuPDF
+import pymupdf as fitz  # PyMuPDF (pymupdf is the current package name; "fitz" is the deprecated alias)
 import numpy as np
 
 SUFFIX = "_better_quality"
@@ -99,7 +99,7 @@ def enhance_image_file(source: Path, destination: Path) -> None:
     _save_image(destination, enhanced)
 
 
-def _page_to_gray(page: fitz.Page, dpi: int = PDF_RENDER_DPI) -> np.ndarray:
+def _page_to_gray(page: "fitz.Page", dpi: int = PDF_RENDER_DPI) -> np.ndarray:
     scale = dpi / 72.0
     matrix = fitz.Matrix(scale, scale)
     pixmap = page.get_pixmap(matrix=matrix, alpha=False)

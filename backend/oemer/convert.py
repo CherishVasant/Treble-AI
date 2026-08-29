@@ -25,6 +25,11 @@ OUTPUT_DIR  = HERE / "output"
 SOUNDFONT   = Path(__file__).parent.parent / "soundfonts" / "GeneralUser-GS.sf2"
 FLUIDSYNTH  = Path(r"C:\tools\fluidsynth\bin\fluidsynth.exe")
 
+# Use the oemer binary from this script's own venv so the venv
+# does not need to be activated before running the script.
+_VENV_SCRIPTS = HERE / "venv" / "Scripts"
+OEMER_BIN = _VENV_SCRIPTS / "oemer.exe" if (_VENV_SCRIPTS / "oemer.exe").exists() else "oemer"
+
 # music21 import (inside the venv)
 try:
     import music21
@@ -58,7 +63,7 @@ def find_musicxml(folder: Path, stem: str) -> Path | None:
 
 def oemer_to_musicxml(image_path: Path, out_dir: Path) -> Path:
     """Run OEMER on the image; move the MusicXML to out_dir."""
-    run(["oemer", str(image_path)], "OEMER")
+    run([str(OEMER_BIN), str(image_path)], "OEMER")
     xml = find_musicxml(image_path.parent, image_path.stem)
     if xml is None:
         raise FileNotFoundError(

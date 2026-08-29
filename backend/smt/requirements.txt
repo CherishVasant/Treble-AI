@@ -1,0 +1,5 @@
+transformers
+torch
+Pillow
+music21
+opencv-python-headless

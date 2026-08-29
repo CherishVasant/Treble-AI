@@ -1,14 +1,14 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import type { Message } from '@/components/ai-chat';
 
 const AIChat = dynamic(() => import('@/components/ai-chat'), {
   ssr: false,
   loading: () => (
-    <div className="min-h-96 lg:min-h-[600px] rounded-xl border border-border/30 bg-card/20 animate-pulse" />
+    <div className="flex-1 rounded-xl border border-border/30 bg-card/20 animate-pulse min-h-[400px]" />
   ),
 });
 
@@ -18,7 +18,7 @@ function TheoryTutorContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionId = searchParams.get('sessionId') || '';
-  
+
   const { theorySessions, loadingSessions, sendChatMessage, setLastActiveSession } = useChat();
 
   const activeSessionIdRef = useRef(sessionId);
@@ -55,14 +55,16 @@ function TheoryTutorContent() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 relative z-10 flex-1 w-full flex flex-col">
-      {/* Animated Background Elements (contained within page) */}
+    /* Fill all available height, no outer scroll */
+    <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-4 w-full max-w-5xl mx-auto relative">
+      {/* Decorative blobs (contained, non-scrollable) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-20 right-0 w-96 h-96 rounded-full bg-gradient-primary/5 blur-3xl animate-float" />
         <div className="absolute bottom-20 left-0 w-96 h-96 rounded-full bg-secondary/5 blur-3xl animate-float" style={{ animationDelay: '1s' }} />
       </div>
 
-      <div className="relative z-10 flex-1 flex flex-col">
+      {/* Chat panel fills remaining space; its inner messages area scrolls */}
+      <div className="relative z-10 flex-1 flex flex-col min-h-0">
         <AIChat
           title={undefined}
           apiPath="/api/theory-chat"
@@ -72,7 +74,7 @@ function TheoryTutorContent() {
           messages={messages}
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
-          className="h-[650px] max-h-[calc(100vh-250px)] min-h-[450px]"
+          className="flex-1 min-h-0"
         />
       </div>
     </div>
@@ -81,10 +83,11 @@ function TheoryTutorContent() {
 
 export default function TheoryTutorPage() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    /* Take exactly the viewport height minus the navbar (h-14 = 3.5rem), no outer scroll */
+    <div className="h-[calc(100vh-3.5rem)] bg-background flex flex-col overflow-hidden">
       <Suspense fallback={
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-          <div className="min-h-96 lg:min-h-[600px] rounded-xl border border-border/30 bg-card/20 animate-pulse" />
+        <div className="flex-1 flex flex-col px-4 sm:px-6 lg:px-8 py-4 w-full max-w-5xl mx-auto">
+          <div className="flex-1 rounded-xl border border-border/30 bg-card/20 animate-pulse" />
         </div>
       }>
         <TheoryTutorContent />

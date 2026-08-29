@@ -32,9 +32,9 @@ export default function Navbar() {
           {/* Left: current page name */}
           <div className="flex items-center min-w-0">
             {pageLabel ? (
-              <span className="text-sm font-bold text-foreground truncate">{pageLabel}</span>
+              <span className="text-base font-bold text-foreground truncate">{pageLabel}</span>
             ) : (
-              <span className="text-sm font-bold text-muted-foreground">TrebleAI</span>
+              <span className="text-base font-bold text-muted-foreground">TrebleAI</span>
             )}
           </div>
 

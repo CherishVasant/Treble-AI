@@ -175,6 +175,9 @@ export default function AIChat({
 
   const messages = externalMessages !== undefined ? externalMessages : internalMessages;
 
+  // Track previous messages length so we can choose instant vs smooth scroll.
+  const prevMsgLenRef = useRef(messages.length);
+
   const messagesRef = useRef(messages);
   useEffect(() => {
     messagesRef.current = messages;
@@ -188,14 +191,18 @@ export default function AIChat({
     }
   };
 
-  // Auto-scroll to bottom inside container
+  // Auto-scroll to bottom inside container.
+  // If multiple messages arrived at once (session loaded / switched) → instant jump.
+  // If exactly one message was added (user sent / AI replied) → smooth scroll.
   useEffect(() => {
-    if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTo({
-        top: messagesContainerRef.current.scrollHeight,
-        behavior: 'smooth',
-      });
-    }
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const prev = prevMsgLenRef.current;
+    const cur = messages.length;
+    prevMsgLenRef.current = cur;
+    // Batch load (opening session) or initial mount: jump instantly
+    const behavior: ScrollBehavior = cur - prev > 1 || prev === 0 ? 'instant' : 'smooth';
+    el.scrollTo({ top: el.scrollHeight, behavior });
   }, [messages, loading]);
 
   const handleSendMessage = async (messageText: string) => {

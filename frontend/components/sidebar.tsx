@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
-  Music, Star, BookOpen, ChevronRight, ChevronLeft, Settings, Plus, Search,
+  Music, Star, Settings, Plus, Search,
   MessageSquare, X, Trash2, Loader2, Edit2, Check, LogOut, User,
   KeyRound, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, Eye, EyeOff,
-  HelpCircle, ChevronDown
+  HelpCircle, ChevronRight, ArrowLeft, AlertTriangle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -25,97 +25,147 @@ const MUSIC_LIBRARY_GROUPS = [
   { name: 'Music Theory', defaultSlug: 'circle_of_fifths', slugs: ['circle_of_fifths','key_signatures','time_signatures','scale_degrees','chord_functions','harmonic_progressions','cadences','modes_theory','voice_leading'] },
 ];
 
-// ─── How to Use Section ──────────────────────────────────────────────────────
+// ─── How to Use Guide Data ────────────────────────────────────────────────────
 
-interface HelpItem { q: string; a: string }
-interface HelpTopic { label: string; items: HelpItem[] }
-
-const HOW_TO_USE: HelpTopic[] = [
+const HOW_TO_USE_GUIDE = [
   {
-    label: 'Practice Studio',
-    items: [
-      { q: 'What is Practice Studio?', a: 'Your AI-powered sheet music coach. Upload a PDF or image of sheet music — Treble analyses the score, extracts key/time signatures, chord progressions, difficulty, and more.' },
-      { q: 'Uploading sheet music', a: 'Click the upload area or drag a PDF or image file. The score is converted to a rendered image, and its musical content is analysed automatically.' },
-      { q: 'The piano', a: 'Play notes by clicking the keys. The piano highlights left-hand and right-hand notes from your uploaded score, and records anything you play for AI feedback.' },
-      { q: 'Chatting with the AI', a: 'Ask anything about the piece — fingering tips, scale warmups, how to tackle a tricky passage. You can also just chat without uploading a file.' },
-      { q: 'Suggested questions', a: 'After each AI reply, up to 3 follow-up question chips appear below the bubble. Click one to send it instantly.' },
+    page: 'Practice Studio',
+    color: 'text-blue-400',
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/20',
+    sections: [
+      { heading: 'What is Practice Studio?', body: 'Your AI-powered sheet music coach. Upload a PDF or image of sheet music and Treble will analyse the score — extracting key/time signatures, chord progressions, difficulty rating, voice-leading audits, scale warmup recommendations, and more.' },
+      { heading: 'Uploading Sheet Music', body: 'Click the upload area or drag a PDF or image file onto it. The score is converted to a rendered image and its musical content is analysed automatically. Supported: PDF, PNG, JPG.' },
+      { heading: 'The Piano', body: 'The interactive piano highlights left-hand and right-hand notes from your uploaded score. Click any key to hear it played with a real piano sound. You can record a sequence of notes and send them to the AI for feedback.' },
+      { heading: 'AI Chat', body: 'Ask the AI anything about the piece — fingering tips, scale warmup routines, how to tackle a difficult passage, or general practice strategies. You can also start a chat without uploading a file.' },
+      { heading: 'Follow-up Suggestions', body: 'After each AI reply, up to 3 follow-up question chips appear below the message. Click one to send it instantly as your next question.' },
     ],
   },
   {
-    label: 'Theory Tutor',
-    items: [
-      { q: 'What is Theory Tutor?', a: 'A dedicated music theory chatbot. Ask anything: intervals, chord functions, voice leading, counterpoint, harmonic analysis, ear training — anything.' },
-      { q: 'Starting a conversation', a: 'Just type your question and hit Enter or the Send button. Each conversation is saved automatically. Use the sidebar to switch between past chats.' },
-      { q: 'Searching past chats', a: 'Use the search bar in the sidebar to find any past Theory Tutor conversation by title or content.' },
-      { q: 'Custom AI instructions', a: "Go to Settings → AI Instructions → Theory Tutor to tell the AI your preferences (e.g. \"explain like I'm a beginner\", \"always include an example\")." },
+    page: 'Theory Tutor',
+    color: 'text-purple-400',
+    bg: 'bg-purple-500/10',
+    border: 'border-purple-500/20',
+    sections: [
+      { heading: 'What is Theory Tutor?', body: 'A dedicated music theory chatbot. Ask anything — intervals, chord functions, voice leading, counterpoint, harmonic analysis, ear training, Roman numeral analysis, or any other music-theory topic.' },
+      { heading: 'Starting a Conversation', body: 'Type your question and press Enter or click Send. Each conversation is saved and listed in the sidebar. Click any past chat to continue it.' },
+      { heading: 'Searching Past Chats', body: 'Use the search bar at the top of the sidebar to find any past Theory Tutor conversation. It searches both chat titles and message content.' },
+      { heading: 'Custom AI Tone', body: 'Go to Settings → AI Instructions → Theory Tutor to personalise how the AI responds — for example: "explain like I\'m a complete beginner", "always provide a musical example", "be concise and formal".' },
     ],
   },
   {
-    label: 'Music Library',
-    items: [
-      { q: 'What is the Music Library?', a: 'A reference encyclopedia of music theory — scales, modes, chords, arpeggios, intervals, notation symbols, and more. Each entry shows the formula, notes, and an interactive keyboard diagram.' },
-      { q: 'Browsing categories', a: 'Use the left sidebar to jump to a category (e.g. Scales → Major Scales). Sub-navigation tabs appear for different root notes within a category.' },
-      { q: 'Searching', a: 'Type in the search bar to filter by name. Typing "c" shows only entries whose title contains "c" — e.g. "C Major Scale", "Chromatic Scale".' },
-      { q: 'Bookmarks / Favorites', a: 'Click the ★ on any card to bookmark it. All bookmarks appear in the "Favorites" section at the top of the sidebar.' },
-      { q: 'Listening to a scale/chord', a: 'Click the Play button on any reference card to hear the scale or arpeggio played back using a real piano sound.' },
+    page: 'Music Library',
+    color: 'text-emerald-400',
+    bg: 'bg-emerald-500/10',
+    border: 'border-emerald-500/20',
+    sections: [
+      { heading: 'What is the Music Library?', body: 'A reference encyclopedia of music theory. Browse scales, modes, chords, arpeggios, intervals, and notation symbols. Each entry shows the formula, note names, and a piano diagram.' },
+      { heading: 'Browsing Categories', body: 'Use the left sidebar to jump to a category — Scales, Modes, Chords, Arpeggios, Intervals, Notation, or Music Theory. Sub-navigation tabs let you drill into specific types within each category.' },
+      { heading: 'Searching', body: 'Type in the search bar to filter entries by name. Entering "c" shows only entries whose name contains "c" — e.g. "C Major Scale", "Chromatic Scale". For best results use at least 2–3 characters.' },
+      { heading: 'Bookmarks', body: 'Click the star (★) on any reference card to bookmark it. All bookmarks appear in the Favorites section in the sidebar for quick access.' },
+      { heading: 'Listening to a Scale or Chord', body: 'Click the Play button on any reference card to hear the scale, chord, or arpeggio played back note-by-note using a real piano sound.' },
     ],
   },
 ];
 
-function HelpTopicAccordion({ topic }: { topic: HelpTopic }) {
-  const [open, setOpen] = useState(false);
-  const [openItem, setOpenItem] = useState<number | null>(null);
+// ─── Confirm Dialog ───────────────────────────────────────────────────────────
+
+interface ConfirmDialogProps {
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmDialog({ title, message, confirmLabel = 'Delete', onConfirm, onCancel }: ConfirmDialogProps) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onCancel]);
+
   return (
-    <div className="border border-border/20 rounded-xl overflow-hidden">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-background/30 hover:bg-background/50 transition-colors text-left"
-      >
-        <span className="text-xs font-bold text-foreground">{topic.label}</span>
-        <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="divide-y divide-border/15">
-          {topic.items.map((item, i) => (
-            <div key={i}>
-              <button
-                onClick={() => setOpenItem(openItem === i ? null : i)}
-                className="w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-card/30 transition-colors gap-3"
-              >
-                <span className="text-xs text-foreground/80 font-medium">{item.q}</span>
-                <ChevronRight className={`w-3 h-3 shrink-0 text-muted-foreground transition-transform ${openItem === i ? 'rotate-90' : ''}`} />
-              </button>
-              {openItem === i && (
-                <p className="px-4 pb-3 text-[11px] text-muted-foreground leading-relaxed">{item.a}</p>
-              )}
-            </div>
-          ))}
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onCancel} />
+      <div className="relative bg-card border border-border/40 rounded-2xl shadow-2xl w-full max-w-sm z-10 overflow-hidden">
+        <div className="flex items-center gap-3 px-5 pt-5 pb-4">
+          <div className="p-2 bg-red-500/10 rounded-xl shrink-0">
+            <AlertTriangle className="w-4 h-4 text-red-400" />
+          </div>
+          <h3 className="text-sm font-bold text-foreground leading-tight">{title}</h3>
         </div>
-      )}
+        <p className="px-5 pb-5 text-xs text-muted-foreground leading-relaxed">{message}</p>
+        <div className="flex border-t border-border/20">
+          <button
+            onClick={onCancel}
+            className="flex-1 py-3 text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-card/60 transition-colors border-r border-border/20"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 py-3 text-sm font-bold text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
 
-function HowToUseSection() {
+// ─── How to Use Page (inside modal) ──────────────────────────────────────────
+
+function HowToUsePage({ onBack }: { onBack: () => void }) {
   return (
-    <div className="px-6 py-5 space-y-3">
-      <div className="flex items-center gap-2 mb-1">
-        <HelpCircle className="w-3.5 h-3.5 text-primary" />
-        <span className="text-xs font-bold text-foreground uppercase tracking-wider">How to Use</span>
+    <>
+      {/* Back header */}
+      <div className="flex items-center gap-3 px-6 py-4 border-b border-border/30 shrink-0">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+        >
+          <ArrowLeft className="w-3.5 h-3.5" />
+          Back
+        </button>
+        <div className="flex-1 flex items-center gap-2">
+          <div className="p-1.5 bg-primary/10 rounded-lg">
+            <HelpCircle className="w-4 h-4 text-primary" />
+          </div>
+          <h2 className="text-base font-bold text-foreground">How to Use TrebleAI</h2>
+        </div>
       </div>
-      <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Tap a section to expand its guide.
-      </p>
-      <div className="space-y-2">
-        {HOW_TO_USE.map(topic => (
-          <HelpTopicAccordion key={topic.label} topic={topic} />
+
+      {/* Guide content */}
+      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent px-6 py-5 space-y-8">
+        {HOW_TO_USE_GUIDE.map(topic => (
+          <div key={topic.page}>
+            {/* Page heading */}
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full ${topic.bg} border ${topic.border} mb-4`}>
+              <span className={`text-xs font-bold ${topic.color}`}>{topic.page}</span>
+            </div>
+            {/* Sections */}
+            <div className="space-y-5">
+              {topic.sections.map(sec => (
+                <div key={sec.heading}>
+                  <h4 className="text-xs font-bold text-foreground mb-1">{sec.heading}</h4>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">{sec.body}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 border-b border-border/15" />
+          </div>
         ))}
+        <div className="h-2" />
       </div>
-    </div>
+    </>
   );
 }
 
-// ─── Settings Modal ─────────────────────────────────────────────────────────
+// ─── Settings Modal ───────────────────────────────────────────────────────────
+
+type ModalPage = 'main' | 'howto';
 
 function SettingsModal({ onClose }: { onClose: () => void }) {
   const { user, logout } = useAuth();
@@ -123,12 +173,14 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   const { clearAllSessions } = useChat();
   const router = useRouter();
 
-  // AI instructions local draft
+  const [modalPage, setModalPage] = useState<ModalPage>('main');
+
+  // AI instructions
   const [practiceText, setPracticeText] = useState(settings.practiceInstructions);
   const [theoryText, setTheoryText] = useState(settings.theoryInstructions);
   const [instructionsSaved, setInstructionsSaved] = useState(false);
 
-  // Change password state
+  // Change password
   const [showPwForm, setShowPwForm] = useState(false);
   const [currentPw, setCurrentPw] = useState('');
   const [newPw, setNewPw] = useState('');
@@ -137,8 +189,8 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   const [showNewPw, setShowNewPw] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
 
-  // Clear chat confirm
-  const [clearTarget, setClearTarget] = useState<'practice' | 'theory' | null>(null);
+  // Clear confirm popup
+  const [clearConfirm, setClearConfirm] = useState<'practice' | 'theory' | null>(null);
 
   const handleSaveInstructions = () => {
     updateSettings({ practiceInstructions: practiceText, theoryInstructions: theoryText });
@@ -147,18 +199,9 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
   };
 
   const handleChangePassword = async () => {
-    if (!currentPw || !newPw || !confirmPw) {
-      toast.error('Please fill in all password fields.');
-      return;
-    }
-    if (newPw !== confirmPw) {
-      toast.error('New passwords do not match.');
-      return;
-    }
-    if (newPw.length < 6) {
-      toast.error('New password must be at least 6 characters.');
-      return;
-    }
+    if (!currentPw || !newPw || !confirmPw) { toast.error('Please fill in all password fields.'); return; }
+    if (newPw !== confirmPw) { toast.error('New passwords do not match.'); return; }
+    if (newPw.length < 6) { toast.error('New password must be at least 6 characters.'); return; }
     setPwLoading(true);
     try {
       const res = await fetch('/api/auth/change-password', {
@@ -167,263 +210,228 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
         body: JSON.stringify({ current_password: currentPw, new_password: newPw }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast.error(data.detail || 'Failed to change password.');
-      } else {
+      if (!res.ok) { toast.error(data.detail || 'Failed to change password.'); }
+      else {
         toast.success('Password updated successfully!');
         setCurrentPw(''); setNewPw(''); setConfirmPw('');
         setShowPwForm(false);
       }
-    } catch {
-      toast.error('Network error. Please try again.');
-    } finally {
-      setPwLoading(false);
-    }
+    } catch { toast.error('Network error. Please try again.'); }
+    finally { setPwLoading(false); }
   };
 
   const handleClearChats = (type: 'practice' | 'theory') => {
     clearAllSessions(type);
     router.push(type === 'practice' ? '/practice-studio' : '/theory-tutor');
     toast.success(`Cleared all ${type === 'practice' ? 'Practice' : 'Theory'} chats.`);
-    setClearTarget(null);
+    setClearConfirm(null);
   };
 
-  // Close on Escape
+  // Escape closes modal (only when no confirm dialog is open)
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !clearConfirm) {
+        if (modalPage === 'howto') setModalPage('main');
+        else onClose();
+      }
+    };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [onClose]);
+  }, [onClose, modalPage, clearConfirm]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div
-        className="relative bg-card border border-border/40 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/30 shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="p-1.5 bg-primary/10 rounded-lg">
-              <Settings className="w-4 h-4 text-primary" />
-            </div>
-            <h2 className="text-base font-bold text-foreground">Settings</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-card/65 transition-colors"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Scrollable body */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent divide-y divide-border/20">
-
-          {/* Section: Profile */}
-          <div className="px-6 py-5 space-y-4">
-            <div className="flex items-center gap-2 mb-1">
-              <User className="w-3.5 h-3.5 text-primary" />
-              <span className="text-xs font-bold text-foreground uppercase tracking-wider">Profile</span>
-            </div>
-
-            {/* Username */}
-            <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-background/50 border border-border/20">
-              <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center shrink-0">
-                <span className="text-white font-bold text-sm">
-                  {user?.username?.charAt(0).toUpperCase() || '?'}
-                </span>
+    <>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" onClick={onClose}>
+        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+        <div
+          className="relative bg-card border border-border/40 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden"
+          onClick={e => e.stopPropagation()}
+        >
+          {modalPage === 'howto' ? (
+            <HowToUsePage onBack={() => setModalPage('main')} />
+          ) : (
+            <>
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 py-4 border-b border-border/30 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-1.5 bg-primary/10 rounded-lg">
+                    <Settings className="w-4 h-4 text-primary" />
+                  </div>
+                  <h2 className="text-base font-bold text-foreground">Settings</h2>
+                </div>
+                <button onClick={onClose} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-card/65 transition-colors">
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Logged in as</p>
-                <p className="text-sm font-semibold text-foreground">{user?.username}</p>
-              </div>
-            </div>
 
-            {/* Change Password toggle */}
-            <button
-              onClick={() => setShowPwForm(v => !v)}
-              className="flex items-center gap-2 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
-            >
-              <KeyRound className="w-3.5 h-3.5" />
-              {showPwForm ? 'Cancel password change' : 'Change password'}
-              <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showPwForm ? 'rotate-90' : ''}`} />
-            </button>
+              {/* Scrollable body */}
+              <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent divide-y divide-border/20">
 
-            {showPwForm && (
-              <div className="space-y-3 p-4 rounded-xl bg-background/40 border border-border/20">
-                {/* Current password */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Current Password</label>
-                  <div className="relative">
-                    <input
-                      type={showCurrentPw ? 'text' : 'password'}
-                      value={currentPw}
-                      onChange={e => setCurrentPw(e.target.value)}
-                      placeholder="Enter current password"
-                      className="w-full pr-9 pl-3 py-2 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground/60 rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
-                    />
-                    <button onClick={() => setShowCurrentPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      {showCurrentPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                {/* ── Profile ── */}
+                <div className="px-6 py-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <User className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-xs font-bold text-foreground uppercase tracking-wider">Profile</span>
+                  </div>
+                  <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-background/50 border border-border/20">
+                    <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center shrink-0">
+                      <span className="text-white font-bold text-sm">{user?.username?.charAt(0).toUpperCase() || '?'}</span>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Logged in as</p>
+                      <p className="text-sm font-semibold text-foreground">{user?.username}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setShowPwForm(v => !v)}
+                    className="flex items-center gap-2 text-xs text-primary hover:text-primary/80 font-medium transition-colors"
+                  >
+                    <KeyRound className="w-3.5 h-3.5" />
+                    {showPwForm ? 'Cancel password change' : 'Change password'}
+                    <ChevronRight className={`w-3.5 h-3.5 transition-transform ${showPwForm ? 'rotate-90' : ''}`} />
+                  </button>
+
+                  {showPwForm && (
+                    <div className="space-y-3 p-4 rounded-xl bg-background/40 border border-border/20">
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Current Password</label>
+                        <div className="relative">
+                          <input type={showCurrentPw ? 'text' : 'password'} value={currentPw} onChange={e => setCurrentPw(e.target.value)} placeholder="Enter current password"
+                            className="w-full pr-9 pl-3 py-2 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground/60 rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
+                          <button onClick={() => setShowCurrentPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            {showCurrentPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">New Password</label>
+                        <div className="relative">
+                          <input type={showNewPw ? 'text' : 'password'} value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="Minimum 6 characters"
+                            className="w-full pr-9 pl-3 py-2 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground/60 rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
+                          <button onClick={() => setShowNewPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+                            {showNewPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Confirm New Password</label>
+                        <input type="password" value={confirmPw} onChange={e => setConfirmPw(e.target.value)} placeholder="Repeat new password"
+                          onKeyDown={e => { if (e.key === 'Enter') handleChangePassword(); }}
+                          className="w-full pl-3 py-2 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground/60 rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
+                      </div>
+                      <Button onClick={handleChangePassword} disabled={pwLoading} className="w-full h-8 text-xs bg-gradient-primary hover:shadow-glow text-white font-semibold">
+                        {pwLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Update Password'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── AI Instructions ── */}
+                <div className="px-6 py-5 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
+                    <span className="text-xs font-bold text-foreground uppercase tracking-wider">AI Instructions</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Personalise how Treble speaks to you. These instructions are appended to the system prompt for each agent.
+                  </p>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Practice Studio</label>
+                    <textarea value={practiceText} onChange={e => setPracticeText(e.target.value)} rows={3}
+                      placeholder="e.g. Talk to me like a friend, avoid technical jargon, use simple analogies…"
+                      className="w-full px-3 py-2 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground/50 rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none leading-relaxed" />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Theory Tutor</label>
+                    <textarea value={theoryText} onChange={e => setTheoryText(e.target.value)} rows={3}
+                      placeholder="e.g. Be concise and formal, always include a musical example, no code blocks…"
+                      className="w-full px-3 py-2 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground/50 rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none leading-relaxed" />
+                  </div>
+                  <Button onClick={handleSaveInstructions}
+                    className={`h-8 text-xs font-semibold transition-all ${instructionsSaved ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20' : 'bg-gradient-primary hover:shadow-glow text-white'}`}>
+                    {instructionsSaved ? <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Saved!</span> : 'Save Instructions'}
+                  </Button>
+                </div>
+
+                {/* ── How to Use ── */}
+                <div className="px-6 py-5">
+                  <button
+                    onClick={() => setModalPage('howto')}
+                    className="w-full flex items-center justify-between px-4 py-3 rounded-xl bg-background/40 hover:bg-background/60 border border-border/20 hover:border-primary/30 transition-all group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-1.5 bg-primary/10 rounded-lg">
+                        <HelpCircle className="w-3.5 h-3.5 text-primary" />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-xs font-bold text-foreground">How to Use TrebleAI</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Guides for Practice Studio, Theory Tutor & Music Library</p>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                  </button>
+                </div>
+
+                {/* ── Danger Zone: Clear Chat History ── */}
+                <div className="px-6 py-5 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                    <span className="text-xs font-bold text-foreground uppercase tracking-wider">Clear Chat History</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Permanently delete all conversations. This cannot be undone.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => setClearConfirm('practice')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400/80 hover:text-red-400 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/30 transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Clear Practice Chats
+                    </button>
+                    <button
+                      onClick={() => setClearConfirm('theory')}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400/80 hover:text-red-400 hover:bg-red-500/10 border border-red-500/10 hover:border-red-500/30 transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Clear Theory Chats
                     </button>
                   </div>
                 </div>
 
-                {/* New password */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">New Password</label>
-                  <div className="relative">
-                    <input
-                      type={showNewPw ? 'text' : 'password'}
-                      value={newPw}
-                      onChange={e => setNewPw(e.target.value)}
-                      placeholder="Minimum 6 characters"
-                      className="w-full pr-9 pl-3 py-2 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground/60 rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
-                    />
-                    <button onClick={() => setShowNewPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-                      {showNewPw ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Confirm */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Confirm New Password</label>
-                  <input
-                    type="password"
-                    value={confirmPw}
-                    onChange={e => setConfirmPw(e.target.value)}
-                    placeholder="Repeat new password"
-                    onKeyDown={e => { if (e.key === 'Enter') handleChangePassword(); }}
-                    className="w-full pl-3 py-2 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground/60 rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
-                  />
-                </div>
-
-                <Button
-                  onClick={handleChangePassword}
-                  disabled={pwLoading}
-                  className="w-full h-8 text-xs bg-gradient-primary hover:shadow-glow text-white font-semibold"
-                >
-                  {pwLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Update Password'}
-                </Button>
               </div>
-            )}
-          </div>
 
-          {/* Section: AI Instructions */}
-          <div className="px-6 py-5 space-y-4">
-            <div className="flex items-center gap-2 mb-1">
-              <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
-              <span className="text-xs font-bold text-foreground uppercase tracking-wider">AI Instructions</span>
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              Personalise how Treble speaks to you. These instructions are appended to the system prompt for each agent.
-            </p>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                Practice Studio
-              </label>
-              <textarea
-                value={practiceText}
-                onChange={e => setPracticeText(e.target.value)}
-                rows={3}
-                placeholder="e.g. Talk to me like a friend, avoid technical jargon, use simple analogies…"
-                className="w-full px-3 py-2 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground/50 rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none leading-relaxed"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                Theory Tutor
-              </label>
-              <textarea
-                value={theoryText}
-                onChange={e => setTheoryText(e.target.value)}
-                rows={3}
-                placeholder="e.g. Be concise and formal, always include a musical example, no code blocks…"
-                className="w-full px-3 py-2 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground/50 rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20 resize-none leading-relaxed"
-              />
-            </div>
-
-            <Button
-              onClick={handleSaveInstructions}
-              className={`h-8 text-xs font-semibold transition-all ${
-                instructionsSaved
-                  ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20'
-                  : 'bg-gradient-primary hover:shadow-glow text-white'
-              }`}
-            >
-              {instructionsSaved ? (
-                <span className="flex items-center gap-1.5"><Check className="w-3.5 h-3.5" /> Saved!</span>
-              ) : 'Save Instructions'}
-            </Button>
-          </div>
-
-          {/* Section: Chat History */}
-          <div className="px-6 py-5 space-y-3">
-            <div className="flex items-center gap-2 mb-1">
-              <MessageSquare className="w-3.5 h-3.5 text-primary" />
-              <span className="text-xs font-bold text-foreground uppercase tracking-wider">Chat History</span>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              {clearTarget === 'practice' ? (
-                <div className="flex items-center gap-2 w-full flex-wrap">
-                  <p className="text-xs text-muted-foreground flex-1">Delete all Practice chats?</p>
-                  <Button variant="ghost" onClick={() => setClearTarget(null)} className="h-7 text-xs px-3 border border-border/20">Cancel</Button>
-                  <Button onClick={() => handleClearChats('practice')} className="h-7 text-xs px-3 bg-red-500 hover:bg-red-600 text-white">Delete</Button>
-                </div>
-              ) : (
+              {/* Footer: Logout */}
+              <div className="px-6 py-4 border-t border-border/30 shrink-0">
                 <button
-                  onClick={() => setClearTarget('practice')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400/80 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all"
+                  onClick={() => { logout(); onClose(); }}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-red-400/80 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all"
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Clear Practice Chats
+                  <LogOut className="w-4 h-4" />
+                  Log Out
                 </button>
-              )}
-
-              {clearTarget === 'theory' ? (
-                <div className="flex items-center gap-2 w-full flex-wrap">
-                  <p className="text-xs text-muted-foreground flex-1">Delete all Theory chats?</p>
-                  <Button variant="ghost" onClick={() => setClearTarget(null)} className="h-7 text-xs px-3 border border-border/20">Cancel</Button>
-                  <Button onClick={() => handleClearChats('theory')} className="h-7 text-xs px-3 bg-red-500 hover:bg-red-600 text-white">Delete</Button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setClearTarget('theory')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-red-400/80 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Clear Theory Chats
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Section: How to Use */}
-          <HowToUseSection />
-
-        </div>
-
-        {/* Modal Footer: Logout */}
-        <div className="px-6 py-4 border-t border-border/30 shrink-0">
-          <button
-            onClick={() => { logout(); onClose(); }}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-red-400/80 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all"
-          >
-            <LogOut className="w-4 h-4" />
-            Log Out
-          </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
-    </div>
+
+      {/* Clear-all confirmation popup (above the modal) */}
+      {clearConfirm && (
+        <ConfirmDialog
+          title={`Clear all ${clearConfirm === 'practice' ? 'Practice Studio' : 'Theory Tutor'} chats?`}
+          message={`This will permanently delete every ${clearConfirm === 'practice' ? 'Practice Studio' : 'Theory Tutor'} conversation. There is no way to recover them.`}
+          confirmLabel="Yes, clear all"
+          onConfirm={() => handleClearChats(clearConfirm)}
+          onCancel={() => setClearConfirm(null)}
+        />
+      )}
+    </>
   );
 }
 
-// ─── Main Sidebar Component ──────────────────────────────────────────────────
+// ─── Main Sidebar Component ───────────────────────────────────────────────────
 
 export default function Sidebar() {
   const pathname = usePathname();
@@ -433,6 +441,9 @@ export default function Sidebar() {
   const { collapsed, toggleCollapsed } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+
+  // Per-session delete confirmation
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; title: string; type: 'practice' | 'theory' } | null>(null);
 
   const {
     theorySessions, practiceSessions,
@@ -498,7 +509,7 @@ export default function Sidebar() {
       else if (t >= startYesterday) yesterday.push(s);
       else older.push(s);
     });
-    return { today, yesterday, older, filtered };
+    return { today, yesterday, older };
   }, [practiceSessions, practiceSearch]);
 
   const filteredTheory = useMemo(() => {
@@ -511,26 +522,29 @@ export default function Sidebar() {
   }, [theorySessions, theorySearch]);
 
   const handleStartRename = (e: React.MouseEvent, id: string, title: string) => {
-    e.stopPropagation();
-    setEditingSessionId(id);
-    setEditTitle(title);
+    e.stopPropagation(); e.preventDefault();
+    setEditingSessionId(id); setEditTitle(title);
   };
-
   const handleSaveRename = async (e: React.MouseEvent | React.KeyboardEvent, type: 'theory' | 'practice', id: string) => {
     e.stopPropagation();
     if (!editTitle.trim()) return;
     const ok = await renameSession(type, id, editTitle.trim());
     if (ok) setEditingSessionId(null);
   };
-
   const handleCancelRename = (e: React.MouseEvent) => { e.stopPropagation(); setEditingSessionId(null); };
 
-  const handleDeleteSession = async (e: React.MouseEvent, type: 'theory' | 'practice', id: string) => {
-    e.stopPropagation();
-    if (confirm('Delete this conversation?')) {
-      const ok = await deleteSession(type, id);
-      if (ok && currentSessionId === id) router.push(type === 'theory' ? '/theory-tutor' : '/practice-studio');
-    }
+  // Show custom confirm dialog instead of browser confirm()
+  const handleDeleteSession = (e: React.MouseEvent, type: 'theory' | 'practice', id: string, title: string) => {
+    e.stopPropagation(); e.preventDefault();
+    setDeleteConfirm({ id, title, type });
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteConfirm) return;
+    const { id, type } = deleteConfirm;
+    setDeleteConfirm(null);
+    const ok = await deleteSession(type, id);
+    if (ok && currentSessionId === id) router.push(type === 'theory' ? '/theory-tutor' : '/practice-studio');
   };
 
   const renderSessionRow = (session: any, type: 'theory' | 'practice') => {
@@ -540,30 +554,22 @@ export default function Sidebar() {
     if (isEditing) {
       return (
         <div key={session.id} className="w-full flex items-center gap-1.5 px-2 py-1 bg-card/65 border border-border/40 rounded-lg">
-          <input
-            type="text" value={editTitle}
-            onChange={e => setEditTitle(e.target.value)}
+          <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') handleSaveRename(e, type, session.id);
               if (e.key === 'Escape') handleCancelRename(e as any);
             }}
             autoFocus
-            className="flex-1 min-w-0 bg-transparent text-xs text-foreground focus:outline-none"
-          />
-          <button onClick={e => handleSaveRename(e, type, session.id)} className="p-0.5 text-green-400 hover:text-green-300">
-            <Check className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={handleCancelRename} className="p-0.5 text-muted-foreground hover:text-foreground">
-            <X className="w-3.5 h-3.5" />
-          </button>
+            className="flex-1 min-w-0 bg-transparent text-xs text-foreground focus:outline-none" />
+          <button onClick={e => handleSaveRename(e, type, session.id)} className="p-0.5 text-green-400 hover:text-green-300"><Check className="w-3.5 h-3.5" /></button>
+          <button onClick={handleCancelRename} className="p-0.5 text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
         </div>
       );
     }
 
     const href = type === 'theory' ? `/theory-tutor?sessionId=${session.id}` : `/practice-studio?sessionId=${session.id}`;
     return (
-      <Link
-        key={session.id} href={href}
+      <Link key={session.id} href={href}
         className={`group relative w-full flex items-center justify-between rounded-lg text-left text-xs truncate transition-all duration-200 border cursor-pointer ${
           isActive
             ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
@@ -578,7 +584,7 @@ export default function Sidebar() {
           <button onClick={e => handleStartRename(e, session.id, session.title)} className="text-muted-foreground hover:text-primary p-0.5" title="Rename">
             <Edit2 className="w-3 h-3" />
           </button>
-          <button onClick={e => handleDeleteSession(e, type, session.id)} className="text-muted-foreground hover:text-red-400 p-0.5" title="Delete">
+          <button onClick={e => handleDeleteSession(e, type, session.id, session.title)} className="text-muted-foreground hover:text-red-400 p-0.5" title="Delete">
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -642,7 +648,8 @@ export default function Sidebar() {
     if (pathname === '/theory-tutor') {
       return (
         <div className="space-y-4 flex-1 flex flex-col min-h-0">
-          <Button onClick={() => { router.push('/theory-tutor'); window.dispatchEvent(new Event('treble_new_chat_theory')); }} className="w-full bg-gradient-primary hover:shadow-glow text-white text-xs py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 h-9 shrink-0 shadow-glow" size="sm">
+          <Button onClick={() => { router.push('/theory-tutor'); window.dispatchEvent(new Event('treble_new_chat_theory')); }}
+            className="w-full bg-gradient-primary hover:shadow-glow text-white text-xs py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 h-9 shrink-0 shadow-glow" size="sm">
             <Plus className="w-4 h-4" /> New Chat
           </Button>
           <div className="relative shrink-0">
@@ -701,22 +708,16 @@ export default function Sidebar() {
     );
   };
 
-  // ── Collapsed icon-only nav ────────────────────────────────────────────────
+  // ── Collapsed icon-only sidebar ────────────────────────────────────────────
   const iconOnlySidebar = (
     <div className="h-full flex flex-col items-center py-4 gap-3 bg-card/45 border-r border-border/30 backdrop-blur-md">
-      {/* Logo */}
       <Link href="/" className="p-2 bg-gradient-primary rounded-lg hover:shadow-glow transition-shadow mb-1" title="TrebleAI">
         <Music className="w-5 h-5 text-white" />
       </Link>
-
-      {/* Expand button */}
       <button onClick={toggleCollapsed} className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-card/60 transition-colors" title="Expand sidebar">
         <PanelLeftOpen className="w-4 h-4" />
       </button>
-
       <div className="w-8 border-t border-border/25 my-1" />
-
-      {/* Nav icon links */}
       <Link href={isMounted && lastActivePracticeSessionId ? `/practice-studio?sessionId=${lastActivePracticeSessionId}` : '/practice-studio'}
         className={`p-2 rounded-lg transition-colors ${pathname === '/practice-studio' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-card/45'}`}
         title="Practice Studio">
@@ -724,61 +725,51 @@ export default function Sidebar() {
           <rect x="2" y="3" width="20" height="18" rx="2" /><path d="M6 3v12M10 3v12M14 3v12M18 3v12M2 15h20" />
         </svg>
       </Link>
-
       <Link href={isMounted && lastActiveTheorySessionId ? `/theory-tutor?sessionId=${lastActiveTheorySessionId}` : '/theory-tutor'}
         className={`p-2 rounded-lg transition-colors ${pathname === '/theory-tutor' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-card/45'}`}
         title="Theory Tutor">
-        <BookOpen className="w-4 h-4" />
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        </svg>
       </Link>
-
       <Link href="/music-library"
         className={`p-2 rounded-lg transition-colors ${pathname === '/music-library' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground hover:bg-card/45'}`}
         title="Music Library">
         <Music className="w-4 h-4" />
       </Link>
-
-      {/* Spacer */}
       <div className="flex-1" />
-
-      {/* User avatar → opens settings */}
-      <button
-        onClick={() => setShowSettings(true)}
+      <button onClick={() => setShowSettings(true)}
         className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center hover:shadow-glow transition-shadow"
-        title={`${user?.username ?? 'Account'} · Settings`}
-      >
+        title={`${user?.username ?? 'Account'} · Settings`}>
         <span className="text-white font-bold text-sm">{user?.username?.charAt(0).toUpperCase() || '?'}</span>
       </button>
     </div>
   );
 
-  // ── Full expanded sidebar content ──────────────────────────────────────────
+  // ── Full expanded sidebar ──────────────────────────────────────────────────
   const expandedSidebar = (
     <div className="h-full flex flex-col justify-between p-4 bg-card/45 border-r border-border/30 backdrop-blur-md relative">
-      {/* Mobile close button */}
       {mobileOpen && (
         <button onClick={() => setMobileOpen(false)} className="absolute top-4 right-4 p-2 rounded-lg bg-card/65 border border-border/30 text-foreground md:hidden hover:bg-card transition-colors z-50">
           <X className="w-4 h-4" />
         </button>
       )}
 
-      {/* Top: Logo + collapse toggle */}
+      {/* Logo + collapse toggle */}
       <div className="space-y-6 shrink-0">
         <div className="flex items-center justify-between border-b border-border/20 pb-4 md:pb-0 md:border-b-0">
           <Link href="/" className="flex items-center gap-2 group">
             <div className="p-2 bg-gradient-primary rounded-lg group-hover:shadow-glow transition-shadow shrink-0">
               <Music className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent truncate">
-              TrebleAI
-            </span>
+            <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent truncate">TrebleAI</span>
           </Link>
-          {/* Desktop collapse button */}
           <button onClick={toggleCollapsed} className="hidden md:flex p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-card/60 transition-colors" title="Collapse sidebar">
             <PanelLeftClose className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Mobile nav links */}
+        {/* Mobile nav */}
         <div className="space-y-1 md:hidden">
           <Link href={isMounted && lastActivePracticeSessionId ? `/practice-studio?sessionId=${lastActivePracticeSessionId}` : '/practice-studio'} className={getLinkClass('/practice-studio')}>Practice Studio</Link>
           <Link href={isMounted && lastActiveTheorySessionId ? `/theory-tutor?sessionId=${lastActiveTheorySessionId}` : '/theory-tutor'} className={getLinkClass('/theory-tutor')}>Theory Tutor</Link>
@@ -795,7 +786,7 @@ export default function Sidebar() {
 
       <div className="my-4 border-t border-border/25 w-full shrink-0" />
 
-      {/* Bottom: User avatar button → opens settings */}
+      {/* User avatar → Settings */}
       <div className="shrink-0">
         <button
           onClick={() => setShowSettings(true)}
@@ -825,14 +816,23 @@ export default function Sidebar() {
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 z-50 flex">
           <div className="fixed inset-0 bg-background/80 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
-          <aside className="relative w-72 h-full z-10 flex flex-col">
-            {expandedSidebar}
-          </aside>
+          <aside className="relative w-72 h-full z-10 flex flex-col">{expandedSidebar}</aside>
         </div>
       )}
 
       {/* Settings Modal */}
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+
+      {/* Per-session delete confirmation */}
+      {deleteConfirm && (
+        <ConfirmDialog
+          title={`Delete "${deleteConfirm.title}"?`}
+          message="This conversation will be permanently deleted and cannot be recovered."
+          confirmLabel="Delete"
+          onConfirm={confirmDelete}
+          onCancel={() => setDeleteConfirm(null)}
+        />
+      )}
     </>
   );
 }

@@ -400,14 +400,31 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           }),
         });
 
-        const data = await response.json();
+        // Parse response body — guard against non-JSON (HTML error pages,
+        // Render cold-start plain-text responses, Vercel gateway errors, etc.)
+        let data: any = {};
+        try {
+          data = await response.json();
+        } catch {
+          // Non-JSON body: surface a clean human-readable message instead of
+          // the raw "Unexpected token …" SyntaxError.
+          if (response.status === 503 || response.status === 504 || response.status === 502) {
+            throw new Error('The server is starting up — please try again in a moment.');
+          }
+          throw new Error(
+            response.ok
+              ? 'The server returned an unexpected response. Please try again.'
+              : `Server error (${response.status}). Please try again.`
+          );
+        }
+
         if (!response.ok) {
           // FastAPI uses "detail" (singular); guard all common shapes
           const detail =
             (typeof data.detail === 'string' ? data.detail : '') ||
             (typeof data.details === 'string' ? data.details : '') ||
             (typeof data.error === 'string' ? data.error : '') ||
-            'Failed to get response';
+            `Request failed (${response.status})`;
           throw new Error(detail);
         }
 

@@ -29,6 +29,18 @@ const getOctave = (midi: number): number => {
 };
 
 // ─── Soundfont playback ──────────────────────────────────────────────────────
+// Primary: high-quality MusyngKite piano from public CDN (no backend required)
+// Fallback: backend FluidSynth WAV → oscillator
+
+const CDN_BASE = 'https://gleitz.github.io/midi-js-soundfonts/MusyngKite/acoustic_grand_piano-mp3/';
+const CDN_NOTE_NAMES = ['C', 'Cs', 'D', 'Ds', 'E', 'F', 'Fs', 'G', 'Gs', 'A', 'As', 'B'];
+
+function _midiToCdnNote(midi: number): string {
+  const octave = Math.floor(midi / 12) - 1;
+  const name = CDN_NOTE_NAMES[midi % 12];
+  return `${name}${octave}`;
+}
+
 let _sfCtx: AudioContext | null = null;
 const _sfCache = new Map<number, AudioBuffer | null>();
 const _sfLoading = new Set<number>();
@@ -62,12 +74,28 @@ async function _loadSfNote(midi: number): Promise<AudioBuffer | null> {
   try {
     const ctx = _getSfCtx();
     if (!ctx) { _sfCache.set(midi, null); return null; }
-    const resp = await fetch(`/api/piano-note/${midi}`, { cache: 'force-cache' });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const buf = await ctx.decodeAudioData(await resp.arrayBuffer());
-    _sfCache.set(midi, buf);
-    return buf;
-  } catch {
+
+    // 1. Try CDN soundfont first (always reliable, high quality)
+    const cdnNote = _midiToCdnNote(midi);
+    try {
+      const resp = await fetch(`${CDN_BASE}${cdnNote}.mp3`);
+      if (resp.ok) {
+        const buf = await ctx.decodeAudioData(await resp.arrayBuffer());
+        _sfCache.set(midi, buf);
+        return buf;
+      }
+    } catch { /* CDN failed, try backend */ }
+
+    // 2. Fallback: backend FluidSynth WAV
+    try {
+      const resp = await fetch(`/api/piano-note/${midi}`, { cache: 'force-cache' });
+      if (resp.ok) {
+        const buf = await ctx.decodeAudioData(await resp.arrayBuffer());
+        _sfCache.set(midi, buf);
+        return buf;
+      }
+    } catch { /* backend failed too */ }
+
     _sfCache.set(midi, null);
     return null;
   } finally {
@@ -92,15 +120,16 @@ async function playSoundfontNote(midi: number): Promise<void> {
       const src  = ctx.createBufferSource();
       const gain = ctx.createGain();
       src.buffer = buf;
-      gain.gain.setValueAtTime(0.65, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 3.0);
+      gain.gain.setValueAtTime(0.8, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 3.5);
       src.connect(gain);
       gain.connect(ctx.destination);
       src.start();
-      src.stop(ctx.currentTime + 3.0);
+      src.stop(ctx.currentTime + 3.5);
       return;
     } catch { /* fall through */ }
   }
+  // Last resort: oscillator (sounds artificial but is always available)
   _playOscillator(midi);
 }
 

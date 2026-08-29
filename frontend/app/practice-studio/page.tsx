@@ -3,7 +3,6 @@
 import dynamic from 'next/dynamic';
 import { useState, useRef, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import PageHeader from '@/components/ui/page-header';
 import SheetMusicViewer, { type SheetPreviewKind } from '@/components/sheet-music-viewer';
 import type { MusicPlayerRef } from '@/components/music-player';
 import PianoKeyboard from '@/components/piano-keyboard';
@@ -222,8 +221,8 @@ function PracticeStudioContent() {
       const label = `Recording ${recordingCountRef.current} (${notes.length} note${notes.length !== 1 ? 's' : ''})`;
       const noteText =
         notes.length === 1
-          ? `I played the note ${notes[0]} on the piano keyboard.`
-          : `I played these notes on the piano keyboard: ${notes.join(', ')}.`;
+          ? `I played the note ${notes[0]} on the piano.`
+          : `I played these notes on the piano: ${notes.join(', ')}.`;
 
       setPendingRecordings(prev => [
         ...prev,
@@ -775,11 +774,6 @@ function PracticeStudioContent() {
 export default function PracticeStudioPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Unified Page Header */}
-      <PageHeader
-        title="Practice Studio"
-        description="Upload sheet music, listen to playback, and receive AI-powered practice guidance."
-      />
       <Suspense fallback={
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
           <div className="glass rounded-xl p-6 border border-border/30 min-h-[180px] animate-pulse bg-card/20 mb-6" />

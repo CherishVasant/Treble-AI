@@ -3,7 +3,6 @@
 import dynamic from 'next/dynamic';
 import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import PageHeader from '@/components/ui/page-header';
 import type { Message } from '@/components/ai-chat';
 
 const AIChat = dynamic(() => import('@/components/ai-chat'), {
@@ -83,11 +82,6 @@ function TheoryTutorContent() {
 export default function TheoryTutorPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
-      {/* Unified Page Header */}
-      <PageHeader
-        title="Theory Tutor"
-        description="Ask music theory questions and receive detailed explanations from your AI tutor."
-      />
       <Suspense fallback={
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
           <div className="min-h-96 lg:min-h-[600px] rounded-xl border border-border/30 bg-card/20 animate-pulse" />

@@ -548,7 +548,7 @@ export default function ReferenceCard({
           </div>
         </div>
 
-        {/* 3. Virtual Piano Keyboard Section */}
+        {/* 3. Virtual Piano Section */}
         <div className="relative z-10 flex flex-col">
           <div className="w-full bg-[#07080c] border border-border/40 p-4 rounded-2xl relative flex flex-col space-y-2">
             <div className="relative h-28 w-full rounded-xl overflow-hidden border border-black/60 bg-[#16171e] select-none">

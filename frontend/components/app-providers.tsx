@@ -3,6 +3,7 @@
 import React, { Suspense } from 'react';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { ChatProvider } from '@/context/chat-context';
+import { SidebarProvider, useSidebar } from '@/context/sidebar-context';
 import Sidebar from '@/components/sidebar';
 import Navbar from '@/components/navbar';
 import AuthLandingPage from '@/components/auth-landing-page';
@@ -10,6 +11,7 @@ import { Loader2, Music } from 'lucide-react';
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
+  const { collapsed } = useSidebar();
 
   if (isLoading) {
     return (
@@ -34,7 +36,8 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
       <Suspense fallback={null}>
         <Sidebar />
       </Suspense>
-      <div className="flex flex-col min-h-screen md:pl-64">
+      {/* Dynamic left padding matches sidebar width (w-14=56px collapsed, w-64=256px expanded) */}
+      <div className={`flex flex-col min-h-screen transition-all duration-300 ${collapsed ? 'md:pl-14' : 'md:pl-64'}`}>
         <Navbar />
         <main className="flex-1">
           {children}
@@ -44,11 +47,19 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   );
 }
 
+function AppLayoutWithSidebar({ children }: { children: React.ReactNode }) {
+  return (
+    <SidebarProvider>
+      <AppLayoutContent>{children}</AppLayoutContent>
+    </SidebarProvider>
+  );
+}
+
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
     <AuthProvider>
       <ChatProvider>
-        <AppLayoutContent>{children}</AppLayoutContent>
+        <AppLayoutWithSidebar>{children}</AppLayoutWithSidebar>
       </ChatProvider>
     </AuthProvider>
   );

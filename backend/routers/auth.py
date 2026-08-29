@@ -276,3 +276,30 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
 @router.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
     return {"id": current_user.id, "username": current_user.username}
+
+
+class ChangePasswordBody(BaseModel):
+    current_password: str
+    new_password: str = Field(..., min_length=6)
+
+
+@router.post("/change-password")
+def change_password(
+    body: ChangePasswordBody,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Allow a logged-in user to change their own password."""
+    try:
+        ph.verify(current_user.password_hash, body.current_password)
+    except (VerifyMismatchError, Exception):
+        raise HTTPException(status_code=400, detail="Current password is incorrect.")
+
+    if len(body.new_password) < 6:
+        raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
+
+    current_user.password_hash = ph.hash(body.new_password)
+    # Increment token version to invalidate existing sessions on other devices
+    current_user.token_version += 1
+    db.commit()
+    return {"message": "Password updated successfully."}

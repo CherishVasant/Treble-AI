@@ -6,7 +6,6 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { Input } from '@/components/ui/input';
 import ReferenceCard from '@/components/reference-card';
 import { toast } from 'sonner';
-import PageHeader from '@/components/ui/page-header';
 import { SCALES_REGISTRY } from '@/lib/scales-data';
 
 type ReferenceEntry = {
@@ -715,16 +714,15 @@ function MusicLibraryContent() {
     };
   }, [activeCategory, activeSection, searchQuery]);
 
-  // Global search filtering helper
+  // Global search filtering helper — title-first so single letters like "C" return C-root items only
   const filterSectionEntries = (section: ReferenceSection, query: string) => {
     const q = query.trim().toLowerCase();
     if (!q) return section.entries;
     return section.entries.filter((item) => {
       const inTitle = item.title.toLowerCase().includes(q);
-      const inDesc = (item.description ?? '').toLowerCase().includes(q);
-      const inFormula = (item.formula ?? '').toLowerCase().includes(q);
-      const inNotes = (item.notes ?? []).some((n) => n.toLowerCase().includes(q));
-      return inTitle || inDesc || inFormula || inNotes;
+      // Only fall back to description when the query is longer (avoids single-letter noise)
+      const inDesc = q.length >= 3 ? (item.description ?? '').toLowerCase().includes(q) : false;
+      return inTitle || inDesc;
     });
   };
 
@@ -794,12 +792,7 @@ function MusicLibraryContent() {
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Standard Header */}
-      <PageHeader
-        title="Music Library"
-        description="Browse scales, chords, arpeggios, symbols, and theory references."
-      />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
         {/* Search toolbar */}
         <div className="relative">
           <Search className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-muted-foreground" />

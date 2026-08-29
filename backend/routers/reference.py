@@ -22,19 +22,34 @@ def _blob_token() -> str:
     return os.getenv("BLOB_READ_WRITE_TOKEN", "")
 
 
+def _blob_store_base_url() -> str:
+    """Derive the per-store upload/list base URL from the token.
+
+    A Vercel Blob read-write token encodes the store ID and API endpoint:
+      vercel_blob_rw_{storeId}_{secret}
+    The corresponding public base URL is:
+      https://{storeId}.public.blob.vercel-storage.com
+    The API base URL (for PUT/list operations) is:
+      https://blob.vercel-storage.com
+    """
+    return "https://blob.vercel-storage.com"
+
+
 def _blob_exists(pathname: str) -> str | None:
     """Return the public URL if a blob with this pathname already exists, else None."""
     token = _blob_token()
     if not token:
         return None
     try:
+        # Official Vercel Blob SDK list endpoint
         resp = http_requests.get(
-            "https://api.vercel.com/v9/blob",
-            params={"prefix": pathname, "limit": 1},
-            headers={"Authorization": f"Bearer {token}", "x-api-version": "7"},
+            f"{_blob_store_base_url()}",
+            params={"prefix": pathname, "limit": "1", "mode": "folded"},
+            headers={"Authorization": f"Bearer {token}"},
             timeout=10,
         )
         if not resp.ok:
+            print(f"[BlobCheck] list HTTP {resp.status_code}: {resp.text[:200]}")
             return None
         blobs = resp.json().get("blobs", [])
         # Match exact pathname (prefix search can return longer paths)
@@ -55,16 +70,16 @@ def _upload_to_vercel_blob(file_path: Path, pathname: str) -> str | None:
     try:
         with open(file_path, "rb") as fh:
             data = fh.read()
+        # Official Vercel Blob SDK put endpoint: PUT /{pathname}
         resp = http_requests.put(
-            "https://api.vercel.com/v9/blob",
-            params={"pathname": pathname, "access": "public"},
+            f"{_blob_store_base_url()}/{pathname}",
             headers={
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "audio/wav",
-                "x-api-version": "7",
                 # Disable random suffix so the stored path is exactly `pathname`,
                 # making _blob_exists() able to find it on subsequent requests.
                 "x-add-random-suffix": "0",
+                "access": "public",
             },
             data=data,
             timeout=30,

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Send, Loader2, Copy, Check, ChevronRight, Info, User, Music } from 'lucide-react';
+import { Send, Loader2, Copy, Check, ChevronRight, Info, User, Music, Circle, Square } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
@@ -33,6 +33,12 @@ interface AIChatProps {
   onSendMessage?: (text: string) => Promise<void> | void;
   isLoading?: boolean;
   className?: string;
+  /** Whether the piano recording mode is active (notes played go to a buffer, not directly to chat) */
+  isRecording?: boolean;
+  /** Called when the user presses the Record button — parent toggles recording on/off */
+  onToggleRecording?: () => void;
+  /** Number of notes buffered so far during an active recording session */
+  recordingNoteCount?: number;
 }
 
 interface AgentActivityPanelProps {
@@ -124,6 +130,9 @@ export default function AIChat({
   onSendMessage,
   isLoading = false,
   className = '',
+  isRecording = false,
+  onToggleRecording,
+  recordingNoteCount = 0,
 }: AIChatProps) {
   const [internalMessages, setInternalMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -496,7 +505,50 @@ export default function AIChat({
       </div>
 
       {/* Input Area */}
-      <div className="px-6 py-4 border-t border-border/30 bg-card/25">
+      <div className="px-6 py-4 border-t border-border/30 bg-card/25 space-y-2">
+        {/* Piano Recording Controls — only shown when the recording callback is wired up */}
+        {onToggleRecording && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onToggleRecording}
+              className={
+                isRecording
+                  ? 'border-red-500/60 text-red-400 hover:bg-red-500/10 animate-pulse gap-2'
+                  : 'border-border/50 text-muted-foreground hover:text-foreground hover:border-primary/50 gap-2'
+              }
+            >
+              {isRecording ? (
+                <>
+                  <Square className="w-3 h-3 fill-red-400 text-red-400" />
+                  Stop Recording
+                  {recordingNoteCount > 0 && (
+                    <span className="ml-1 rounded-full bg-red-500/20 px-1.5 py-0.5 text-[10px] font-bold text-red-400 not-italic">
+                      {recordingNoteCount} note{recordingNoteCount !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <Circle className="w-3 h-3 fill-current" />
+                  Record Piano
+                </>
+              )}
+            </Button>
+            {!isRecording && (
+              <span className="text-[11px] text-muted-foreground/60">
+                Press to capture what you play on the keyboard
+              </span>
+            )}
+            {isRecording && (
+              <span className="text-[11px] text-red-400/80 font-medium">
+                Recording… play your notes, then press Stop to send them to chat
+              </span>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2">
           <Input
             ref={inputRef}

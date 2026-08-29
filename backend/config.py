@@ -24,7 +24,9 @@ class Settings(BaseSettings):
     # LangChain / OpenAI (swap model when you pick a provider)
     openai_api_key: str | None = None
     openrouter_api_key: str | None = None
-    theory_llm_model: str = "openai/gpt-oss-120b:free"
+    # Free-tier model on OpenRouter. Change here or override via THEORY_LLM_MODEL env var.
+    # "openai/gpt-oss-120b:free" was deprecated; using Meta Llama 3.3 70B instead.
+    theory_llm_model: str = "meta-llama/llama-3.3-70b-instruct:free"
 
     # CORS
     cors_origins: str = "http://localhost:3000"

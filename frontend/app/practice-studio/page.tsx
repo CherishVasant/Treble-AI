@@ -179,27 +179,42 @@ function PracticeStudioContent() {
 
   const playerRef = useRef<MusicPlayerRef>(null);
 
-  // Buffer of piano notes played by the user this second; flushed into the chat
-  // after a short idle window so rapid key presses become one message.
-  const playedNotesBufferRef = useRef<string[]>([]);
-  const playedNotesTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // ── Piano recording mode ────────────────────────────────────────────────────
+  // Notes played on the keyboard are only sent to the chatbot when the user
+  // explicitly starts and stops a recording session.  Keys pressed outside a
+  // recording session are purely for personal practice and are ignored by chat.
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingNoteCount, setRecordingNoteCount] = useState(0);
+  const recordingBufferRef = useRef<string[]>([]);
 
-  const handleNotePlay = useCallback((midiNumber: number, noteName: string) => {
-    playedNotesBufferRef.current.push(noteName);
+  const handleNotePlay = useCallback((_midiNumber: number, noteName: string) => {
+    // Only buffer notes when the user has explicitly started a recording.
+    if (!isRecording) return;
+    recordingBufferRef.current.push(noteName);
+    setRecordingNoteCount(n => n + 1);
+  }, [isRecording]);
 
-    // Debounce: wait 800ms after the last keypress before sending to chat
-    if (playedNotesTimerRef.current) clearTimeout(playedNotesTimerRef.current);
-    playedNotesTimerRef.current = setTimeout(() => {
-      const notes = playedNotesBufferRef.current.splice(0);
+  const handleToggleRecording = useCallback(() => {
+    if (!isRecording) {
+      // Start recording
+      recordingBufferRef.current = [];
+      setRecordingNoteCount(0);
+      setIsRecording(true);
+    } else {
+      // Stop recording — send everything collected to the chatbot
+      setIsRecording(false);
+      const notes = recordingBufferRef.current.splice(0);
+      setRecordingNoteCount(0);
       if (notes.length === 0) return;
-      const message = notes.length === 1
-        ? `I played the note ${notes[0]} on the piano keyboard.`
-        : `I played these notes on the piano keyboard: ${notes.join(', ')}.`;
+      const message =
+        notes.length === 1
+          ? `I played the note ${notes[0]} on the piano keyboard.`
+          : `I played these notes on the piano keyboard: ${notes.join(', ')}.`;
       handleSendMessage(message);
-    }, 800);
-  // handleSendMessage is stable enough — its deps don't change mid-session
+    }
+  // handleSendMessage is stable enough — deps don't change mid-session
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isRecording]);
 
   // Sync piano highlights with current audio playback timing
   const activeMidiNotes = useMemo(() => {
@@ -721,6 +736,9 @@ function PracticeStudioContent() {
           onSendMessage={handleSendMessage}
           isLoading={isLoading}
           className="h-[600px] lg:h-[650px] min-h-[500px] w-full"
+          isRecording={isRecording}
+          onToggleRecording={handleToggleRecording}
+          recordingNoteCount={recordingNoteCount}
         />
       </div>
 

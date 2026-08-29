@@ -677,6 +677,107 @@ def get_musical_info(
     return report
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Piano note synthesis  (used by the browser piano keyboard)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# On-disk cache so notes survive across requests (cleared on Render restart).
+_PIANO_NOTE_CACHE = Path("/tmp/treble_piano_notes")
+_PIANO_NOTE_CACHE.mkdir(parents=True, exist_ok=True)
+
+# Path to the same soundfont used by the MIDI→WAV pipeline.
+_PIANO_SOUNDFONT = Path(__file__).parent / "soundfonts" / "GeneralUser-GS.sf2"
+
+
+def _vlq(value: int) -> bytes:
+    """Encode an integer as a MIDI variable-length quantity."""
+    buf: list[int] = [value & 0x7F]
+    value >>= 7
+    while value:
+        buf.insert(0, (value & 0x7F) | 0x80)
+        value >>= 7
+    return bytes(buf)
+
+
+def _single_note_midi(midi: int, velocity: int = 100, hold_ticks: int = 576) -> bytes:
+    """
+    Build a minimal Type-0 MIDI file: one note played at 120 BPM.
+    96 ticks/beat × 6 beats (hold_ticks=576) = 3 seconds of note + release.
+    """
+    import struct
+    TICKS_PER_BEAT = 96
+    BPM_USPB = 500_000  # 120 BPM
+    ch = 0  # Use General MIDI channel 0 (acoustic grand piano = program 0 by default)
+
+    tempo_evt  = b'\x00\xff\x51\x03' + struct.pack('>I', BPM_USPB)[1:]  # 3 bytes
+    prog_evt   = bytes([0x00, 0xC0 | ch, 0])         # program change → acoustic grand
+    note_on    = bytes([0x00, 0x90 | ch, midi & 0x7F, velocity])
+    note_off   = _vlq(hold_ticks) + bytes([0x80 | ch, midi & 0x7F, 0x00])
+    eot        = b'\x00\xff\x2f\x00'
+
+    track_body = tempo_evt + prog_evt + note_on + note_off + eot
+    track_hdr  = b'MTrk' + struct.pack('>I', len(track_body))
+    file_hdr   = b'MThd\x00\x00\x00\x06\x00\x00\x00\x01' + struct.pack('>H', TICKS_PER_BEAT)
+    return file_hdr + track_hdr + track_body
+
+
+@app.get("/piano-note/{midi}")
+def get_piano_note(midi: int):
+    """
+    Return a WAV file for a single piano note synthesized from the bundled SF2.
+    Results are cached in /tmp so subsequent calls are instant.
+    This endpoint is intentionally auth-free — it only serves generic audio samples.
+    """
+    from fastapi.responses import Response as FastAPIResponse
+    import subprocess
+
+    if not (21 <= midi <= 108):
+        raise HTTPException(status_code=400, detail="MIDI number must be between 21 and 108.")
+
+    wav_path = _PIANO_NOTE_CACHE / f"{midi}.wav"
+
+    if not wav_path.exists():
+        # Generate the note on-demand using FluidSynth + the bundled SF2
+        if not _PIANO_SOUNDFONT.exists():
+            raise HTTPException(status_code=503, detail="Soundfont not available on this server.")
+
+        # Write a minimal MIDI file for this single note
+        midi_bytes = _single_note_midi(midi)
+        with tempfile.NamedTemporaryFile(suffix=".mid", delete=False) as f:
+            f.write(midi_bytes)
+            mid_path = Path(f.name)
+
+        fluidsynth_exe = os.getenv("FLUIDSYNTH_PATH", "fluidsynth")
+        try:
+            result = subprocess.run(
+                [fluidsynth_exe, "-ni", "-F", str(wav_path), "-r", "44100",
+                 "--gain", "1.5", str(_PIANO_SOUNDFONT), str(mid_path)],
+                capture_output=True,
+                timeout=30,
+            )
+            if result.returncode != 0 or not wav_path.exists():
+                err = (result.stderr or b"").decode(errors="replace")[:300]
+                print(f"[piano-note] FluidSynth failed for MIDI {midi}: {err}", flush=True)
+                raise HTTPException(status_code=500, detail="Note synthesis failed.")
+        finally:
+            mid_path.unlink(missing_ok=True)
+
+        print(f"[piano-note] Generated MIDI {midi} → {wav_path.name} "
+              f"({wav_path.stat().st_size} bytes)", flush=True)
+
+    with open(wav_path, "rb") as f:
+        wav_bytes = f.read()
+
+    return FastAPIResponse(
+        content=wav_bytes,
+        media_type="audio/wav",
+        headers={
+            "Cache-Control": "public, max-age=604800",  # 1 week
+            "Access-Control-Allow-Origin": "*",
+        },
+    )
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

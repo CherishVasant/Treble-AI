@@ -30,24 +30,9 @@ const getOctave = (midi: number): number => {
 };
 
 // ─── Soundfont playback ──────────────────────────────────────────────────────
-// Loads per-note MP3 samples from a hosted CDN (FluidR3_GM via gleitz/midi-js-soundfonts)
-// and plays them using the Web Audio API.  Falls back to a synthesized triangle-wave
-// oscillator for any note whose sample fails to load.
-
-// Set NEXT_PUBLIC_SOUNDFONT_BASE_URL in Vercel env vars to point to your own
-// Vercel Blob store; leave unset to use the public gleitz CDN.
-const SOUNDFONT_BASE =
-  (typeof process !== 'undefined' &&
-   process.env.NEXT_PUBLIC_SOUNDFONT_BASE_URL) ||
-  'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3';
-
-// Flat note names used by the gleitz soundfont filenames
-const _FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-
-function _midiToSfName(midi: number): string {
-  const oct = Math.floor(midi / 12) - 1;
-  return `${_FLAT_NAMES[midi % 12]}${oct}`;
-}
+// Per-note WAV audio is synthesized on-demand from the bundled GeneralUser-GS SF2
+// by the Render backend (via /piano-note/{midi}) — the same soundfont used for
+// MIDI→WAV conversion.  Falls back to a triangle-wave oscillator if unavailable.
 
 // Module-level singletons: shared across all renders of this component
 let _sfCtx: AudioContext | null = null;
@@ -87,8 +72,10 @@ async function _loadSfNote(midi: number): Promise<AudioBuffer | null> {
     const ctx = _getSfCtx();
     if (!ctx) { _sfCache.set(midi, null); return null; }
 
-    const url = `${SOUNDFONT_BASE}/${_midiToSfName(midi)}.mp3`;
-    const resp = await fetch(url, { cache: 'force-cache' });
+    // Fetch from the Next.js proxy which calls the Render backend.
+    // The backend synthesizes the WAV from GeneralUser-GS.sf2 on first request
+    // and caches it on disk, so subsequent calls are instant.
+    const resp = await fetch(`/api/piano-note/${midi}`, { cache: 'force-cache' });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const buf = await ctx.decodeAudioData(await resp.arrayBuffer());
     _sfCache.set(midi, buf);

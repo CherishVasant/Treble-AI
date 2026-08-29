@@ -44,7 +44,13 @@ export async function GET(request: NextRequest) {
 
     let musicalInfo = null;
     if (infoResponse.ok) {
-      musicalInfo = await infoResponse.json();
+      try {
+        musicalInfo = await infoResponse.json();
+      } catch {
+        // Backend returned a non-JSON 200 (e.g. Render error page with wrong status).
+        // Continue without analysis data — the player will still work.
+        console.warn('[convert-sheet/result] musical-info response was not valid JSON; continuing without analysis');
+      }
     }
 
     return NextResponse.json({

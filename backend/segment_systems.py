@@ -9,6 +9,8 @@ explicitly set to 300 so Audiveris calibrates staff-line detection correctly.
 from __future__ import annotations
 
 import gc
+import os
+import time
 from pathlib import Path
 from typing import NamedTuple
 
@@ -17,6 +19,26 @@ import numpy as np
 from PIL import Image
 
 from enhance_quality import enhance_grayscale
+
+
+def _seg_mem_mb() -> str:
+    try:
+        import psutil
+        return f"{psutil.Process(os.getpid()).memory_info().rss / (1024*1024):.1f} MB"
+    except Exception:
+        pass
+    try:
+        with open("/proc/self/status") as fh:
+            for line in fh:
+                if line.startswith("VmRSS:"):
+                    return f"{int(line.split()[1]) / 1024:.1f} MB"
+    except Exception:
+        pass
+    return "? MB"
+
+
+def _seg_log(msg: str) -> None:
+    print(f"[{time.strftime('%H:%M:%S')}][{_seg_mem_mb()}][segment] {msg}", flush=True)
 
 
 class SystemStrip(NamedTuple):
@@ -129,11 +151,16 @@ def segment_and_enhance(
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
 
+    _seg_log(f"Loading image: {image_path}  mem_before={_seg_mem_mb()}")
+    t0 = time.time()
     gray = _load_gray(image_path)
+    _seg_log(f"Loaded  shape={gray.shape}  dtype={gray.dtype}  elapsed={time.time()-t0:.1f}s  mem={_seg_mem_mb()}")
+
     ranges = _find_system_row_ranges(gray, min_gap_rows=min_gap_rows, margin_rows=margin_rows)
+    _seg_log(f"Detected {len(ranges)} system range(s): {ranges[:8]}")  # cap at 8 for readability
 
     if len(ranges) < 2:
-        print(f"[segment] Fewer than 2 systems detected — treating whole image as one strip.")
+        _seg_log("Fewer than 2 systems detected — treating whole image as one strip.")
         ranges = [(0, gray.shape[0])]
 
     # Extract each strip as an independent copy BEFORE running any enhancement.
@@ -143,25 +170,31 @@ def segment_and_enhance(
     strip_copies: list[tuple[int, int, int, np.ndarray]] = []
     for idx, (r0, r1) in enumerate(ranges):
         strip_copies.append((idx, r0, r1, gray[r0:r1, :].copy()))
+        _seg_log(f"Copied strip {idx}: rows {r0}–{r1}  ({r1-r0}×{gray.shape[1]} px)  mem={_seg_mem_mb()}")
 
     # Free the original full-image array — no longer needed.
     del gray
     gc.collect()
+    _seg_log(f"Released full-image array  mem={_seg_mem_mb()}")
 
     strips: list[SystemStrip] = []
     for idx, r0, r1, strip_gray in strip_copies:
         # Per-strip quality enhancement: upscale → CLAHE → unsharp-mask → denoise
+        _seg_log(f"Enhancing strip {idx}  raw_shape={strip_gray.shape}  mem={_seg_mem_mb()}")
+        t_enh = time.time()
         enhanced = enhance_grayscale(strip_gray)
         del strip_gray  # free the raw strip copy
 
         dest = output_path / f"system_{idx:03d}.png"
         _save_strip(enhanced, dest, dpi=target_dpi)
-        print(f"[segment] System {idx}: rows {r0}–{r1}  →  {dest.name}  "
-              f"({enhanced.shape[1]}×{enhanced.shape[0]} px)")
+        _seg_log(f"Strip {idx}: rows {r0}–{r1}  →  {dest.name}  "
+                 f"({enhanced.shape[1]}×{enhanced.shape[0]} px)  "
+                 f"elapsed={time.time()-t_enh:.1f}s  mem={_seg_mem_mb()}")
         del enhanced  # free the upscaled strip
         gc.collect()
 
         strips.append(SystemStrip(index=idx, path=dest))
 
     del strip_copies
+    _seg_log(f"All strips saved  total={len(strips)}  mem={_seg_mem_mb()}")
     return strips

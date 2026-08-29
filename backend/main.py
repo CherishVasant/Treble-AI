@@ -93,14 +93,16 @@ def _upload_processed_files(job_id: str, job_dir: Path, base_name: str) -> dict:
 
     for url_field, local_path, pathname, content_type in files:
         if local_path.exists():
+            size_mb = local_path.stat().st_size / (1024 * 1024)
+            print(f"[Blob] Uploading {local_path.name} ({size_mb:.1f} MB) → {pathname}", flush=True)
             url = _upload_to_blob(local_path, pathname, content_type)
             if url:
                 urls[url_field] = url
-                print(f"[Blob] Uploaded {local_path.name} → {url}")
+                print(f"[Blob] Uploaded {local_path.name} → {url}", flush=True)
             else:
-                print(f"[Blob] Skipped {local_path.name} (upload failed or no token)")
+                print(f"[Blob] Skipped {local_path.name} (upload failed or no token)", flush=True)
         else:
-            print(f"[Blob] File not found, skipping: {local_path}")
+            print(f"[Blob] File not found, skipping: {local_path}", flush=True)
 
     return urls
 
@@ -175,12 +177,40 @@ def run_background_pipeline(
     base_name: str,
     job_id: str,
 ):
+    import time as _time, traceback as _tb
+
+    def _main_mem_mb() -> str:
+        try:
+            import psutil, os as _os
+            return f"{psutil.Process(_os.getpid()).memory_info().rss / (1024*1024):.1f} MB"
+        except Exception:
+            try:
+                with open("/proc/self/status") as _f:
+                    for _l in _f:
+                        if _l.startswith("VmRSS:"):
+                            return f"{int(_l.split()[1]) / 1024:.1f} MB"
+            except Exception:
+                pass
+        return "? MB"
+
     job_dir_path = Path(job_dir)
     status_path = job_dir_path / "status.json"
+
+    print(f"[bg-pipeline][{_time.strftime('%H:%M:%S')}][{_main_mem_mb()}] "
+          f"START  job_id={job_id}  file={temp_path}", flush=True)
+    t0 = _time.time()
 
     try:
         process_image_to_audio(temp_path, job_dir, base_name)
     except Exception as exc:
+        elapsed = _time.time() - t0
+        print(
+            f"[bg-pipeline][{_time.strftime('%H:%M:%S')}][{_main_mem_mb()}] "
+            f"EXCEPTION after {elapsed:.1f}s  job_id={job_id}\n"
+            f"  type={type(exc).__name__}  msg={exc}\n"
+            f"{_tb.format_exc()}",
+            flush=True,
+        )
         # Mark the active step as failed in status.json
         active_step = "omr"
         if status_path.exists():
@@ -205,6 +235,10 @@ def run_background_pipeline(
         except Exception:
             pass
         return  # Don't proceed to blob upload on failure
+
+    elapsed = _time.time() - t0
+    print(f"[bg-pipeline][{_time.strftime('%H:%M:%S')}][{_main_mem_mb()}] "
+          f"pipeline done in {elapsed:.1f}s  job_id={job_id}  → uploading to Blob…", flush=True)
 
     # ── Pipeline succeeded → upload output files to Vercel Blob ─────────── #
     blob_urls = _upload_processed_files(job_id, job_dir_path, base_name)

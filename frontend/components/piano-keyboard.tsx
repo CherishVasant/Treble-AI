@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useRef, useCallback } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PianoKeyboardProps {
@@ -29,37 +29,134 @@ const getOctave = (midi: number): number => {
   return Math.floor(midi / 12) - 1;
 };
 
-/** Play a piano-like tone via Web Audio API */
-function playMidiNote(midiNumber: number): void {
+// ─── Soundfont playback ──────────────────────────────────────────────────────
+// Loads per-note MP3 samples from a hosted CDN (FluidR3_GM via gleitz/midi-js-soundfonts)
+// and plays them using the Web Audio API.  Falls back to a synthesized triangle-wave
+// oscillator for any note whose sample fails to load.
+
+// Set NEXT_PUBLIC_SOUNDFONT_BASE_URL in Vercel env vars to point to your own
+// Vercel Blob store; leave unset to use the public gleitz CDN.
+const SOUNDFONT_BASE =
+  (typeof process !== 'undefined' &&
+   process.env.NEXT_PUBLIC_SOUNDFONT_BASE_URL) ||
+  'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/acoustic_grand_piano-mp3';
+
+// Flat note names used by the gleitz soundfont filenames
+const _FLAT_NAMES = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+function _midiToSfName(midi: number): string {
+  const oct = Math.floor(midi / 12) - 1;
+  return `${_FLAT_NAMES[midi % 12]}${oct}`;
+}
+
+// Module-level singletons: shared across all renders of this component
+let _sfCtx: AudioContext | null = null;
+const _sfCache = new Map<number, AudioBuffer | null>(); // null = failed
+const _sfLoading = new Set<number>();                   // in-flight fetches
+
+function _getSfCtx(): AudioContext | null {
+  if (typeof window === 'undefined') return null;
+  if (_sfCtx && _sfCtx.state !== 'closed') return _sfCtx;
   try {
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioContext) return;
-    const ctx = new AudioContext();
-    const frequency = 440 * Math.pow(2, (midiNumber - 69) / 12);
-
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-
-    // Triangle wave sounds more piano-like than a plain sine
-    oscillator.type = 'triangle';
-    oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
-
-    // Envelope: quick attack, then exponential decay to silence
-    gainNode.gain.setValueAtTime(0, ctx.currentTime);
-    gainNode.gain.linearRampToValueAtTime(0.35, ctx.currentTime + 0.01);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
-
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 1.8);
-
-    // Close the context after playback to free resources
-    oscillator.onended = () => { try { ctx.close(); } catch {} };
+    const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AC) return null;
+    _sfCtx = new AC() as AudioContext;
+    return _sfCtx;
   } catch {
-    // Web Audio unavailable in this environment — silently skip
+    return null;
   }
+}
+
+async function _loadSfNote(midi: number): Promise<AudioBuffer | null> {
+  if (_sfCache.has(midi)) return _sfCache.get(midi)!;
+
+  // If already in-flight, wait for that fetch to settle
+  if (_sfLoading.has(midi)) {
+    return new Promise(resolve => {
+      const t = setInterval(() => {
+        if (!_sfLoading.has(midi)) {
+          clearInterval(t);
+          resolve(_sfCache.get(midi) ?? null);
+        }
+      }, 30);
+    });
+  }
+
+  _sfLoading.add(midi);
+  try {
+    const ctx = _getSfCtx();
+    if (!ctx) { _sfCache.set(midi, null); return null; }
+
+    const url = `${SOUNDFONT_BASE}/${_midiToSfName(midi)}.mp3`;
+    const resp = await fetch(url, { cache: 'force-cache' });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const buf = await ctx.decodeAudioData(await resp.arrayBuffer());
+    _sfCache.set(midi, buf);
+    return buf;
+  } catch {
+    _sfCache.set(midi, null);
+    return null;
+  } finally {
+    _sfLoading.delete(midi);
+  }
+}
+
+/** Pre-fetch note samples in the background so first-click is instant. */
+function _preWarm(midis: number[]): void {
+  for (const m of midis) {
+    _loadSfNote(m).catch(() => { /* ignore */ });
+  }
+}
+
+/** Play a note using a soundfont sample; fall back to triangle-wave oscillator. */
+async function playSoundfontNote(midi: number): Promise<void> {
+  // Eagerly resume the AudioContext on user gesture (needed for Chrome autoplay policy)
+  const ctx = _getSfCtx();
+  if (ctx && ctx.state === 'suspended') {
+    try { await ctx.resume(); } catch { /* ignore */ }
+  }
+
+  const buf = await _loadSfNote(midi);
+  if (buf && ctx && ctx.state !== 'closed') {
+    try {
+      const src   = ctx.createBufferSource();
+      const gain  = ctx.createGain();
+      src.buffer  = buf;
+      // Gentle volume + long decay so the sound rings out naturally
+      gain.gain.setValueAtTime(0.65, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 3.0);
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      src.start();
+      src.stop(ctx.currentTime + 3.0);
+      return;
+    } catch { /* fall through to oscillator */ }
+  }
+
+  // Oscillator fallback (no network, blocked CDN, or decode failure)
+  _playOscillator(midi);
+}
+
+/** Triangle-wave oscillator fallback — no network required. */
+function _playOscillator(midiNumber: number): void {
+  try {
+    const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC() as AudioContext;
+    const freq = 440 * Math.pow(2, (midiNumber - 69) / 12);
+    const osc  = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, ctx.currentTime);
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.35, ctx.currentTime + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.8);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 1.8);
+    osc.onended = () => { try { ctx.close(); } catch {} };
+  } catch { /* Web Audio unavailable */ }
 }
 
 // The visible window is 4 octaves (49 white keys).  The full keyboard spans
@@ -84,11 +181,26 @@ export default function PianoKeyboard({
   // 0 → window starts at C2 (MIDI 24); 1 → starts at C3 (MIDI 36); …
   const [octaveShift, setOctaveShift] = useState(1); // default: C3–C7
 
+  // Pre-warm the middle two octaves (C3–C5) on first mount so the soundfont
+  // samples are already cached by the time the user touches a key.
+  useEffect(() => {
+    const warm: number[] = [];
+    for (let m = 48; m <= 72; m++) warm.push(m); // C3 to C5
+    _preWarm(warm);
+  }, []);
+
   const windowStart = MIDI_MIN + octaveShift * 12;
   const windowEnd = windowStart + VISIBLE_MIDI_SPAN;
 
   const canShiftLeft  = windowStart > MIDI_MIN;
   const canShiftRight = windowEnd < MIDI_MAX;
+
+  // Pre-warm newly visible notes when the user shifts the octave window
+  useEffect(() => {
+    const warm: number[] = [];
+    for (let m = windowStart; m <= windowEnd; m++) warm.push(m);
+    _preWarm(warm);
+  }, [windowStart, windowEnd]);
 
   const whiteKeys = useMemo(() => {
     const keys: number[] = [];
@@ -107,8 +219,8 @@ export default function PianoKeyboard({
   }, [activeMidiNotes, leftHandMidiNotes, rightHandMidiNotes]);
 
   const handleKeyPress = useCallback((midi: number) => {
-    // Play the note
-    playMidiNote(midi);
+    // Play via soundfont (async, falls back to oscillator automatically)
+    playSoundfontNote(midi).catch(() => { /* ignore */ });
     // Notify parent (for chatbot input)
     if (onNotePlay) {
       const noteName = `${getNoteName(midi)}${getOctave(midi)}`;

@@ -298,7 +298,24 @@ export default function SheetMusicUploader({
         }),
       });
 
-      const convertData = await convertResponse.json();
+      // Guard against non-JSON responses (Vercel/Render platform errors, timeouts).
+      // Without this, JSON.parse on "An error occurred..." becomes the visible error message.
+      let convertData: any = {};
+      const convertCT = convertResponse.headers.get('content-type') || '';
+      if (convertCT.includes('application/json')) {
+        try {
+          convertData = await convertResponse.json();
+        } catch {
+          throw new Error('Server returned an unreadable response. The pipeline may be warming up — please try again in a moment.');
+        }
+      } else if (!convertResponse.ok) {
+        // Non-JSON error response (platform 502/504 etc.)
+        const rawText = await convertResponse.text().catch(() => '');
+        throw new Error(
+          rawText.replace(/<[^>]+>/g, '').trim().slice(0, 180) ||
+          `Conversion request failed (HTTP ${convertResponse.status})`
+        );
+      }
 
       if (!convertResponse.ok) {
         throw new Error(convertData.details || convertData.error || 'Conversion start failed');
@@ -445,10 +462,33 @@ export default function SheetMusicUploader({
       });
 
       if (!res.ok) {
+        // Try to extract a meaningful message from the JSON error body if present
+        const errCT = res.headers.get('content-type') || '';
+        if (errCT.includes('application/json')) {
+          try {
+            const errBody = await res.json();
+            throw new Error(errBody.details || errBody.error || 'Failed to retrieve finalized conversion assets.');
+          } catch (jsonErr: any) {
+            // If the JSON itself is malformed, fall through to the generic message
+            if (!(jsonErr instanceof SyntaxError)) throw jsonErr;
+          }
+        }
         throw new Error('Failed to retrieve finalized conversion assets.');
       }
 
-      const resultData = await res.json();
+      // Guard against a 200 with a non-JSON body (edge case: Render returns an
+      // error page but with status 200 on platform-level failures).
+      const resultCT = res.headers.get('content-type') || '';
+      if (!resultCT.includes('application/json')) {
+        throw new Error('Server returned an unexpected response format. Please try converting again.');
+      }
+
+      let resultData: any;
+      try {
+        resultData = await res.json();
+      } catch {
+        throw new Error('Server returned an unreadable response. Please try converting again.');
+      }
       onProcessing?.({
         ...resultData,
         conversionState: {

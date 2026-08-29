@@ -24,6 +24,7 @@ import gc
 import json
 import os
 import shutil
+import time
 import traceback
 from pathlib import Path
 
@@ -31,6 +32,38 @@ from music21 import converter, tempo as m21_tempo
 
 from merge_musicxml import merge_system_mxls
 from segment_systems import segment_and_enhance
+
+# ---------------------------------------------------------------------------
+# Logging helpers
+# ---------------------------------------------------------------------------
+
+def _mem_mb() -> str:
+    """Return current RSS memory in MB, or '?' if psutil/proc unavailable."""
+    # Try psutil first (available on many platforms)
+    try:
+        import psutil
+        proc = psutil.Process(os.getpid())
+        rss = proc.memory_info().rss / (1024 * 1024)
+        return f"{rss:.1f} MB"
+    except Exception:
+        pass
+    # Linux fallback: read /proc/self/status
+    try:
+        with open("/proc/self/status") as fh:
+            for line in fh:
+                if line.startswith("VmRSS:"):
+                    kb = int(line.split()[1])
+                    return f"{kb / 1024:.1f} MB"
+    except Exception:
+        pass
+    return "? MB"
+
+
+def _log(tag: str, msg: str) -> None:
+    """Emit a timestamped log line that is always visible in Render logs."""
+    ts = time.strftime("%H:%M:%S")
+    mem = _mem_mb()
+    print(f"[{ts}][{mem}][{tag}] {msg}", flush=True)
 
 # ---------------------------------------------------------------------------
 # Configurable paths (override via env vars for Docker / Render)
@@ -81,14 +114,22 @@ def _run_subprocess(label: str, command: list[str]) -> None:
     if exe and Path(exe).is_absolute() and not Path(exe).exists():
         raise RuntimeError(f"{label} not found at {exe}")
 
+    _log(label, f"Running: {' '.join(str(c) for c in command[:4])}… (mem before: {_mem_mb()})")
+    t0 = time.time()
     result = subprocess.run(command, capture_output=True, text=True)
+    elapsed = time.time() - t0
+    _log(label, f"Exit code {result.returncode} in {elapsed:.1f}s (mem after: {_mem_mb()})")
     if result.returncode != 0:
         combined = f"{result.stderr or ''}\n{result.stdout or ''}".strip()
+        _log(label, f"FAILED output (first 600 chars):\n{combined[:600]}")
         if label.startswith("Audiveris"):
             friendly = _friendly_audiveris_error(combined)
             if friendly:
                 raise RuntimeError(friendly)
         raise RuntimeError(f"{label} failed: {(combined or 'Unknown error')[:500]}")
+    else:
+        if result.stdout:
+            _log(label, f"stdout (first 300 chars): {result.stdout[:300]}")
 
 
 def _audiveris_cmd(image_path: str, out_dir: str) -> list[str]:
@@ -245,9 +286,11 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
 
     # 1. Segment + enhance each system strip
     strips_dir = output_dir_path / "strips"
+    _log("segment", f"Segmenting {image_path}  mem={_mem_mb()}")
+    t0_seg = time.time()
     strips = segment_and_enhance(image_path, str(strips_dir))
     total = len(strips)
-    print(f"[pipeline] {total} system strip(s) ready for Audiveris.")
+    _log("segment", f"{total} strip(s) ready  elapsed={time.time()-t0_seg:.1f}s  mem={_mem_mb()}")
 
     # 2. Run Audiveris per strip, resuming from checkpoint if available
     checkpoint_path = output_dir_path / "checkpoint.json"
@@ -267,13 +310,13 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
         idx = strip.index
 
         if idx in mxl_by_index:
-            print(f"[pipeline] System {idx + 1}/{total}: already recognised (checkpoint) -- skip.")
+            _log("omr", f"System {idx + 1}/{total}: checkpoint hit — skip.")
             continue
 
         _set_status(output_dir, "omr", "processing", extra={
             "omr_progress": {"current": idx + 1, "total": total},
         })
-        print(f"[pipeline] Audiveris -> system {idx + 1}/{total}...")
+        _log("omr", f"System {idx + 1}/{total}: starting Audiveris  mem={_mem_mb()}")
 
         strip_out_dir = output_dir_path / f"audiveris_out_{idx:03d}"
         try:
@@ -322,6 +365,7 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
 
     # If every strip was skipped, nothing is recoverable
     if not mxl_by_index:
+        _log("omr", "ERROR: no staff systems recognised — all strips failed or skipped")
         raise RuntimeError(
             "Audiveris could not recognise any staff systems in the uploaded image. "
             "Check that the image contains clear, printed sheet music with full staves visible."
@@ -338,33 +382,40 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
     score_title    = skipped_texts[0] if len(skipped_texts) > 0 else ""
     score_composer = skipped_texts[1] if len(skipped_texts) > 1 else ""
 
+    _log("merge", f"Merging {len(ordered_mxl_paths)} system MXL file(s)  mem={_mem_mb()}")
     if len(ordered_mxl_paths) == 1:
         shutil.copy2(ordered_mxl_paths[0], str(final_mxl))
         _patch_mxl_metadata(str(final_mxl), title=score_title, composer=score_composer)
-        print("[pipeline] Single system -- no merge needed.")
+        _log("merge", "Single system — no merge needed.")
     else:
-        print(f"[pipeline] Merging {len(ordered_mxl_paths)} system MXL files...")
+        _log("merge", f"Multi-system merge: {ordered_mxl_paths}")
         try:
+            t0_merge = time.time()
             merged_score = merge_system_mxls(
                 ordered_mxl_paths,
                 title=score_title,
                 composer=score_composer,
             )
+            _log("merge", f"merge_system_mxls done  elapsed={time.time()-t0_merge:.1f}s  mem={_mem_mb()}")
         except Exception:
-            print(f"[pipeline] merge_system_mxls raised:\n{traceback.format_exc()}")
+            _log("merge", f"merge_system_mxls FAILED:\n{traceback.format_exc()}")
             raise
         try:
             merged_score.write("musicxml", fp=str(final_mxl))
+            _log("merge", f"merged MXL written  size={final_mxl.stat().st_size if final_mxl.exists() else '?'} bytes  mem={_mem_mb()}")
         except ZeroDivisionError:
             # Rare: a malformed TS that survived the merge loop can still trigger
             # a division by zero when music21 serialises offsets.  Retry after
             # inserting a safe 4/4 time signature at the top of every part.
-            print("[pipeline] merged_score.write raised ZeroDivisionError; "
-                  "inserting 4/4 fallback into all parts and retrying.")
+            _log("merge", "merged_score.write raised ZeroDivisionError; inserting 4/4 fallback into all parts and retrying.")
             from music21 import meter as _m21_meter
             for _p in merged_score.parts:
                 _p.insert(0, _m21_meter.TimeSignature("4/4"))
             merged_score.write("musicxml", fp=str(final_mxl))
+            _log("merge", f"Retry succeeded  size={final_mxl.stat().st_size if final_mxl.exists() else '?'} bytes")
+        except Exception as write_exc:
+            _log("merge", f"merged_score.write FAILED  type={type(write_exc).__name__}:\n{traceback.format_exc()}")
+            raise
         del merged_score
         gc.collect()
 
@@ -440,12 +491,15 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
     """
     output_dir_path = Path(output_dir)
     current_step = "omr"
+    pipeline_start = time.time()
+    _log("pipeline", f"START  job={base_name}  file={image_path}  mem={_mem_mb()}")
 
     try:
         _set_status(output_dir, "omr", "processing")
 
         # -- OMR step --------------------------------------------------------
         suffix = Path(image_path).suffix.lower()
+        _log("pipeline", f"OMR step beginning  suffix={suffix}  mem={_mem_mb()}")
 
         if suffix in _PDF_EXTENSIONS:
             final_mxl = _process_pdf(image_path, output_dir, base_name)
@@ -461,6 +515,7 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
             raise RuntimeError("Pipeline produced no MusicXML output.")
 
         _set_status(output_dir, "omr", "completed")
+        _log("pipeline", f"OMR completed  mxl={final_mxl}  mem={_mem_mb()}")
 
         # -- MusicXML verification -------------------------------------------
         current_step = "musicxml"
@@ -472,16 +527,16 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
         _set_status(output_dir, "midi", "processing")
 
         output_midi = output_dir_path / f"{base_name}.mid"
-        print("[pipeline] Parsing merged MXL for MIDI synthesis...")
+        _log("pipeline", f"MIDI step beginning  mxl_size={final_mxl.stat().st_size if final_mxl.exists() else 'missing'} bytes  mem={_mem_mb()}")
         score = converter.parse(str(final_mxl))
-        print("[pipeline] Fixing tempos...")
+        _log("pipeline", f"MXL parsed  parts={len(score.parts)}  mem={_mem_mb()}")
         try:
             effective_bpm = _fix_tempos(score)
         except Exception:
-            print(f"[pipeline] _fix_tempos raised:\n{traceback.format_exc()}")
+            _log("pipeline", f"_fix_tempos raised (using default):\n{traceback.format_exc()}")
             effective_bpm = _DEFAULT_BPM
             score.insert(0, m21_tempo.MetronomeMark(number=effective_bpm))
-        print(f"[pipeline] Effective BPM: {effective_bpm}")
+        _log("pipeline", f"Effective BPM: {effective_bpm}  mem={_mem_mb()}")
 
         # Expand repeat barlines so the MIDI contains the full playback,
         # including every repeated section.  Falls back to the unexpanded
@@ -491,24 +546,30 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
             score = score.expandRepeats()
             # Re-fix tempos after expansion (expanded copy is a new object).
             _fix_tempos(score)
+            _log("pipeline", f"expandRepeats() done  mem={_mem_mb()}")
         except Exception as _rep_err:
-            print(f"[pipeline] expandRepeats() skipped ({_rep_err}), using unexpanded score.")
+            _log("pipeline", f"expandRepeats() skipped ({_rep_err}), using unexpanded score.")
 
+        _log("pipeline", f"Writing MIDI to {output_midi}  mem={_mem_mb()}")
         try:
             score.write("midi", fp=str(output_midi))
         except ZeroDivisionError:
             # music21's MIDI writer divides by tempo; a residual 0-BPM mark
             # can escape _fix_tempos (e.g. nested inside a container).
             # Hard-insert a 120-BPM mark at offset 0 and retry once.
-            print("[pipeline] MIDI write hit ZeroDivisionError; inserting fallback tempo and retrying.")
+            _log("pipeline", "MIDI write hit ZeroDivisionError; inserting fallback tempo and retrying.")
             score.insert(0, m21_tempo.MetronomeMark(number=_DEFAULT_BPM))
             score.write("midi", fp=str(output_midi))
+        except Exception as midi_exc:
+            _log("pipeline", f"MIDI write FAILED with {type(midi_exc).__name__}: {midi_exc}\n{traceback.format_exc()}")
+            raise
         del score
         gc.collect()
 
         if not output_midi.exists():
             raise RuntimeError("Failed to convert MusicXML to MIDI.")
 
+        _log("pipeline", f"MIDI written  size={output_midi.stat().st_size} bytes  mem={_mem_mb()}")
         _set_status(output_dir, "midi", "completed")
 
         # -- MIDI -> WAV -----------------------------------------------------
@@ -516,6 +577,7 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
         _set_status(output_dir, "audio", "processing")
 
         output_audio = output_dir_path / f"{base_name}.wav"
+        _log("pipeline", f"FluidSynth step beginning  midi={output_midi}  soundfont={SOUNDFONT}  mem={_mem_mb()}")
         _run_subprocess("FluidSynth", [
             FLUIDSYNTH_PATH, "-ni",
             "-F", str(output_audio),
@@ -527,11 +589,13 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
         if not output_audio.exists():
             raise RuntimeError("Failed to synthesize audio from MIDI.")
 
+        _log("pipeline", f"Audio written  size={output_audio.stat().st_size} bytes  mem={_mem_mb()}")
         _set_status(output_dir, "audio", "completed")
 
         # -- Analysis --------------------------------------------------------
         current_step = "analysis"
         _set_status(output_dir, "analysis", "processing")
+        _log("pipeline", f"Analysis step beginning  mem={_mem_mb()}")
 
         try:
             from music.analysis import analyze_score
@@ -564,6 +628,8 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
 
         _set_status(output_dir, "analysis", "completed")
 
+        elapsed_total = time.time() - pipeline_start
+        _log("pipeline", f"COMPLETE  elapsed={elapsed_total:.1f}s  mem={_mem_mb()}")
         return {
             "musicxml_path": str(final_mxl),
             "midi_path": str(output_midi),
@@ -571,5 +637,12 @@ def process_image_to_audio(image_path: str, output_dir: str, base_name: str) -> 
         }
 
     except Exception as exc:
+        elapsed_total = time.time() - pipeline_start
+        _log("pipeline", (
+            f"FAILED at step={current_step}  elapsed={elapsed_total:.1f}s  mem={_mem_mb()}\n"
+            f"  error_type={type(exc).__name__}\n"
+            f"  error_msg={exc}\n"
+            f"{traceback.format_exc()}"
+        ))
         _set_status(output_dir, current_step, "failed", str(exc))
         raise

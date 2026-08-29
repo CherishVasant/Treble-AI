@@ -180,15 +180,20 @@ function PracticeStudioContent() {
   const playerRef = useRef<MusicPlayerRef>(null);
 
   // ── Piano recording mode ────────────────────────────────────────────────────
-  // Notes played on the keyboard are only sent to the chatbot when the user
-  // explicitly starts and stops a recording session.  Keys pressed outside a
-  // recording session are purely for personal practice and are ignored by chat.
+  // Notes played on the keyboard are buffered during a recording session.
+  // On Stop, the recording is added as an attachment chip in the chat input
+  // so the user can type a prompt and send everything together.
   const [isRecording, setIsRecording] = useState(false);
   const [recordingNoteCount, setRecordingNoteCount] = useState(0);
   const recordingBufferRef = useRef<string[]>([]);
+  const recordingCountRef  = useRef(0); // increments across multiple stops
+
+  // Pending recording chips shown in the chat input area
+  const [pendingRecordings, setPendingRecordings] = useState<
+    Array<{ id: string; label: string; noteText: string }>
+  >([]);
 
   const handleNotePlay = useCallback((_midiNumber: number, noteName: string) => {
-    // Only buffer notes when the user has explicitly started a recording.
     if (!isRecording) return;
     recordingBufferRef.current.push(noteName);
     setRecordingNoteCount(n => n + 1);
@@ -201,19 +206,24 @@ function PracticeStudioContent() {
       setRecordingNoteCount(0);
       setIsRecording(true);
     } else {
-      // Stop recording — send everything collected to the chatbot
+      // Stop recording — add as a chip attachment, do NOT send immediately
       setIsRecording(false);
       const notes = recordingBufferRef.current.splice(0);
       setRecordingNoteCount(0);
       if (notes.length === 0) return;
-      const message =
+
+      recordingCountRef.current += 1;
+      const label = `Recording ${recordingCountRef.current} (${notes.length} note${notes.length !== 1 ? 's' : ''})`;
+      const noteText =
         notes.length === 1
           ? `I played the note ${notes[0]} on the piano keyboard.`
           : `I played these notes on the piano keyboard: ${notes.join(', ')}.`;
-      handleSendMessage(message);
+
+      setPendingRecordings(prev => [
+        ...prev,
+        { id: `rec-${Date.now()}`, label, noteText },
+      ]);
     }
-  // handleSendMessage is stable enough — deps don't change mid-session
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecording]);
 
   // Sync piano highlights with current audio playback timing
@@ -229,7 +239,7 @@ function PracticeStudioContent() {
     return active.map((n: any) => n.midi);
   }, [processedMetadata?.musicalInfo?.notes, currentTime]);
 
-  // Reset playback status when switching sessions
+  // Reset playback status and pending recordings when switching sessions
   useEffect(() => {
     setCurrentTime(0);
     setIsPlaying(false);
@@ -237,6 +247,8 @@ function PracticeStudioContent() {
     setIsLooping(false);
     setLoopStartMeasure(1);
     setLoopEndMeasure(8);
+    setPendingRecordings([]);
+    recordingCountRef.current = 0;
   }, [sessionId]);
 
   // Set loopEndMeasure to the full expanded playback length when metadata loads.
@@ -739,6 +751,11 @@ function PracticeStudioContent() {
           isRecording={isRecording}
           onToggleRecording={handleToggleRecording}
           recordingNoteCount={recordingNoteCount}
+          pendingRecordings={pendingRecordings}
+          onRemovePendingRecording={(id) =>
+            setPendingRecordings(prev => prev.filter(r => r.id !== id))
+          }
+          onClearPendingRecordings={() => setPendingRecordings([])}
         />
       </div>
 

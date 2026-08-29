@@ -1,7 +1,6 @@
 'use client';
 
-import { useMemo, useState, useEffect, useCallback } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { useMemo, useEffect, useCallback, useRef } from 'react';
 
 interface PianoKeyboardProps {
   activeMidiNotes?: number[];
@@ -30,14 +29,9 @@ const getOctave = (midi: number): number => {
 };
 
 // ─── Soundfont playback ──────────────────────────────────────────────────────
-// Per-note WAV audio is synthesized on-demand from the bundled GeneralUser-GS SF2
-// by the Render backend (via /piano-note/{midi}) — the same soundfont used for
-// MIDI→WAV conversion.  Falls back to a triangle-wave oscillator if unavailable.
-
-// Module-level singletons: shared across all renders of this component
 let _sfCtx: AudioContext | null = null;
-const _sfCache = new Map<number, AudioBuffer | null>(); // null = failed
-const _sfLoading = new Set<number>();                   // in-flight fetches
+const _sfCache = new Map<number, AudioBuffer | null>();
+const _sfLoading = new Set<number>();
 
 function _getSfCtx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
@@ -54,8 +48,6 @@ function _getSfCtx(): AudioContext | null {
 
 async function _loadSfNote(midi: number): Promise<AudioBuffer | null> {
   if (_sfCache.has(midi)) return _sfCache.get(midi)!;
-
-  // If already in-flight, wait for that fetch to settle
   if (_sfLoading.has(midi)) {
     return new Promise(resolve => {
       const t = setInterval(() => {
@@ -66,15 +58,10 @@ async function _loadSfNote(midi: number): Promise<AudioBuffer | null> {
       }, 30);
     });
   }
-
   _sfLoading.add(midi);
   try {
     const ctx = _getSfCtx();
     if (!ctx) { _sfCache.set(midi, null); return null; }
-
-    // Fetch from the Next.js proxy which calls the Render backend.
-    // The backend synthesizes the WAV from GeneralUser-GS.sf2 on first request
-    // and caches it on disk, so subsequent calls are instant.
     const resp = await fetch(`/api/piano-note/${midi}`, { cache: 'force-cache' });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const buf = await ctx.decodeAudioData(await resp.arrayBuffer());
@@ -88,28 +75,23 @@ async function _loadSfNote(midi: number): Promise<AudioBuffer | null> {
   }
 }
 
-/** Pre-fetch note samples in the background so first-click is instant. */
 function _preWarm(midis: number[]): void {
   for (const m of midis) {
     _loadSfNote(m).catch(() => { /* ignore */ });
   }
 }
 
-/** Play a note using a soundfont sample; fall back to triangle-wave oscillator. */
 async function playSoundfontNote(midi: number): Promise<void> {
-  // Eagerly resume the AudioContext on user gesture (needed for Chrome autoplay policy)
   const ctx = _getSfCtx();
   if (ctx && ctx.state === 'suspended') {
     try { await ctx.resume(); } catch { /* ignore */ }
   }
-
   const buf = await _loadSfNote(midi);
   if (buf && ctx && ctx.state !== 'closed') {
     try {
-      const src   = ctx.createBufferSource();
-      const gain  = ctx.createGain();
-      src.buffer  = buf;
-      // Gentle volume + long decay so the sound rings out naturally
+      const src  = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      src.buffer = buf;
       gain.gain.setValueAtTime(0.65, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 3.0);
       src.connect(gain);
@@ -117,19 +99,16 @@ async function playSoundfontNote(midi: number): Promise<void> {
       src.start();
       src.stop(ctx.currentTime + 3.0);
       return;
-    } catch { /* fall through to oscillator */ }
+    } catch { /* fall through */ }
   }
-
-  // Oscillator fallback (no network, blocked CDN, or decode failure)
   _playOscillator(midi);
 }
 
-/** Triangle-wave oscillator fallback — no network required. */
 function _playOscillator(midiNumber: number): void {
   try {
     const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
     if (!AC) return;
-    const ctx = new AC() as AudioContext;
+    const ctx  = new AC() as AudioContext;
     const freq = 440 * Math.pow(2, (midiNumber - 69) / 12);
     const osc  = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -146,13 +125,10 @@ function _playOscillator(midiNumber: number): void {
   } catch { /* Web Audio unavailable */ }
 }
 
-// The visible window is 4 octaves (49 white keys).  The full keyboard spans
-// MIDI 24 (C2) to MIDI 107 (B7).  The user can shift the window by ±1 octave
-// using the left/right arrow buttons.
-const MIDI_MIN = 24;  // C2
-const MIDI_MAX = 107; // B7
-const VISIBLE_OCTAVES = 4;
-const VISIBLE_MIDI_SPAN = VISIBLE_OCTAVES * 12; // 48 semitones
+// Full standard piano range: C1 (MIDI 24) → C8 (MIDI 108)
+const MIDI_MIN = 24;   // C1
+const MIDI_MAX = 108;  // C8
+const MIDI_C4  = 60;   // C4 — always centered on mount
 
 export default function PianoKeyboard({
   activeMidiNotes = [],
@@ -164,38 +140,39 @@ export default function PianoKeyboard({
   rightHandMidiNotes = [],
   className = '',
 }: PianoKeyboardProps) {
-  // `octaveShift` is measured in octaves (12 semitones each).
-  // 0 → window starts at C2 (MIDI 24); 1 → starts at C3 (MIDI 36); …
-  const [octaveShift, setOctaveShift] = useState(1); // default: C3–C7
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const c4Ref    = useRef<HTMLDivElement>(null);
 
-  // Pre-warm the middle two octaves (C3–C5) on first mount so the soundfont
-  // samples are already cached by the time the user touches a key.
+  // Pre-warm C3–C5 on mount so first-click is instant
   useEffect(() => {
     const warm: number[] = [];
-    for (let m = 48; m <= 72; m++) warm.push(m); // C3 to C5
+    for (let m = 48; m <= 72; m++) warm.push(m);
     _preWarm(warm);
   }, []);
 
-  const windowStart = MIDI_MIN + octaveShift * 12;
-  const windowEnd = windowStart + VISIBLE_MIDI_SPAN;
-
-  const canShiftLeft  = windowStart > MIDI_MIN;
-  const canShiftRight = windowEnd < MIDI_MAX;
-
-  // Pre-warm newly visible notes when the user shifts the octave window
+  // Center the view on C4 after the keyboard renders
   useEffect(() => {
-    const warm: number[] = [];
-    for (let m = windowStart; m <= windowEnd; m++) warm.push(m);
-    _preWarm(warm);
-  }, [windowStart, windowEnd]);
+    const container = scrollRef.current;
+    const c4El      = c4Ref.current;
+    if (!container || !c4El) return;
+
+    // Use requestAnimationFrame so layout is complete before we measure
+    const raf = requestAnimationFrame(() => {
+      const containerW = container.clientWidth;
+      const c4Left     = c4El.offsetLeft;
+      const c4Width    = c4El.offsetWidth;
+      container.scrollLeft = c4Left - containerW / 2 + c4Width / 2;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   const whiteKeys = useMemo(() => {
     const keys: number[] = [];
-    for (let m = windowStart; m <= windowEnd; m++) {
+    for (let m = MIDI_MIN; m <= MIDI_MAX; m++) {
       if (!isBlackKey(m)) keys.push(m);
     }
     return keys;
-  }, [windowStart, windowEnd]);
+  }, []);
 
   const activeSet = useMemo(() => {
     return new Set([
@@ -206,53 +183,38 @@ export default function PianoKeyboard({
   }, [activeMidiNotes, leftHandMidiNotes, rightHandMidiNotes]);
 
   const handleKeyPress = useCallback((midi: number) => {
-    // Play via soundfont (async, falls back to oscillator automatically)
     playSoundfontNote(midi).catch(() => { /* ignore */ });
-    // Notify parent (for chatbot input)
     if (onNotePlay) {
       const noteName = `${getNoteName(midi)}${getOctave(midi)}`;
       onNotePlay(midi, noteName);
     }
-    // Legacy click callback
     onNoteClick?.(midi);
   }, [onNoteClick, onNotePlay]);
 
   return (
     <div className={`w-full ${className}`}>
-      {/* Octave shift controls */}
-      <div className="flex items-center justify-between px-4 mb-2">
-        <button
-          onClick={() => setOctaveShift(s => Math.max(0, s - 1))}
-          disabled={!canShiftLeft}
-          aria-label="Shift keyboard left one octave"
-          className="p-1.5 rounded-lg border border-border/30 text-muted-foreground hover:text-foreground hover:bg-card/45 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          <ChevronLeft className="w-4 h-4" />
-        </button>
+      {/* Label row */}
+      <div className="flex items-center justify-center px-4 mb-2">
         <span className="text-[10px] text-muted-foreground font-semibold tracking-wider select-none">
-          C{getOctave(windowStart)}–C{getOctave(windowEnd)} &nbsp;·&nbsp; Click keys to play
+          C1 – C8 &nbsp;·&nbsp; C4 centered &nbsp;·&nbsp; Click keys to play
         </span>
-        <button
-          onClick={() => setOctaveShift(s => s + 1)}
-          disabled={!canShiftRight}
-          aria-label="Shift keyboard right one octave"
-          className="p-1.5 rounded-lg border border-border/30 text-muted-foreground hover:text-foreground hover:bg-card/45 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
       </div>
 
-      {/* Keyboard */}
-      <div className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-muted/30 scrollbar-track-transparent">
-        <div className="flex justify-start min-w-[700px] md:min-w-fit px-4 py-2 select-none overflow-visible">
+      {/* Scrollable keyboard — C4 is always scrolled into centre on mount */}
+      <div
+        ref={scrollRef}
+        className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-muted/30 scrollbar-track-transparent"
+      >
+        <div className="flex justify-start px-4 py-2 select-none overflow-visible">
           {whiteKeys.map((midi) => {
             const isWhiteActive = activeSet.has(midi);
 
-            const blackMidi = midi + 1;
-            const hasBlackKey = isBlackKey(blackMidi) && blackMidi <= windowEnd;
+            const blackMidi    = midi + 1;
+            const hasBlackKey  = isBlackKey(blackMidi) && blackMidi <= MIDI_MAX;
             const isBlackActive = activeSet.has(blackMidi);
 
             const isCKey = getNoteName(midi) === 'C';
+            const isC4   = midi === MIDI_C4;
 
             const whiteKeyHighlightClass = isWhiteActive
               ? 'bg-[#FFD700] text-black shadow-[0_0_15px_#FFD700_inset,0_0_20px_#FFD700] border-transparent font-extrabold scale-[0.98]'
@@ -265,7 +227,8 @@ export default function PianoKeyboard({
             return (
               <div
                 key={midi}
-                className="flex flex-col items-center flex-1 min-w-[28px] sm:min-w-[36px] md:min-w-[42px] max-w-[56px] relative overflow-visible"
+                ref={isC4 ? c4Ref : undefined}
+                className="flex flex-col items-center flex-shrink-0 w-[32px] sm:w-[36px] md:w-[40px] relative overflow-visible"
               >
                 {/* White Key */}
                 <div
@@ -278,9 +241,9 @@ export default function PianoKeyboard({
                   aria-label={`Play ${getNoteName(midi)}${getOctave(midi)}`}
                   className={`w-full h-36 sm:h-44 md:h-48 rounded-b-lg border-l border-r border-b transition-all duration-100 cursor-pointer select-none focus:outline-none flex flex-col justify-end pb-3 items-center relative ${whiteKeyHighlightClass}`}
                 >
-                  {noteLabelsEnabled && (
-                    <span className="text-[10px] font-bold tracking-tight select-none pointer-events-none transition-opacity duration-150">
-                      {getNoteName(midi)}
+                  {noteLabelsEnabled && isCKey && (
+                    <span className="text-[9px] font-bold tracking-tight select-none pointer-events-none transition-opacity duration-150">
+                      {isC4 ? 'C4' : getNoteName(midi)}
                     </span>
                   )}
                 </div>
@@ -302,9 +265,9 @@ export default function PianoKeyboard({
                   />
                 )}
 
-                {/* Octave Markers */}
+                {/* Octave Markers — only on C keys */}
                 {octaveMarkersEnabled && isCKey && (
-                  <span className="mt-2 text-[10px] sm:text-xs font-bold text-muted-foreground/80 animate-fade-in select-none pointer-events-none">
+                  <span className="mt-2 text-[10px] sm:text-xs font-bold text-muted-foreground/80 select-none pointer-events-none">
                     C{getOctave(midi)}
                   </span>
                 )}

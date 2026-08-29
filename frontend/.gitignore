@@ -16,3 +16,6 @@ node_modules
 
 # Local upload cache (Next.js API routes)
 .upload-store/
+
+.vercel
+.env*

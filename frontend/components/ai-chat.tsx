@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Send, Loader2, Copy, Check, ChevronRight, Info, User, Music, Circle, Square } from 'lucide-react';
+import { Send, Loader2, Copy, Check, ChevronRight, Info, User, Music, Circle, Square, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
@@ -38,6 +38,12 @@ interface AIChatProps {
   onToggleRecording?: () => void;
   /** Number of notes buffered so far during an active recording session */
   recordingNoteCount?: number;
+  /** Pending recording attachments waiting to be sent with the next message */
+  pendingRecordings?: Array<{ id: string; label: string; noteText: string }>;
+  /** Remove one pending recording by id */
+  onRemovePendingRecording?: (id: string) => void;
+  /** Clear all pending recordings after sending */
+  onClearPendingRecordings?: () => void;
 }
 
 interface AgentActivityPanelProps {
@@ -132,6 +138,9 @@ export default function AIChat({
   isRecording = false,
   onToggleRecording,
   recordingNoteCount = 0,
+  pendingRecordings = [],
+  onRemovePendingRecording,
+  onClearPendingRecordings,
 }: AIChatProps) {
   const [internalMessages, setInternalMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -190,15 +199,28 @@ export default function AIChat({
   }, [messages, loading]);
 
   const handleSendMessage = async (messageText: string) => {
-    if (!messageText.trim()) return;
+    const hasPendingRecordings = pendingRecordings.length > 0;
+    if (!messageText.trim() && !hasPendingRecordings) return;
+
+    // Build the full message: recordings first, then typed text
+    const parts: string[] = [];
+    for (const rec of pendingRecordings) {
+      parts.push(rec.noteText);
+    }
+    if (messageText.trim()) parts.push(messageText.trim());
+    const fullMessage = parts.join('\n\n');
+
     // Reset textarea height after sending
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
     }
 
+    // Clear pending recordings
+    onClearPendingRecordings?.();
+
     if (onSendMessage) {
       setInput('');
-      await onSendMessage(messageText);
+      await onSendMessage(fullMessage);
       return;
     }
 
@@ -206,7 +228,7 @@ export default function AIChat({
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: messageText,
+      content: fullMessage,
       timestamp: new Date(),
     };
 
@@ -221,7 +243,7 @@ export default function AIChat({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: messageText,
+          message: fullMessage,
           context,
           systemPrompt,
           history: messages.map(m => ({ role: m.role, content: m.content })),
@@ -549,9 +571,32 @@ export default function AIChat({
             )}
             {isRecording && (
               <span className="text-[11px] text-red-400/80 font-medium">
-                Recording… play your notes, then press Stop to send them to chat
+                Recording… play your notes, then press Stop to add as attachment
               </span>
             )}
+          </div>
+        )}
+
+        {/* Pending recording attachment chips */}
+        {pendingRecordings.length > 0 && (
+          <div className="flex flex-wrap gap-1.5">
+            {pendingRecordings.map((rec) => (
+              <div
+                key={rec.id}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 border border-primary/25 text-[11px] font-medium text-primary"
+              >
+                <Music className="w-3 h-3 shrink-0" />
+                <span>{rec.label}</span>
+                <button
+                  type="button"
+                  onClick={() => onRemovePendingRecording?.(rec.id)}
+                  className="ml-0.5 rounded hover:bg-primary/20 p-0.5 transition-colors"
+                  aria-label={`Remove ${rec.label}`}
+                >
+                  <X className="w-2.5 h-2.5" />
+                </button>
+              </div>
+            ))}
           </div>
         )}
 
@@ -574,7 +619,7 @@ export default function AIChat({
           />
           <Button
             onClick={() => handleSendMessage(input)}
-            disabled={loading || isLoading || !input.trim()}
+            disabled={loading || isLoading || (!input.trim() && pendingRecordings.length === 0)}
             className="bg-gradient-primary hover:shadow-glow text-white rounded-xl shadow-glow"
             size="icon"
           >

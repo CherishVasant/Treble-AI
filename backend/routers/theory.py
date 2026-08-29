@@ -101,8 +101,18 @@ def theory_chat(
             elif chat_type == "practice":
                 session = db.query(PracticeSession).filter(PracticeSession.id == chat_id).first()
                 if not session:
-                    raise HTTPException(status_code=404, detail="Practice session not found")
-                if session.user_id != current_user.id:
+                    # No file uploaded yet — create a placeholder session so the
+                    # chat persists even when the user chats without uploading a score.
+                    session = PracticeSession(
+                        id=chat_id,
+                        user_id=current_user.id,
+                        title="Piano Practice",
+                        original_filename="Piano Practice",
+                        storage_directory=f"uploads/{chat_id}",
+                    )
+                    db.add(session)
+                    db.flush()
+                elif session.user_id != current_user.id:
                     raise HTTPException(status_code=403, detail="Not authorized to access this session")
                     
                 practice_chat_record = db.query(PracticeChat).filter(PracticeChat.practice_session_id == chat_id).first()

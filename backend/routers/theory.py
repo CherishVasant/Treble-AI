@@ -101,13 +101,14 @@ def theory_chat(
             elif chat_type == "practice":
                 session = db.query(PracticeSession).filter(PracticeSession.id == chat_id).first()
                 if not session:
-                    # No file uploaded yet — create a placeholder session so the
-                    # chat persists even when the user chats without uploading a score.
+                    # No file uploaded yet — create a chat-only placeholder session so
+                    # the chat persists even when the user chats without uploading a score.
+                    # Use empty original_filename so the frontend knows no real file exists.
                     session = PracticeSession(
                         id=chat_id,
                         user_id=current_user.id,
                         title="Piano Practice",
-                        original_filename="Piano Practice",
+                        original_filename="",
                         storage_directory=f"uploads/{chat_id}",
                     )
                     db.add(session)

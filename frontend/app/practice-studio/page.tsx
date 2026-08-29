@@ -500,32 +500,34 @@ function PracticeStudioContent() {
         </div>
       </div>
 
-      {/* Row 4: Sheet Music Viewer */}
-      <div className="w-full">
-        <SheetMusicViewer
-          xmlData={processedMetadata?.xmlData}
-          musicXmlUrl={processedMetadata?.musicXmlUrl}
-          fileId={uploadedFileData?.id}
-          previewUrl={processedMetadata?.previewUrl}
-          previewKind={processedMetadata?.previewKind}
-          currentTime={currentTime}
-          isPlaying={isPlaying}
-          secondsPerMeasure={secondsPerMeasure}
-          measuresMap={processedMetadata?.musicalInfo?.measures_map}
-          onMeasureClick={(measure) => {
-            const map = processedMetadata?.musicalInfo?.measures_map;
-            let targetTime = (measure - 1) * secondsPerMeasure;
-            if (Array.isArray(map) && map.length > 0) {
-              const entry = map.find((m: any) => m.measure_number === measure);
-              if (entry) {
-                targetTime = entry.start_time;
+      {/* Row 4: Sheet Music Viewer — only shown once a file is uploaded */}
+      {uploadedFileData && (
+        <div className="w-full">
+          <SheetMusicViewer
+            xmlData={processedMetadata?.xmlData}
+            musicXmlUrl={processedMetadata?.musicXmlUrl}
+            fileId={uploadedFileData?.id}
+            previewUrl={processedMetadata?.previewUrl}
+            previewKind={processedMetadata?.previewKind}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            secondsPerMeasure={secondsPerMeasure}
+            measuresMap={processedMetadata?.musicalInfo?.measures_map}
+            onMeasureClick={(measure) => {
+              const map = processedMetadata?.musicalInfo?.measures_map;
+              let targetTime = (measure - 1) * secondsPerMeasure;
+              if (Array.isArray(map) && map.length > 0) {
+                const entry = map.find((m: any) => m.measure_number === measure);
+                if (entry) {
+                  targetTime = entry.start_time;
+                }
               }
-            }
-            playerRef.current?.seekTo(targetTime);
-          }}
-          className="h-[600px] lg:h-[650px] min-h-[500px] w-full"
-        />
-      </div>
+              playerRef.current?.seekTo(targetTime);
+            }}
+            className="h-[600px] lg:h-[650px] min-h-[500px] w-full"
+          />
+        </div>
+      )}
 
       {/* Row 5: Deterministic Score Analysis Dashboard */}
       {processedMetadata?.musicalInfo?.difficulty && (

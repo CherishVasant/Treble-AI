@@ -118,6 +118,22 @@ def get_practice_sessions(current_user: User = Depends(get_current_user), db: Se
         original_name = session.original_filename
         storage_dir = session.storage_directory
 
+        # Chat-only sessions (created when the user chats without uploading a file)
+        # have an empty original_filename (new) or "Piano Practice" (legacy).
+        # Don't expose fake file metadata for them.
+        is_chat_only = not original_name or original_name == "Piano Practice"
+
+        if is_chat_only:
+            result.append({
+                "id": session.id,
+                "title": session.title,
+                "timestamp": session.updated_at.isoformat(),
+                "uploadedFileData": None,
+                "processedMetadata": None,
+                "messages": messages_list
+            })
+            continue
+
         # Calculate Preview Type & URLs
         preview_kind = "pdf" if original_name.lower().endswith(".pdf") else "image"
         preview_url = f"/api/upload/{session.id}"

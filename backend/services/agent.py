@@ -228,15 +228,22 @@ class AgentService:
                 f"{system_prompt}\n\n"
                 f"{active_score_ctx}\n\n"
                 f"{score_instructions}"
-                "You have access to search tools (search_local_reference_library and search_web) to look up exact definitions, formulas, and general guides if needed.\n"
+                "You have access to search tools (search_local_reference_library and search_web) to look up exact definitions, formulas, and general guides if needed.\n\n"
+                "RESPONSE STYLE — follow this format for all answers:\n"
+                "• Use clear section headers with relevant emoji (e.g. ## 🎵 What It Is, ## 🎹 How to Play It, ## 💡 Practice Tips)\n"
+                "• Use markdown tables for chord tones, scale degrees, fingering charts, or any comparison data\n"
+                "• Use code blocks (``` ```) for note sequences, patterns, or step-by-step formulas\n"
+                "• Use blockquotes (>) for tips, mnemonics, or key insights\n"
+                "• Be concise but complete — quality over length\n\n"
                 "You MUST respond ONLY with a valid JSON object matching this structure:\n"
                 "{\n"
-                '  "response": "Your detailed tutor answer in Markdown format (use headings, lists, tables). Explain your insights thoroughly.",\n'
-                '  "suggested_follow_up_questions": ["Question 1?", "Question 2?", "Question 3?"],\n'
-                '  "related_concepts": ["Concept A", "Concept B", "Concept C"],\n'
-                '  "citations": ["Citation A", "Citation B"]\n'
+                '  "response": "Your tutor answer in Markdown. Use emoji headers, tables, code blocks, and blockquote tips.",\n'
+                '  "suggested_follow_up_questions": ["Short question 1?", "Short question 2?", "Short question 3?"]\n'
                 "}\n\n"
-                "Do not wrap in markdown code block, just output raw JSON."
+                "Rules:\n"
+                "- suggested_follow_up_questions: exactly 3 short, specific questions the student might ask next\n"
+                "- Do NOT include citations or related_concepts fields\n"
+                "- Do not wrap in markdown code block, just output raw JSON"
             )
             tools = [search_local_reference_library, search_web]
             agent_role = "Practice Coach"
@@ -245,15 +252,22 @@ class AgentService:
             sys_msg = (
                 f"{system_prompt}\n\n"
                 "Answer the user's music theory queries, scale or chord formulas, music history, or definitions. "
-                "You have access to search tools (search_local_reference_library and search_web) to lookup exact definitions or formulas if needed. "
+                "You have access to search tools (search_local_reference_library and search_web) to lookup exact definitions or formulas if needed.\n\n"
+                "RESPONSE STYLE — follow this format for all answers:\n"
+                "• Use clear section headers with relevant emoji (e.g. ## 🎵 What It Is, ## 🎹 How to Play It, ## 💡 Tips)\n"
+                "• Use markdown tables for chord tones, scale degrees, interval comparisons, or any structured data\n"
+                "• Use code blocks (``` ```) for note sequences, patterns, formulas, or step-by-step progressions\n"
+                "• Use blockquotes (>) for key insights, mnemonics, or practice tips\n"
+                "• Be concise but complete — quality over length\n\n"
                 "You MUST respond ONLY with a valid JSON object matching this structure:\n"
                 "{\n"
-                '  "response": "Your detailed tutor answer in Markdown format (use headings, lists, tables). Explain the concepts in detail.",\n'
-                '  "suggested_follow_up_questions": ["Question 1?", "Question 2?", "Question 3?"],\n'
-                '  "related_concepts": ["Concept A", "Concept B", "Concept C"],\n'
-                '  "citations": ["Citation A", "Citation B"]\n'
+                '  "response": "Your tutor answer in Markdown. Use emoji headers, tables, code blocks, and blockquote tips.",\n'
+                '  "suggested_follow_up_questions": ["Short question 1?", "Short question 2?", "Short question 3?"]\n'
                 "}\n\n"
-                "Do not wrap in markdown code block, just output raw JSON."
+                "Rules:\n"
+                "- suggested_follow_up_questions: exactly 3 short, specific questions the student might ask next\n"
+                "- Do NOT include citations or related_concepts fields\n"
+                "- Do not wrap in markdown code block, just output raw JSON"
             )
             tools = [search_local_reference_library, search_web]
             agent_role = "Theory Scholar"

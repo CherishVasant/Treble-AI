@@ -118,20 +118,25 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
             const localOnly = prev.filter(s => !dbMap.has(s.id));
 
             // For sessions that exist in the DB, use DB data as the base but carry
-            // over any in-flight conversionState so the UI doesn't flicker back to
-            // "completed" while a pipeline is still running.
+            // over transient local state that the DB may not have yet.
             const merged = practiceData.map(dbSession => {
               const localSession = prev.find(s => s.id === dbSession.id);
-              if (localSession?.processedMetadata?.conversionState) {
-                return {
-                  ...dbSession,
-                  processedMetadata: {
+              if (!localSession) return dbSession;
+
+              // Preserve in-flight conversionState so the UI doesn't flicker
+              // back to "completed" while a pipeline is still running.
+              const processedMeta = localSession.processedMetadata?.conversionState
+                ? {
                     ...dbSession.processedMetadata,
                     conversionState: localSession.processedMetadata.conversionState,
-                  },
-                };
-              }
-              return dbSession;
+                  }
+                : dbSession.processedMetadata;
+
+              // Preserve local uploadedFileData when DB hasn't caught up yet
+              // (e.g., file just uploaded locally, blob URL not yet persisted).
+              const fileData = dbSession.uploadedFileData ?? localSession.uploadedFileData ?? null;
+
+              return { ...dbSession, uploadedFileData: fileData, processedMetadata: processedMeta };
             });
 
             // Local-only sessions at the front (newest), then DB sessions
@@ -438,6 +443,27 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
           citations: data.citations,
           agent_steps: data.agent_steps,
         };
+
+        // Optimistically add the assistant message so it's visible immediately,
+        // even before loadSessions() completes. loadSessions() will then replace
+        // this with the authoritative DB version (same content, stable message IDs).
+        if (type === 'theory') {
+          setTheorySessions(prev =>
+            prev.map(s =>
+              s.id === activeId
+                ? { ...s, messages: [...s.messages, assistantMessage], timestamp: new Date().toISOString() }
+                : s
+            )
+          );
+        } else {
+          setPracticeSessions(prev =>
+            prev.map(s =>
+              s.id === activeId
+                ? { ...s, messages: [...s.messages, assistantMessage], timestamp: new Date().toISOString() }
+                : s
+            )
+          );
+        }
 
         // Reload sessions list from backend to fetch updated titles and messages
         await loadSessions();

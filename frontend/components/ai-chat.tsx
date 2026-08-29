@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Send, Loader2, Copy, Check, ChevronRight, Info, User, Music, Circle, Square, X } from 'lucide-react';
+import { Send, Loader2, Copy, Check, ChevronRight, User, Music, Circle, Square, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
@@ -380,100 +380,95 @@ export default function AIChat({
         ) : (
           <>
             {messages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex gap-3 animate-fade-in ${
-                  message.role === 'user' ? 'flex-row-reverse' : ''
-                }`}
-              >
-                {/* Avatar */}
-                <div
-                  className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow ${
-                    message.role === 'user'
-                      ? 'bg-primary'
-                      : 'bg-gradient-primary'
-                  }`}
-                >
-                  {message.role === 'user' ? (
-                    <User className="w-4 h-4 text-white" />
-                  ) : (
-                    <Music className="w-4 h-4 text-white" />
-                  )}
-                </div>
-
-                {/* Message Bubble */}
-                <div className="max-w-[85%] flex flex-col space-y-1">
-                  {/* User copy button — floats above the bubble */}
-                  {message.role === 'user' && (
-                    <div className="flex justify-end">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleCopyText(message.content, message.id)}
-                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-card/65 rounded-md border border-border/10"
-                        title={copiedId === message.id ? 'Copied!' : 'Copy message'}
-                      >
-                        {copiedId === message.id ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
-                        ) : (
-                          <Copy className="w-3 h-3" />
-                        )}
-                      </Button>
-                    </div>
-                  )}
+              <div key={message.id} className="flex flex-col gap-2 animate-fade-in">
+                {/* Message Row */}
+                <div className={`flex gap-3 ${message.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                  {/* Avatar */}
                   <div
-                    className={`px-4 py-3.5 rounded-2xl ${
+                    className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow ${
                       message.role === 'user'
-                        ? 'bg-primary text-white rounded-tr-none'
-                        : 'bg-card text-foreground rounded-tl-none border border-border/30'
+                        ? 'bg-primary'
+                        : 'bg-gradient-primary'
                     }`}
                   >
                     {message.role === 'user' ? (
-                      <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                        {message.content}
-                      </p>
+                      <User className="w-4 h-4 text-white" />
                     ) : (
-                      <div className="flex flex-col gap-2">
-                        {shouldShowActivity(message.agent_steps) && (
-                          <AgentActivityPanel
-                            steps={message.agent_steps!}
-                            isExpanded={agentActivityExpanded[message.id] || false}
-                            onToggle={() => setAgentActivityExpanded(prev => ({
-                              ...prev,
-                              [message.id]: !prev[message.id]
-                            }))}
-                          />
-                        )}
-                        <div className="prose-chat">
-                          <ReactMarkdown
-                            remarkPlugins={[remarkGfm]}
-                            components={{
-                              p: ({ node, children, ...props }: any) => {
-                                return <div className="mb-3 last:mb-0 leading-relaxed">{children}</div>;
-                              },
-                              code: ({ node, inline, className, children, ...props } : any) => {
-                                return inline ? (
-                                  <code className="bg-muted/70 px-1 py-0.5 rounded text-xs font-mono font-semibold" {...props}>{children}</code>
-                                ) : (
-                                  <pre className="bg-background/85 p-3 rounded-xl border border-border/30 my-1 overflow-x-auto text-xs font-mono">
-                                    <code className={className} {...props}>{children}</code>
-                                  </pre>
-                                );
-                              }
-                            }}
-                          >
-                            {message.content}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
+                      <Music className="w-4 h-4 text-white" />
                     )}
                   </div>
 
-                  {/* Message Action Controls (Assistant only) */}
-                  {message.role === 'assistant' && (
-                    <div className="flex flex-col gap-3 pt-1 px-1">
-                      {/* Controls Row */}
-                      <div className="flex items-center gap-2">
+                  {/* Message Bubble */}
+                  <div className="max-w-[85%] flex flex-col space-y-1">
+                    {/* User copy button — floats above the bubble */}
+                    {message.role === 'user' && (
+                      <div className="flex justify-end">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleCopyText(message.content, message.id)}
+                          className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-card/65 rounded-md border border-border/10"
+                          title={copiedId === message.id ? 'Copied!' : 'Copy message'}
+                        >
+                          {copiedId === message.id ? (
+                            <Check className="w-3 h-3 text-emerald-400" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
+                    <div
+                      className={`px-4 py-3.5 rounded-2xl ${
+                        message.role === 'user'
+                          ? 'bg-primary text-white rounded-tr-none'
+                          : 'bg-card text-foreground rounded-tl-none border border-border/30'
+                      }`}
+                    >
+                      {message.role === 'user' ? (
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                          {message.content}
+                        </p>
+                      ) : (
+                        <div className="flex flex-col gap-2">
+                          {shouldShowActivity(message.agent_steps) && (
+                            <AgentActivityPanel
+                              steps={message.agent_steps!}
+                              isExpanded={agentActivityExpanded[message.id] || false}
+                              onToggle={() => setAgentActivityExpanded(prev => ({
+                                ...prev,
+                                [message.id]: !prev[message.id]
+                              }))}
+                            />
+                          )}
+                          <div className="prose-chat">
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={{
+                                p: ({ node, children, ...props }: any) => {
+                                  return <div className="mb-3 last:mb-0 leading-relaxed">{children}</div>;
+                                },
+                                code: ({ node, inline, className, children, ...props } : any) => {
+                                  return inline ? (
+                                    <code className="bg-muted/70 px-1 py-0.5 rounded text-xs font-mono font-semibold" {...props}>{children}</code>
+                                  ) : (
+                                    <pre className="bg-background/85 p-3 rounded-xl border border-border/30 my-1 overflow-x-auto text-xs font-mono">
+                                      <code className={className} {...props}>{children}</code>
+                                    </pre>
+                                  );
+                                }
+                              }}
+                            >
+                              {message.content}
+                            </ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Message Action Controls (Assistant only) */}
+                    {message.role === 'assistant' && (
+                      <div className="flex items-center gap-2 pt-1 px-1">
                         <Button
                           size="sm"
                           variant="ghost"
@@ -488,44 +483,27 @@ export default function AIChat({
                           )}
                         </Button>
                       </div>
-
-                      {/* Display Citations */}
-                      {message.citations && message.citations.length > 0 && (
-                        <div className="p-2.5 rounded-xl bg-card/25 border border-border/20 text-[11px] text-muted-foreground flex flex-col gap-1">
-                          <span className="font-bold flex items-center gap-1 text-[10px] text-foreground/80 uppercase tracking-wider">
-                            <Info className="w-3 h-3 text-primary" /> Sources & Citations
-                          </span>
-                          <ul className="list-disc pl-4 space-y-0.5 mt-1 font-medium">
-                            {message.citations.map((cite, cIdx) => (
-                              <li key={cIdx}>{cite}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-
-
-                      {/* Display Suggested Follow-Ups */}
-                      {message.suggested_follow_up_questions && message.suggested_follow_up_questions.length > 0 && (
-                        <div className="space-y-1.5 pt-1">
-                          <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Follow-Up Questions:</p>
-                          <div className="flex flex-col gap-1">
-                            {message.suggested_follow_up_questions.map((question, qIdx) => (
-                              <button
-                                key={qIdx}
-                                onClick={() => handleSuggestedPrompt(question)}
-                                className="text-left text-xs text-primary hover:underline hover:text-primary/95 flex items-center gap-1 font-medium bg-card/20 hover:bg-card/50 px-3 py-1.5 rounded-lg border border-border/20 w-fit"
-                              >
-                                <ChevronRight className="w-3 h-3 shrink-0" />
-                                {question}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
+
+                {/* Suggested Follow-Up Questions — outside the bubble, below the row */}
+                {message.role === 'assistant' &&
+                  message.suggested_follow_up_questions &&
+                  message.suggested_follow_up_questions.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pl-11">
+                    {message.suggested_follow_up_questions.slice(0, 3).map((question, qIdx) => (
+                      <button
+                        key={qIdx}
+                        onClick={() => handleSuggestedPrompt(question)}
+                        className="flex items-center gap-2 px-3 py-2 text-xs rounded-xl border border-border/30 bg-card/30 hover:bg-card/70 hover:border-primary/40 text-foreground/65 hover:text-foreground transition-all text-left group"
+                      >
+                        <span>{question}</span>
+                        <ChevronRight className="w-3 h-3 shrink-0 text-primary/60 group-hover:text-primary transition-colors" />
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             ))}
 

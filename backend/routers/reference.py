@@ -62,6 +62,9 @@ def _upload_to_vercel_blob(file_path: Path, pathname: str) -> str | None:
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "audio/wav",
                 "x-api-version": "7",
+                # Disable random suffix so the stored path is exactly `pathname`,
+                # making _blob_exists() able to find it on subsequent requests.
+                "x-add-random-suffix": "0",
             },
             data=data,
             timeout=30,

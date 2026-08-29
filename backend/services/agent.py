@@ -230,14 +230,14 @@ class AgentService:
                 f"{score_instructions}"
                 "You have access to search tools (search_local_reference_library and search_web) to look up exact definitions, formulas, and general guides if needed.\n\n"
                 "RESPONSE STYLE — follow this format for all answers:\n"
-                "• Use clear section headers with relevant emoji (e.g. ## 🎵 What It Is, ## 🎹 How to Play It, ## 💡 Practice Tips)\n"
+                "• Use clear section headers (## heading) to structure your response\n"
                 "• Use markdown tables for chord tones, scale degrees, fingering charts, or any comparison data\n"
                 "• Use code blocks (``` ```) for note sequences, patterns, or step-by-step formulas\n"
                 "• Use blockquotes (>) for tips, mnemonics, or key insights\n"
                 "• Be concise but complete — quality over length\n\n"
                 "You MUST respond ONLY with a valid JSON object matching this structure:\n"
                 "{\n"
-                '  "response": "Your tutor answer in Markdown. Use emoji headers, tables, code blocks, and blockquote tips.",\n'
+                '  "response": "Your tutor answer in Markdown. Use headers, tables, code blocks, and blockquote tips.",\n'
                 '  "suggested_follow_up_questions": ["Short question 1?", "Short question 2?", "Short question 3?"]\n'
                 "}\n\n"
                 "Rules:\n"
@@ -254,14 +254,14 @@ class AgentService:
                 "Answer the user's music theory queries, scale or chord formulas, music history, or definitions. "
                 "You have access to search tools (search_local_reference_library and search_web) to lookup exact definitions or formulas if needed.\n\n"
                 "RESPONSE STYLE — follow this format for all answers:\n"
-                "• Use clear section headers with relevant emoji (e.g. ## 🎵 What It Is, ## 🎹 How to Play It, ## 💡 Tips)\n"
+                "• Use clear section headers (## heading) to structure your response\n"
                 "• Use markdown tables for chord tones, scale degrees, interval comparisons, or any structured data\n"
                 "• Use code blocks (``` ```) for note sequences, patterns, formulas, or step-by-step progressions\n"
                 "• Use blockquotes (>) for key insights, mnemonics, or practice tips\n"
                 "• Be concise but complete — quality over length\n\n"
                 "You MUST respond ONLY with a valid JSON object matching this structure:\n"
                 "{\n"
-                '  "response": "Your tutor answer in Markdown. Use emoji headers, tables, code blocks, and blockquote tips.",\n'
+                '  "response": "Your tutor answer in Markdown. Use headers, tables, code blocks, and blockquote tips.",\n'
                 '  "suggested_follow_up_questions": ["Short question 1?", "Short question 2?", "Short question 3?"]\n'
                 "}\n\n"
                 "Rules:\n"

@@ -85,6 +85,10 @@ export default function SheetMusicUploader({
   const currentSessionIdRef = useRef(sessionId);
   currentSessionIdRef.current = sessionId;
 
+  // localStorage key for persisting the active jobId so the polling can resume
+  // even after a full page refresh or cross-route navigation.
+  const jobLsKey = sessionId ? `treble_conv_job_${sessionId}` : null;
+
   // Sync state from parent session when loading
   useEffect(() => {
     if (conversionState) {
@@ -153,12 +157,37 @@ export default function SheetMusicUploader({
     }
   }, [fileId, fileName, hasAudio, fileBlobUrl, conversionState]);
 
-  // Cleanup polling interval on unmount
+  // Cleanup polling interval on unmount (don't remove localStorage — polling may
+  // resume when the user navigates back to this session).
   useEffect(() => {
     return () => {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
     };
   }, []);
+
+  // On mount (or when sessionId changes), resume polling from localStorage if
+  // the context doesn't already have a pending conversionState.  This handles
+  // full page refreshes or cross-route navigations where React state is lost.
+  useEffect(() => {
+    if (!jobLsKey || pollingIntervalRef.current) return;
+    // If context already knows about an in-flight conversion, the main effect
+    // (above) handles restart — don't double-start here.
+    if (conversionState?.status === 'processing') return;
+    try {
+      const savedJobId = localStorage.getItem(jobLsKey);
+      if (savedJobId) {
+        console.log('[SheetMusicUploader] resuming polling from localStorage, jobId:', savedJobId);
+        setIsConvertingLocal(true);
+        onConvertingChange?.(true);
+        startStatusPolling(savedJobId);
+      }
+    } catch { /* localStorage unavailable */ }
+  // Only run on sessionId changes, not on every render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -355,8 +384,22 @@ export default function SheetMusicUploader({
     }
   };
 
+  function stopPolling(clearLs = true) {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+    if (clearLs && jobLsKey) {
+      try { localStorage.removeItem(jobLsKey); } catch {}
+    }
+  }
+
   function startStatusPolling(jobId: string) {
-    if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+    stopPolling(false);
+    // Persist the jobId so polling can resume after page navigation/refresh.
+    if (jobLsKey) {
+      try { localStorage.setItem(jobLsKey, jobId); } catch {}
+    }
     // Reset error tracking for this new polling session.
     pollingErrorCountRef.current = 0;
     pollingErrorStartRef.current = null;
@@ -378,6 +421,26 @@ export default function SheetMusicUploader({
           cache: 'no-store'
         });
 
+        // 404 means the job was lost (Render OOM restart erased in-memory state).
+        // This is NOT a transient network error — fail immediately so the user
+        // knows to retry rather than waiting 3 minutes.
+        if (response.status === 404) {
+          stopPolling();
+          const failedSteps = { ...conversionSteps };
+          setConversionError('The server restarted during conversion. Please try converting again.');
+          onConvertingChange?.(false);
+          setIsConvertingLocal(false);
+          onProcessing?.({
+            conversionState: {
+              jobId,
+              steps: failedSteps,
+              error: 'The server restarted during conversion. Please try again.',
+              status: 'failed'
+            }
+          });
+          return;
+        }
+
         if (!response.ok) {
           throw new Error(`Status check returned ${response.status}`);
         }
@@ -390,12 +453,10 @@ export default function SheetMusicUploader({
         setConversionSteps(data.steps);
 
         if (data.status === 'completed') {
-          clearInterval(pollingIntervalRef.current!);
-          pollingIntervalRef.current = null;
+          stopPolling();
           fetchConversionResults(jobId);
         } else if (data.status === 'failed') {
-          clearInterval(pollingIntervalRef.current!);
-          pollingIntervalRef.current = null;
+          stopPolling();
           setConversionError(data.error || 'Conversion pipeline failed');
           onConvertingChange?.(false);
           setIsConvertingLocal(false);
@@ -438,8 +499,7 @@ export default function SheetMusicUploader({
 
         // Errors have been continuous for too long — give up.
         console.error('[SheetMusicUploader] polling stopped: errors exceeded timeout');
-        clearInterval(pollingIntervalRef.current!);
-        pollingIntervalRef.current = null;
+        stopPolling();
         setConversionError('Could not reach the server after several attempts. Please wait and try again.');
         onConvertingChange?.(false);
         setIsConvertingLocal(false);
@@ -527,6 +587,10 @@ export default function SheetMusicUploader({
     } finally {
       onConvertingChange?.(false);
       setIsConvertingLocal(false);
+      // Clear the persisted jobId now that conversion is finished (success or fail).
+      if (jobLsKey) {
+        try { localStorage.removeItem(jobLsKey); } catch {}
+      }
     }
   }
 
@@ -541,10 +605,7 @@ export default function SheetMusicUploader({
       audio: 'pending',
       analysis: 'pending'
     });
-    if (pollingIntervalRef.current) {
-      clearInterval(pollingIntervalRef.current);
-      pollingIntervalRef.current = null;
-    }
+    stopPolling(); // also clears localStorage
     onFileUpload?.({ id: '', name: '' });
     onProcessing?.(null);
     onConvertingChange?.(false);

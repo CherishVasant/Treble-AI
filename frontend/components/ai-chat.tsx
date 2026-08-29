@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Send, Loader2, Copy, Check, ChevronRight, Info, User, Music, Circle, Square } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -155,7 +154,15 @@ export default function AIChat({
   }, [loading]);
   
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-grow textarea height as the user types; reset when cleared
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  }, [input]);
 
   const messages = externalMessages !== undefined ? externalMessages : internalMessages;
 
@@ -184,6 +191,10 @@ export default function AIChat({
 
   const handleSendMessage = async (messageText: string) => {
     if (!messageText.trim()) return;
+    // Reset textarea height after sending
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+    }
 
     if (onSendMessage) {
       setInput('');
@@ -427,18 +438,13 @@ export default function AIChat({
                           size="sm"
                           variant="ghost"
                           onClick={() => handleCopyText(message.content, message.id)}
-                          className="h-7 px-2 text-[10px] text-muted-foreground hover:text-foreground gap-1 hover:bg-card/65 rounded-lg border border-border/10"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground hover:bg-card/65 rounded-lg border border-border/10"
+                          title={copiedId === message.id ? 'Copied!' : 'Copy response'}
                         >
                           {copiedId === message.id ? (
-                            <>
-                              <Check className="w-3.5 h-3.5 text-emerald-400" />
-                              Copied
-                            </>
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
                           ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              Copy Response
-                            </>
+                            <Copy className="w-3.5 h-3.5" />
                           )}
                         </Button>
                       </div>
@@ -549,21 +555,22 @@ export default function AIChat({
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Input
+        <div className="flex gap-2 items-end">
+          <textarea
             ref={inputRef}
-            type="text"
-            placeholder="Ask Treble about music theory, scales, chords, practice strategies..."
+            rows={1}
+            placeholder="Ask Treble about music theory, scales, chords, practice strategies…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyPress={(e) => {
+            onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 handleSendMessage(input);
               }
             }}
             disabled={loading || isLoading}
-            className="flex-1 bg-input border-border/50 text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:ring-primary/20 rounded-xl"
+            className="flex-1 resize-none overflow-y-auto min-h-[44px] max-h-[160px] py-2.5 px-3.5 bg-input border border-border/50 text-foreground text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/20 focus:outline-none rounded-xl leading-relaxed transition-colors"
+            style={{ height: 44 }}
           />
           <Button
             onClick={() => handleSendMessage(input)}

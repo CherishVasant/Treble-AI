@@ -34,6 +34,10 @@ Thumbs.db
 
 
 
+# OMR experiment folders (local only — heavy models, generated outputs)
+backend/oemer/
+backend/smt/
+
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies

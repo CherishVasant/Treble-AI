@@ -157,3 +157,57 @@ def get_scale_audio(
         media_type="audio/wav",
         filename=f"scale_{notes_hash}.wav",
     )
+
+
+@router.post("/seed-blob")
+def seed_blob_audio():
+    """Bulk-upload all pre-generated scale WAVs from output/scales/ to Vercel Blob.
+
+    Call this once after configuring BLOB_READ_WRITE_TOKEN on Render.
+    Idempotent — already-uploaded files are skipped.
+
+    Returns a summary of uploaded / skipped / failed files.
+    """
+    if not _blob_token():
+        raise HTTPException(
+            status_code=503,
+            detail="BLOB_READ_WRITE_TOKEN is not configured on this server."
+        )
+
+    scales_dir = Path("output") / "scales"
+    if not scales_dir.exists():
+        raise HTTPException(status_code=404, detail="output/scales/ directory not found.")
+
+    wav_files = sorted(scales_dir.glob("*.wav"))
+    if not wav_files:
+        return {"uploaded": 0, "skipped": 0, "failed": 0, "files": []}
+
+    uploaded, skipped, failed = 0, 0, 0
+    results: list[dict] = []
+
+    for wav in wav_files:
+        notes_hash = wav.stem          # filename IS the hash (no extension)
+        pathname   = f"scale-audio/{notes_hash}.wav"
+
+        # Already in Blob? Skip.
+        existing_url = _blob_exists(pathname)
+        if existing_url:
+            skipped += 1
+            results.append({"file": wav.name, "status": "skipped", "url": existing_url})
+            continue
+
+        blob_url = _upload_to_vercel_blob(wav, pathname)
+        if blob_url:
+            uploaded += 1
+            results.append({"file": wav.name, "status": "uploaded", "url": blob_url})
+        else:
+            failed += 1
+            results.append({"file": wav.name, "status": "failed"})
+
+    return {
+        "uploaded": uploaded,
+        "skipped":  skipped,
+        "failed":   failed,
+        "total":    len(wav_files),
+        "files":    results,
+    }

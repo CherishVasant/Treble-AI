@@ -25,7 +25,7 @@ const getNoteName = (midi: number): string => {
 };
 
 const getOctave = (midi: number): number => {
-  return Math.floor(midi / 12) - 1;
+  return Math.floor(midi / 12); // Roland convention: middle C (MIDI 60) = C5
 };
 
 // ─── Soundfont playback ──────────────────────────────────────────────────────
@@ -154,11 +154,12 @@ function _playOscillator(midiNumber: number): void {
   } catch { /* Web Audio unavailable */ }
 }
 
-// Full standard piano range: C1 (MIDI 24) → C8 (MIDI 108)
-const MIDI_MIN    = 24;   // C1
-const MIDI_MAX    = 108;  // C8
-const MIDI_C4     = 60;   // C4 — used for octave label emphasis
-const MIDI_CENTER = 65;   // F4 — scroll target so the full 4th octave is centred
+// Roland convention: middle C (MIDI 60) = C5
+// Range: C2 (MIDI 24) → C9 (MIDI 108)
+const MIDI_MIN    = 24;   // C2  (Roland)
+const MIDI_MAX    = 108;  // C9  (Roland)
+const MIDI_C4     = 48;   // C4  (Roland) — bold octave label emphasis
+const MIDI_CENTER = 53;   // F4  (Roland) — scroll target; full 4th octave visible
 
 export default function PianoKeyboard({
   activeMidiNotes = [],

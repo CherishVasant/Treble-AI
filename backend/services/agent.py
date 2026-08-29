@@ -203,16 +203,32 @@ class AgentService:
         # Format the appropriate system prompt based on chat_type
         if chat_type == "practice":
             # Practice Studio Agent
-            active_score_ctx = ""
-            if context and "No sheet music" not in context:
-                active_score_ctx = f"\n\n--- Active Loaded Score Context ---\n{context}"
-                
+            has_score = bool(context and "No sheet music" not in context and context.strip())
+            active_score_ctx = (
+                f"\n\n--- Active Loaded Score Context ---\n{context}" if has_score else ""
+            )
+
+            if has_score:
+                score_instructions = (
+                    "You have access to a detailed music analysis report for the active piece (injected above). "
+                    "Use this report — difficulty score, chords, Roman numerals, voice-leading, cadences, rhythm, "
+                    "and fingering suggestions — as your absolute source of truth. "
+                    "Do NOT recalculate keys, chords, intervals, or fingerings yourself; reference the report instead. "
+                    "Use it to explain concepts, answer theoretical or practical questions, and offer structured practice advice.\n"
+                )
+            else:
+                score_instructions = (
+                    "No sheet music has been uploaded yet. "
+                    "Act as a helpful piano and music practice teacher. "
+                    "Answer the user's practice questions, technique queries, or notes they played based solely on what they tell you. "
+                    "Do not assume or invent any score context.\n"
+                )
+
             sys_msg = (
                 f"{system_prompt}\n\n"
                 f"{active_score_ctx}\n\n"
-                "Use this report details (difficulty score, chords, Roman numerals, voice-leading rules, and fingerings) to answer questions, "
-                "offer structured practice guidelines, suggest scale routines, and explain concept-based insights.\n"
-                "You have access to search tools (search_local_reference_library and search_web) to lookup exact definitions, formulas, and general guides if needed.\n"
+                f"{score_instructions}"
+                "You have access to search tools (search_local_reference_library and search_web) to look up exact definitions, formulas, and general guides if needed.\n"
                 "You MUST respond ONLY with a valid JSON object matching this structure:\n"
                 "{\n"
                 '  "response": "Your detailed tutor answer in Markdown format (use headings, lists, tables). Explain your insights thoroughly.",\n'

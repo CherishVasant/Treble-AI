@@ -78,9 +78,15 @@ function newUUID(): string {
   });
 }
 
-const SYSTEM_PROMPT = `You are Treble, your AI music learning companion inside TrebleAI. Always refer to yourself as Treble. If the user asks 'Who are you?', you must respond exactly with: 'I'm Treble, your AI music learning companion inside TrebleAI.' You are a professional music coach and tutor.
+const BASE_SYSTEM_PROMPT = `You are Treble, your AI music learning companion inside TrebleAI. Always refer to yourself as Treble. If the user asks 'Who are you?', you must respond exactly with: 'I'm Treble, your AI music learning companion inside TrebleAI.' You are a professional music coach and tutor.`;
+
+const SYSTEM_PROMPT_WITH_SCORE = `${BASE_SYSTEM_PROMPT}
 
 You have access to a detailed, algorithmically generated deterministic music analysis report for the active piece. Use this report as your absolute source of truth. DO NOT recalculate keys, chords, intervals, cadences, or fingerings yourself. Use the provided details (difficulty score/factors, chord lists, Roman numerals, cadences, rhythm stats, phrase boundaries, and fingering suggestions) to explain concepts, answer theoretical or practical questions, teach the user, and offer structured practice advice.`;
+
+const SYSTEM_PROMPT_NO_SCORE = `${BASE_SYSTEM_PROMPT}
+
+No sheet music is loaded. Help the user with general piano practice, technique, note identification, and music questions based only on what they share with you. Do not reference or invent any score.`;
 
 function getChatContext(uploadedFileData: any, processedMetadata: any): string {
   if (!uploadedFileData) return 'No sheet music image or PDF loaded yet';
@@ -342,7 +348,8 @@ function PracticeStudioContent() {
   }, [sessionId, processedMetadata, uploadedFileData]);
 
   const handleSendMessage = async (messageText: string) => {
-    const systemPrompt = SYSTEM_PROMPT;
+    const hasScore = Boolean(uploadedFileData);
+    const systemPrompt = hasScore ? SYSTEM_PROMPT_WITH_SCORE : SYSTEM_PROMPT_NO_SCORE;
     const chatContext = getChatContext(uploadedFileData, processedMetadata);
 
     const currentSessionId = activeSessionIdRef.current;
@@ -405,7 +412,7 @@ function PracticeStudioContent() {
   ];
 
   const chatContext = useMemo(() => getChatContext(uploadedFileData, processedMetadata), [uploadedFileData, processedMetadata]);
-  const systemPrompt = SYSTEM_PROMPT;
+  const systemPrompt = uploadedFileData ? SYSTEM_PROMPT_WITH_SCORE : SYSTEM_PROMPT_NO_SCORE;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">

@@ -155,9 +155,10 @@ function _playOscillator(midiNumber: number): void {
 }
 
 // Full standard piano range: C1 (MIDI 24) → C8 (MIDI 108)
-const MIDI_MIN = 24;   // C1
-const MIDI_MAX = 108;  // C8
-const MIDI_C4  = 60;   // C4 — always centered on mount
+const MIDI_MIN    = 24;   // C1
+const MIDI_MAX    = 108;  // C8
+const MIDI_C4     = 60;   // C4 — used for octave label emphasis
+const MIDI_CENTER = 65;   // F4 — scroll target so the full 4th octave is centred
 
 export default function PianoKeyboard({
   activeMidiNotes = [],
@@ -169,8 +170,9 @@ export default function PianoKeyboard({
   rightHandMidiNotes = [],
   className = '',
 }: PianoKeyboardProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const c4Ref    = useRef<HTMLDivElement>(null);
+  const scrollRef    = useRef<HTMLDivElement>(null);
+  const c4Ref        = useRef<HTMLDivElement>(null);
+  const centerKeyRef = useRef<HTMLDivElement>(null);
 
   // Pre-warm C3–C5 on mount so first-click is instant
   useEffect(() => {
@@ -179,18 +181,18 @@ export default function PianoKeyboard({
     _preWarm(warm);
   }, []);
 
-  // Center the view on C4 after the keyboard renders
+  // Centre the view on F4 so the full 4th octave sits in the middle
   useEffect(() => {
-    const container = scrollRef.current;
-    const c4El      = c4Ref.current;
-    if (!container || !c4El) return;
+    const container  = scrollRef.current;
+    const centerEl   = centerKeyRef.current;
+    if (!container || !centerEl) return;
 
     // Use requestAnimationFrame so layout is complete before we measure
     const raf = requestAnimationFrame(() => {
       const containerW = container.clientWidth;
-      const c4Left     = c4El.offsetLeft;
-      const c4Width    = c4El.offsetWidth;
-      container.scrollLeft = c4Left - containerW / 2 + c4Width / 2;
+      const keyLeft    = centerEl.offsetLeft;
+      const keyWidth   = centerEl.offsetWidth;
+      container.scrollLeft = keyLeft - containerW / 2 + keyWidth / 2;
     });
     return () => cancelAnimationFrame(raf);
   }, []);
@@ -222,14 +224,7 @@ export default function PianoKeyboard({
 
   return (
     <div className={`w-full ${className}`}>
-      {/* Label row */}
-      <div className="flex items-center justify-center px-4 mb-2">
-        <span className="text-[10px] text-muted-foreground font-semibold tracking-wider select-none">
-          C1 – C8 &nbsp;·&nbsp; C4 centered &nbsp;·&nbsp; Click keys to play
-        </span>
-      </div>
-
-      {/* Scrollable keyboard — C4 is always scrolled into centre on mount */}
+      {/* Scrollable keyboard — F4 is scrolled into centre on mount */}
       <div
         ref={scrollRef}
         className="w-full overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-muted/30 scrollbar-track-transparent"
@@ -242,8 +237,9 @@ export default function PianoKeyboard({
             const hasBlackKey  = isBlackKey(blackMidi) && blackMidi <= MIDI_MAX;
             const isBlackActive = activeSet.has(blackMidi);
 
-            const isCKey = getNoteName(midi) === 'C';
-            const isC4   = midi === MIDI_C4;
+            const isCKey      = getNoteName(midi) === 'C';
+            const isC4        = midi === MIDI_C4;
+            const isCenterKey = midi === MIDI_CENTER;
 
             const whiteKeyHighlightClass = isWhiteActive
               ? 'bg-[#FFD700] text-black shadow-[0_0_15px_#FFD700_inset,0_0_20px_#FFD700] border-transparent font-extrabold scale-[0.98]'
@@ -256,7 +252,7 @@ export default function PianoKeyboard({
             return (
               <div
                 key={midi}
-                ref={isC4 ? c4Ref : undefined}
+                ref={isCenterKey ? centerKeyRef : isC4 ? c4Ref : undefined}
                 className="flex flex-col items-center flex-shrink-0 w-[32px] sm:w-[36px] md:w-[40px] relative overflow-visible"
               >
                 {/* White Key */}

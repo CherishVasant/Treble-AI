@@ -56,7 +56,7 @@ function TheoryTutorContent() {
 
   return (
     /* Fill all available height, no outer scroll */
-    <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-4 w-full max-w-5xl mx-auto relative">
+    <div className="flex-1 flex flex-col min-h-0 px-4 sm:px-6 lg:px-8 py-4 w-full max-w-7xl mx-auto relative">
       {/* Decorative blobs (contained, non-scrollable) */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
         <div className="absolute top-20 right-0 w-96 h-96 rounded-full bg-gradient-primary/5 blur-3xl animate-float" />
@@ -86,7 +86,7 @@ export default function TheoryTutorPage() {
     /* Take exactly the viewport height minus the navbar (h-14 = 3.5rem), no outer scroll */
     <div className="h-[calc(100vh-3.5rem)] bg-background flex flex-col overflow-hidden">
       <Suspense fallback={
-        <div className="flex-1 flex flex-col px-4 sm:px-6 lg:px-8 py-4 w-full max-w-5xl mx-auto">
+        <div className="flex-1 flex flex-col px-4 sm:px-6 lg:px-8 py-4 w-full max-w-7xl mx-auto">
           <div className="flex-1 rounded-xl border border-border/30 bg-card/20 animate-pulse" />
         </div>
       }>

@@ -1,7 +1,7 @@
 ﻿'use client';
 
 import dynamic from 'next/dynamic';
-import { useState, useRef, useEffect, useMemo, Suspense } from 'react';
+import { useState, useRef, useEffect, useMemo, useCallback, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import PageHeader from '@/components/ui/page-header';
 import SheetMusicViewer, { type SheetPreviewKind } from '@/components/sheet-music-viewer';
@@ -120,11 +120,8 @@ function PracticeStudioContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const sessionId = searchParams.get('sessionId') || '';
-  // ?new=1 is set by the "New Chat" button to signal a truly fresh session
-  // (suppress the saved-last-session redirect).
-  const isNewChat = searchParams.get('new') === '1';
 
-  const { practiceSessions, loadingSessions, sendChatMessage, updatePracticeSessionAssets, initializePracticeSession, setLastActiveSession } = useChat();
+  const { practiceSessions, loadingSessions, loadSessions, sendChatMessage, updatePracticeSessionAssets, initializePracticeSession, setLastActiveSession } = useChat();
 
   const activeSessionIdRef = useRef(sessionId);
   useEffect(() => {
@@ -144,19 +141,21 @@ function PracticeStudioContent() {
     lastUploadedFileRef.current = null;
   }, [sessionId]);
 
-  // On mount with no sessionId in URL, redirect to last known session —
-  // unless ?new=1 is set (user clicked "New Chat" and wants a blank slate).
+  // Guard against the backfill effect triggering itself in an infinite loop.
+  // Stored as a Set of session IDs that have already been backfilled.
+  const backfillAttemptedRef = useRef<Set<string>>(new Set());
+
+  // When navigating to a session that isn't in local state yet (e.g. after a
+  // Render cold-start where loadSessions was still pending when the user clicked
+  // the sidebar), reload from the server so the session data becomes available.
   useEffect(() => {
-    if (!sessionId && !isNewChat) {
-      try {
-        const saved = localStorage.getItem(LAST_SESSION_KEY);
-        if (saved) {
-          router.replace(`/practice-studio?sessionId=${saved}`, { scroll: false });
-        }
-      } catch {}
+    if (!sessionId) return;
+    const found = practiceSessions.some(s => s.id === sessionId);
+    if (!found) {
+      loadSessions();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [sessionId]);
 
   const activeSession = practiceSessions.find(s => s.id === sessionId);
   const messages = activeSession ? activeSession.messages : [];
@@ -179,6 +178,28 @@ function PracticeStudioContent() {
   const [showAnalysis, setShowAnalysis] = useState(false);
 
   const playerRef = useRef<MusicPlayerRef>(null);
+
+  // Buffer of piano notes played by the user this second; flushed into the chat
+  // after a short idle window so rapid key presses become one message.
+  const playedNotesBufferRef = useRef<string[]>([]);
+  const playedNotesTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleNotePlay = useCallback((midiNumber: number, noteName: string) => {
+    playedNotesBufferRef.current.push(noteName);
+
+    // Debounce: wait 800ms after the last keypress before sending to chat
+    if (playedNotesTimerRef.current) clearTimeout(playedNotesTimerRef.current);
+    playedNotesTimerRef.current = setTimeout(() => {
+      const notes = playedNotesBufferRef.current.splice(0);
+      if (notes.length === 0) return;
+      const message = notes.length === 1
+        ? `I played the note ${notes[0]} on the piano keyboard.`
+        : `I played these notes on the piano keyboard: ${notes.join(', ')}.`;
+      handleSendMessage(message);
+    }, 800);
+  // handleSendMessage is stable enough — its deps don't change mid-session
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Sync piano highlights with current audio playback timing
   const activeMidiNotes = useMemo(() => {
@@ -256,17 +277,24 @@ function PracticeStudioContent() {
     }
   };
 
-  // Backfill missing note timings or analysis details for older sessions
+  // Backfill missing note timings or analysis details for older sessions.
+  // The guard ref ensures this runs at most ONCE per session ID so that a
+  // re-render caused by the backfill update cannot trigger a second fetch,
+  // which would create an infinite loop.
   useEffect(() => {
     if (!sessionId || !processedMetadata || !uploadedFileData) return;
-    
+
     // Check if notes or difficulty analysis is missing from musicalInfo
     const hasNotes = processedMetadata.musicalInfo?.notes && Array.isArray(processedMetadata.musicalInfo.notes);
     const hasDifficulty = Boolean(processedMetadata.musicalInfo?.difficulty);
     const hasAudio = Boolean(processedMetadata.audioUrl);
     const jobId = processedMetadata.jobId;
-    
+
     if (hasAudio && (!hasNotes || !hasDifficulty) && jobId) {
+      // Prevent re-firing after the backfill update causes a re-render.
+      if (backfillAttemptedRef.current.has(sessionId)) return;
+      backfillAttemptedRef.current.add(sessionId);
+
       console.log('[PracticeStudio] Enriched analysis details or notes missing. Backfilling from server for job:', jobId);
       
       fetch(`/api/convert-sheet/result?jobId=${jobId}&fileId=${uploadedFileData.id}`, { cache: 'no-store' })
@@ -433,6 +461,7 @@ function PracticeStudioContent() {
         <div className={`transition-all duration-300 ease-in-out overflow-hidden ${showPiano ? 'max-h-[300px] opacity-100 p-6' : 'max-h-0 opacity-0 p-0 border-0'}`}>
           <PianoKeyboard
             activeMidiNotes={activeMidiNotes}
+            onNotePlay={handleNotePlay}
           />
         </div>
       </div>

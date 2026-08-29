@@ -255,9 +255,9 @@ export default function Sidebar() {
       : `/practice-studio?sessionId=${session.id}`;
       
     return (
-      <div
+      <Link
         key={session.id}
-        onClick={() => router.push(clickUrl)}
+        href={clickUrl}
         className={`group relative w-full flex items-center justify-between rounded-lg text-left text-xs truncate transition-all duration-200 border cursor-pointer ${
           isActive
             ? 'bg-primary/10 text-foreground font-bold border-primary/20 border-l-2 border-l-primary pl-2.5 pr-3 py-1.5 shadow-sm'
@@ -285,10 +285,10 @@ export default function Sidebar() {
             <Trash2 className="w-3.5 h-3.5" />
           </button>
         </div>
-      </div>
+      </Link>
     );
   };
-  
+
   // Music Library Specific states
   const [favoritesCount, setFavoritesCount] = useState(0);
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
@@ -386,8 +386,7 @@ export default function Sidebar() {
   }, [theorySessions, theorySearch]);
 
   const handleNewChatPractice = () => {
-    // ?new=1 tells the page to start a truly blank session, not restore the last one.
-    router.push('/practice-studio?new=1');
+    router.push('/practice-studio');
   };
 
   const handleNewChatTheory = () => {

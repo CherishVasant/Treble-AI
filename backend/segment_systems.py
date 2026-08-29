@@ -8,6 +8,7 @@ explicitly set to 300 so Audiveris calibrates staff-line detection correctly.
 
 from __future__ import annotations
 
+import gc
 from pathlib import Path
 from typing import NamedTuple
 
@@ -135,17 +136,32 @@ def segment_and_enhance(
         print(f"[segment] Fewer than 2 systems detected — treating whole image as one strip.")
         ranges = [(0, gray.shape[0])]
 
-    strips: list[SystemStrip] = []
+    # Extract each strip as an independent copy BEFORE running any enhancement.
+    # This lets us delete the full-resolution `gray` array from memory before
+    # the upscaling step, which is the most memory-intensive operation.
+    # numpy slices are views (share memory), so we must copy explicitly.
+    strip_copies: list[tuple[int, int, int, np.ndarray]] = []
     for idx, (r0, r1) in enumerate(ranges):
-        strip_gray = gray[r0:r1, :]
+        strip_copies.append((idx, r0, r1, gray[r0:r1, :].copy()))
 
+    # Free the original full-image array — no longer needed.
+    del gray
+    gc.collect()
+
+    strips: list[SystemStrip] = []
+    for idx, r0, r1, strip_gray in strip_copies:
         # Per-strip quality enhancement: upscale → CLAHE → unsharp-mask → denoise
         enhanced = enhance_grayscale(strip_gray)
+        del strip_gray  # free the raw strip copy
 
         dest = output_path / f"system_{idx:03d}.png"
         _save_strip(enhanced, dest, dpi=target_dpi)
-        strips.append(SystemStrip(index=idx, path=dest))
         print(f"[segment] System {idx}: rows {r0}–{r1}  →  {dest.name}  "
               f"({enhanced.shape[1]}×{enhanced.shape[0]} px)")
+        del enhanced  # free the upscaled strip
+        gc.collect()
 
+        strips.append(SystemStrip(index=idx, path=dest))
+
+    del strip_copies
     return strips

@@ -293,6 +293,11 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
                 print(f"[pipeline] OCR from skipped strip {idx}: {ocr_text!r}")
                 skipped_texts.append(ocr_text)
             shutil.rmtree(str(strip_out_dir), ignore_errors=True)
+            # Free the skipped strip image immediately
+            try:
+                strip.path.unlink(missing_ok=True)
+            except Exception:
+                pass
             continue
 
         # Copy MXL to a stable location outside the Audiveris output dir
@@ -307,6 +312,13 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
 
         # Remove Audiveris scratch dir to free disk space
         shutil.rmtree(str(strip_out_dir), ignore_errors=True)
+        # Delete the strip image immediately — it has been processed and is no
+        # longer needed.  This frees significant disk space on Render's free tier
+        # and reduces peak memory held by the file system cache.
+        try:
+            strip.path.unlink(missing_ok=True)
+        except Exception:
+            pass
 
     # If every strip was skipped, nothing is recoverable
     if not mxl_by_index:
@@ -341,7 +353,18 @@ def _process_image_per_system(image_path: str, output_dir: str, base_name: str) 
         except Exception:
             print(f"[pipeline] merge_system_mxls raised:\n{traceback.format_exc()}")
             raise
-        merged_score.write("musicxml", fp=str(final_mxl))
+        try:
+            merged_score.write("musicxml", fp=str(final_mxl))
+        except ZeroDivisionError:
+            # Rare: a malformed TS that survived the merge loop can still trigger
+            # a division by zero when music21 serialises offsets.  Retry after
+            # inserting a safe 4/4 time signature at the top of every part.
+            print("[pipeline] merged_score.write raised ZeroDivisionError; "
+                  "inserting 4/4 fallback into all parts and retrying.")
+            from music21 import meter as _m21_meter
+            for _p in merged_score.parts:
+                _p.insert(0, _m21_meter.TimeSignature("4/4"))
+            merged_score.write("musicxml", fp=str(final_mxl))
         del merged_score
         gc.collect()
 

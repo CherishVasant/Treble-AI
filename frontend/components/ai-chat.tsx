@@ -402,7 +402,25 @@ export default function AIChat({
                 </div>
 
                 {/* Message Bubble */}
-                <div className="max-w-[85%] flex flex-col space-y-2">
+                <div className="max-w-[85%] flex flex-col space-y-1">
+                  {/* User copy button — floats above the bubble */}
+                  {message.role === 'user' && (
+                    <div className="flex justify-end">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleCopyText(message.content, message.id)}
+                        className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground hover:bg-card/65 rounded-md border border-border/10"
+                        title={copiedId === message.id ? 'Copied!' : 'Copy message'}
+                      >
+                        {copiedId === message.id ? (
+                          <Check className="w-3 h-3 text-emerald-400" />
+                        ) : (
+                          <Copy className="w-3 h-3" />
+                        )}
+                      </Button>
+                    </div>
+                  )}
                   <div
                     className={`px-4 py-3.5 rounded-2xl ${
                       message.role === 'user'

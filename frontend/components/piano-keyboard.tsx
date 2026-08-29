@@ -239,11 +239,16 @@ export default function PianoKeyboard({
                     if (e.key === 'Enter' || e.key === ' ') handleKeyPress(midi);
                   }}
                   aria-label={`Play ${getNoteName(midi)}${getOctave(midi)}`}
-                  className={`w-full h-36 sm:h-44 md:h-48 rounded-b-lg border-l border-r border-b transition-all duration-100 cursor-pointer select-none focus:outline-none flex flex-col justify-end pb-3 items-center relative ${whiteKeyHighlightClass}`}
+                  className={`w-full h-36 sm:h-44 md:h-48 rounded-b-lg border-l border-r border-b transition-all duration-100 cursor-pointer select-none focus:outline-none flex flex-col justify-end pb-2 items-center relative ${whiteKeyHighlightClass}`}
                 >
-                  {noteLabelsEnabled && isCKey && (
-                    <span className="text-[9px] font-bold tracking-tight select-none pointer-events-none transition-opacity duration-150">
-                      {isC4 ? 'C4' : getNoteName(midi)}
+                  {/* Show C-octave label on the key itself; C4 is bold */}
+                  {isCKey && (
+                    <span
+                      className={`text-[8px] sm:text-[9px] font-bold tracking-tight select-none pointer-events-none leading-none ${
+                        isC4 ? 'text-primary' : 'text-slate-500'
+                      } ${isWhiteActive ? 'text-black' : ''}`}
+                    >
+                      C{getOctave(midi)}
                     </span>
                   )}
                 </div>
@@ -263,13 +268,6 @@ export default function PianoKeyboard({
                     aria-label={`Play ${getNoteName(blackMidi)}${getOctave(blackMidi)}`}
                     className={`absolute top-0 right-0 translate-x-1/2 w-[60%] h-[60%] z-20 rounded-b border-l border-r border-b transition-all duration-100 cursor-pointer select-none focus:outline-none ${blackKeyHighlightClass}`}
                   />
-                )}
-
-                {/* Octave Markers — only on C keys */}
-                {octaveMarkersEnabled && isCKey && (
-                  <span className="mt-2 text-[10px] sm:text-xs font-bold text-muted-foreground/80 select-none pointer-events-none">
-                    C{getOctave(midi)}
-                  </span>
                 )}
               </div>
             );

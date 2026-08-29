@@ -402,7 +402,12 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
         const data = await response.json();
         if (!response.ok) {
-          const detail = data.details || data.error || 'Failed to get response';
+          // FastAPI uses "detail" (singular); guard all common shapes
+          const detail =
+            (typeof data.detail === 'string' ? data.detail : '') ||
+            (typeof data.details === 'string' ? data.details : '') ||
+            (typeof data.error === 'string' ? data.error : '') ||
+            'Failed to get response';
           throw new Error(detail);
         }
 
@@ -421,7 +426,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         await loadSessions();
       } catch (error: any) {
         console.error('[ChatContext] message fetch error:', error);
-        const detail = error instanceof Error && error.message !== 'Failed to get response' ? error.message : null;
+        const rawMsg = error instanceof Error ? error.message : String(error);
+        const isGeneric = !rawMsg || rawMsg === 'Failed to get response';
+        const detail = isGeneric ? null : rawMsg;
 
         const errorMessage: Message = {
           id: generateUUID(),

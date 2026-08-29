@@ -66,6 +66,8 @@ type ProcessedMeta = {
 };
 
 import { useChat } from '@/context/chat-context';
+import { useSidebar } from '@/context/sidebar-context';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
 
 function newUUID(): string {
   if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
@@ -181,6 +183,12 @@ function PracticeStudioContent() {
   const [isLooping, setIsLooping] = useState(false);
   const [showPiano, setShowPiano] = useState(true);
   const [showAnalysis, setShowAnalysis] = useState(false);
+
+  // ── Studio layout state ─────────────────────────────────────────────────────
+  const { layoutMode } = useSidebar();
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [pianoOpen, setPianoOpen] = useState(true);
+  const [activeTab, setActiveTab] = useState<'chat' | 'analysis'>('chat');
 
   const playerRef = useRef<MusicPlayerRef>(null);
 
@@ -413,6 +421,340 @@ function PracticeStudioContent() {
   const chatContext = useMemo(() => getChatContext(uploadedFileData, processedMetadata), [uploadedFileData, processedMetadata]);
   const systemPrompt = uploadedFileData ? SYSTEM_PROMPT_WITH_SCORE : SYSTEM_PROMPT_NO_SCORE;
 
+  // ── Studio layout ─────────────────────────────────────────────────────────
+  if (layoutMode === 'studio') {
+    const hasAnalysis = Boolean(processedMetadata?.musicalInfo?.difficulty);
+
+    return (
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+
+        {/* ── Main row: sheet music viewer + right panel ── */}
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+
+          {/* Center: Sheet music viewer */}
+          <div className="flex-1 min-w-0 overflow-hidden relative">
+            {uploadedFileData ? (
+              <SheetMusicViewer
+                xmlData={processedMetadata?.xmlData}
+                musicXmlUrl={processedMetadata?.musicXmlUrl}
+                fileId={uploadedFileData?.id}
+                previewUrl={processedMetadata?.previewUrl}
+                previewKind={processedMetadata?.previewKind}
+                currentTime={currentTime}
+                isPlaying={isPlaying}
+                secondsPerMeasure={secondsPerMeasure}
+                measuresMap={processedMetadata?.musicalInfo?.measures_map}
+                onMeasureClick={(measure) => {
+                  const map = processedMetadata?.musicalInfo?.measures_map;
+                  let targetTime = (measure - 1) * secondsPerMeasure;
+                  if (Array.isArray(map) && map.length > 0) {
+                    const entry = map.find((m: any) => m.measure_number === measure);
+                    if (entry) targetTime = entry.start_time;
+                  }
+                  playerRef.current?.seekTo(targetTime);
+                }}
+                className="h-full w-full"
+              />
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full gap-4 px-8 text-center">
+                <svg className="w-14 h-14 text-muted-foreground/20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1">
+                  <rect x="2" y="3" width="20" height="18" rx="2" />
+                  <path d="M6 3v12M10 3v12M14 3v12M18 3v12M2 15h20" />
+                </svg>
+                <p className="text-sm text-muted-foreground">
+                  Upload sheet music in the right panel to get started
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Right-panel collapse toggle strip */}
+          <button
+            onClick={() => setRightPanelOpen(v => !v)}
+            className="w-5 shrink-0 flex items-center justify-center bg-card/20 border-l border-border/20 hover:bg-card/40 transition-colors text-muted-foreground hover:text-foreground"
+            title={rightPanelOpen ? 'Collapse chat panel' : 'Expand chat panel'}
+          >
+            {rightPanelOpen
+              ? <ChevronRight className="w-3 h-3" />
+              : <ChevronLeft className="w-3 h-3" />}
+          </button>
+
+          {/* Right panel: uploader strip + chat / analysis tabs */}
+          {rightPanelOpen && (
+            <div className="w-[360px] shrink-0 flex flex-col border-l border-border/20 overflow-hidden bg-card/10">
+
+              {/* Compact upload strip */}
+              <SheetMusicUploader
+                compact
+                fileId={uploadedFileData?.id}
+                fileName={uploadedFileData?.name}
+                hasAudio={Boolean(processedMetadata?.audioUrl)}
+                sessionId={sessionId || undefined}
+                fileBlobUrl={uploadedFileData?.blobUrl}
+                conversionState={processedMetadata?.conversionState}
+                onFileUpload={handleFileUpload}
+                onProcessing={handleMetadataUpdate}
+                onConvertingChange={setIsConverting}
+              />
+
+              {/* Tab switcher */}
+              <div className="flex border-b border-border/20 bg-card/20 shrink-0">
+                <button
+                  onClick={() => setActiveTab('chat')}
+                  className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${
+                    activeTab === 'chat'
+                      ? 'text-primary border-b-2 border-primary bg-primary/5'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  AI Chat
+                </button>
+                <button
+                  onClick={() => { if (hasAnalysis) setActiveTab('analysis'); }}
+                  className={`flex-1 py-2.5 text-xs font-semibold transition-colors ${
+                    activeTab === 'analysis'
+                      ? 'text-primary border-b-2 border-primary bg-primary/5'
+                      : hasAnalysis
+                        ? 'text-muted-foreground hover:text-foreground'
+                        : 'text-muted-foreground/40 cursor-not-allowed'
+                  }`}
+                  title={hasAnalysis ? undefined : 'Convert a score first to see analysis'}
+                >
+                  Analysis
+                </button>
+              </div>
+
+              {/* Tab content */}
+              <div className="flex-1 min-h-0 overflow-hidden">
+                {activeTab === 'chat' ? (
+                  <AIChat
+                    title="Treble"
+                    apiPath="/api/chat"
+                    welcomeTitle="Hello, I am Treble."
+                    welcomeSubtitle="Upload sheet music or ask me anything about music theory, practice techniques, or your piece."
+                    suggestedPrompts={suggestedPrompts}
+                    context={chatContext}
+                    systemPrompt={systemPrompt}
+                    messages={messages}
+                    onSendMessage={handleSendMessage}
+                    isLoading={isLoading}
+                    className="h-full w-full"
+                    isRecording={isRecording}
+                    onToggleRecording={handleToggleRecording}
+                    recordingNoteCount={recordingNoteCount}
+                    pendingRecordings={pendingRecordings}
+                    onRemovePendingRecording={(id) => setPendingRecordings(prev => prev.filter(r => r.id !== id))}
+                    onClearPendingRecordings={() => setPendingRecordings([])}
+                  />
+                ) : (
+                  /* Analysis panel — vertical compact cards */
+                  <div className="overflow-y-auto h-full p-4 space-y-4">
+
+                    {/* Difficulty card */}
+                    {processedMetadata?.musicalInfo?.difficulty && (
+                      <div className="glass rounded-xl p-4 border border-border/35">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Difficulty</span>
+                          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold border ${
+                            processedMetadata.musicalInfo.difficulty.difficulty_category === 'Beginner'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : processedMetadata.musicalInfo.difficulty.difficulty_category === 'Intermediate'
+                              ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                              : 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                          }`}>
+                            {processedMetadata.musicalInfo.difficulty.difficulty_category}
+                          </span>
+                        </div>
+                        <div className="text-3xl font-extrabold text-foreground mb-2">
+                          {processedMetadata.musicalInfo.difficulty.difficulty_score}
+                          <span className="text-sm font-medium text-muted-foreground ml-1">/ 10</span>
+                        </div>
+                        {processedMetadata.musicalInfo.register_and_contour && (
+                          <div className="space-y-1.5 text-xs border-t border-border/20 pt-2.5 mt-2.5">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Register span:</span>
+                              <span className="font-semibold">{processedMetadata.musicalInfo.register_and_contour.range_interval_name}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Contour:</span>
+                              <span className="font-semibold text-primary">{processedMetadata.musicalInfo.register_and_contour.contour}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Key & Diatonicity card */}
+                    {processedMetadata?.musicalInfo?.key_analysis && (
+                      <div className="glass rounded-xl p-4 border border-border/35">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Key & Diatonicity</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold">
+                            {processedMetadata.musicalInfo.key_analysis.mode || 'Tonal'}
+                          </span>
+                        </div>
+                        <div className="text-2xl font-extrabold text-foreground mb-3">
+                          {processedMetadata.musicalInfo.key_analysis.tonal_center || 'C Major'}
+                        </div>
+                        {processedMetadata.musicalInfo.diatonicity && (
+                          <div>
+                            <div className="flex justify-between text-xs text-muted-foreground mb-1">
+                              <span>Diatonic notes</span>
+                              <span className="font-semibold text-foreground">{processedMetadata.musicalInfo.diatonicity.ratio_percentage}%</span>
+                            </div>
+                            <div className="w-full bg-muted rounded-full h-1.5">
+                              <div className="bg-primary h-1.5 rounded-full" style={{ width: `${processedMetadata.musicalInfo.diatonicity.ratio_percentage}%` }} />
+                            </div>
+                          </div>
+                        )}
+                        {processedMetadata.musicalInfo.practice_recommendations?.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-border/20 space-y-2">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">Warm-up Scales</span>
+                            {processedMetadata.musicalInfo.practice_recommendations.map((rec: any, idx: number) => (
+                              <div key={idx} className="text-xs bg-muted/40 p-2 rounded border border-border/10">
+                                <div className="flex justify-between items-center mb-0.5">
+                                  <span className="font-bold text-foreground">{rec.scale_name}</span>
+                                  <span className="text-[10px] bg-primary/10 text-primary px-1.5 rounded font-semibold">{rec.type}</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground">{rec.description}</p>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Harmony card */}
+                    {processedMetadata?.musicalInfo?.cadences !== undefined && (
+                      <div className="glass rounded-xl p-4 border border-border/35">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Harmony</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold">
+                            {processedMetadata.musicalInfo.cadences?.length || 0} Cadences
+                          </span>
+                        </div>
+                        {processedMetadata.musicalInfo.cadences?.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {processedMetadata.musicalInfo.cadences.slice(0, 3).map((cad: any, idx: number) => (
+                              <div key={idx} className="text-xs flex items-center justify-between bg-muted/30 p-2 rounded border border-border/10">
+                                <span className="font-medium text-foreground truncate">{cad.type}</span>
+                                <span className="text-[10px] text-muted-foreground ml-2 shrink-0">{cad.progression} (M.{cad.measure})</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-muted-foreground italic">No cadences detected</p>
+                        )}
+                        {processedMetadata.musicalInfo.voice_leading_errors?.length === 0 && (
+                          <p className="text-xs text-emerald-400 bg-emerald-500/5 px-2 py-1.5 rounded border border-emerald-500/10 mt-3 font-medium">
+                            ✓ Voice-leading rules passed
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Fingering & Rhythm card */}
+                    {processedMetadata?.musicalInfo?.fingerings && (
+                      <div className="glass rounded-xl p-4 border border-border/35">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Fingering & Rhythm</span>
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 font-bold">
+                            {processedMetadata.musicalInfo.rhythm?.syncopations_detected || 0} Sync
+                          </span>
+                        </div>
+                        <div className="space-y-2 text-xs">
+                          <div>
+                            <span className="font-semibold text-foreground block text-xs mb-1">Scale Fingering (RH / LH):</span>
+                            <span className="font-mono bg-muted/65 px-2 py-1 rounded block border border-border/20 text-[11px]">
+                              {processedMetadata.musicalInfo.fingerings?.scale_fingerings?.right_hand} / {processedMetadata.musicalInfo.fingerings?.scale_fingerings?.left_hand}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="h-2" />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Piano strip (collapsible) ── */}
+        <div className={`border-t border-border/20 bg-card/10 shrink-0 overflow-hidden transition-all duration-300 ${pianoOpen ? 'h-[200px]' : 'h-[36px]'}`}>
+          {/* Strip header */}
+          <div className="h-[36px] flex items-center justify-between px-4 shrink-0">
+            <div className="flex items-center gap-2">
+              <svg className="w-3.5 h-3.5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="3" width="20" height="18" rx="2" />
+                <path d="M6 3v12M10 3v12M14 3v12M18 3v12M2 15h20" />
+              </svg>
+              <span className="text-xs font-semibold text-muted-foreground">Piano</span>
+              {pianoOpen && activeMidiNotes.length > 0 && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/10 text-yellow-500 border border-yellow-500/20 font-semibold animate-pulse">
+                  {activeMidiNotes.length} active
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {pianoOpen && (
+                <button
+                  onClick={handleToggleRecording}
+                  className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold transition-all ${
+                    isRecording
+                      ? 'bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse'
+                      : 'bg-card/40 text-muted-foreground hover:text-foreground border border-border/20'
+                  }`}
+                >
+                  {isRecording ? `⏹ Stop (${recordingNoteCount})` : '⏺ Record'}
+                </button>
+              )}
+              <button
+                onClick={() => setPianoOpen(v => !v)}
+                className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-card/40 transition-colors"
+                title={pianoOpen ? 'Collapse piano' : 'Expand piano'}
+              >
+                {pianoOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Piano content */}
+          {pianoOpen && (
+            <div className="px-4 pb-3">
+              <PianoKeyboard
+                activeMidiNotes={activeMidiNotes}
+                onNotePlay={handleNotePlay}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* ── Audio dock: always visible, fixed 68px ── */}
+        <MusicPlayer
+          ref={playerRef}
+          variant="dock"
+          title={uploadedFileData?.name || 'No music loaded'}
+          composer={processedMetadata?.composer || processedMetadata?.metadata?.composer || 'Unknown'}
+          audioUrl={processedMetadata?.audioUrl ?? undefined}
+          isConverting={isConverting}
+          onTimeUpdate={setCurrentTime}
+          onIsPlayingChange={setIsPlaying}
+          onDurationChange={setDuration}
+          fileId={uploadedFileData?.id}
+          loopStartMeasure={loopStartMeasure}
+          loopEndMeasure={loopEndMeasure}
+          onLoopStartChange={setLoopStartMeasure}
+          onLoopEndChange={setLoopEndMeasure}
+          secondsPerMeasure={secondsPerMeasure}
+          measuresMap={processedMetadata?.musicalInfo?.measures_map}
+        />
+      </div>
+    );
+  }
+
+  // ── Classic layout (unchanged) ────────────────────────────────────────────
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
       
@@ -597,7 +939,7 @@ function PracticeStudioContent() {
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">Register Span:</span>
-                        <span className="font-semibold text-foreground truncate max-w-[120px]">
+                        <span className="font-semibold text-foreground">
                           {processedMetadata.musicalInfo.register_and_contour.range_interval_name}
                         </span>
                       </div>
@@ -652,7 +994,7 @@ function PracticeStudioContent() {
                               <span className="font-bold text-foreground">{rec.scale_name}</span>
                               <span className="text-[10px] bg-primary/10 text-primary px-1.5 rounded font-semibold">{rec.type}</span>
                             </div>
-                            <p className="text-[10px] text-muted-foreground line-clamp-2">{rec.description}</p>
+                            <p className="text-[10px] text-muted-foreground">{rec.description}</p>
                           </div>
                         ))}
                       </div>
@@ -773,7 +1115,9 @@ function PracticeStudioContent() {
 
 export default function PracticeStudioPage() {
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    // flex-1 + flex flex-col + min-h-0 lets the Studio layout fill the
+    // viewport height already set by app-providers (h-screen in studio mode).
+    <div className="flex flex-col flex-1 min-h-0 bg-background">
       <Suspense fallback={
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
           <div className="glass rounded-xl p-6 border border-border/30 min-h-[180px] animate-pulse bg-card/20 mb-6" />

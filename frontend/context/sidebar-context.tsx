@@ -7,18 +7,24 @@ export interface UserSettings {
   theoryInstructions: string;
 }
 
+export type LayoutMode = 'studio' | 'classic';
+
 interface SidebarContextType {
   collapsed: boolean;
   setCollapsed: (v: boolean) => void;
   toggleCollapsed: () => void;
   settings: UserSettings;
   updateSettings: (patch: Partial<UserSettings>) => void;
+  layoutMode: LayoutMode;
+  setLayoutMode: (mode: LayoutMode) => void;
+  toggleLayoutMode: () => void;
 }
 
 const SidebarContext = createContext<SidebarContextType | undefined>(undefined);
 
 export function SidebarProvider({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsedState] = useState(false);
+  const [layoutMode, setLayoutModeState] = useState<LayoutMode>('studio');
   const [settings, setSettings] = useState<UserSettings>({
     practiceInstructions: '',
     theoryInstructions: '',
@@ -28,6 +34,8 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       if (localStorage.getItem('treble_sidebar_collapsed') === 'true') setCollapsedState(true);
+      const storedLayout = localStorage.getItem('treble_layout') as LayoutMode | null;
+      if (storedLayout === 'classic' || storedLayout === 'studio') setLayoutModeState(storedLayout);
       setSettings({
         practiceInstructions: localStorage.getItem('treble_practice_instructions') || '',
         theoryInstructions: localStorage.getItem('treble_theory_instructions') || '',
@@ -48,6 +56,19 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
+  const setLayoutMode = useCallback((mode: LayoutMode) => {
+    setLayoutModeState(mode);
+    try { localStorage.setItem('treble_layout', mode); } catch {}
+  }, []);
+
+  const toggleLayoutMode = useCallback(() => {
+    setLayoutModeState(prev => {
+      const next: LayoutMode = prev === 'studio' ? 'classic' : 'studio';
+      try { localStorage.setItem('treble_layout', next); } catch {}
+      return next;
+    });
+  }, []);
+
   const updateSettings = useCallback((patch: Partial<UserSettings>) => {
     setSettings(prev => {
       const next = { ...prev, ...patch };
@@ -60,7 +81,11 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <SidebarContext.Provider value={{ collapsed, setCollapsed, toggleCollapsed, settings, updateSettings }}>
+    <SidebarContext.Provider value={{
+      collapsed, setCollapsed, toggleCollapsed,
+      settings, updateSettings,
+      layoutMode, setLayoutMode, toggleLayoutMode,
+    }}>
       {children}
     </SidebarContext.Provider>
   );

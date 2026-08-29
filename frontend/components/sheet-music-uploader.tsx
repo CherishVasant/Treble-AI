@@ -24,6 +24,9 @@ interface SheetMusicUploaderProps {
   onFileUpload?: (file: { id: string; name: string }) => void;
   onProcessing?: (metadata: any) => void;
   onConvertingChange?: (converting: boolean) => void;
+  /** Compact strip mode — renders a single horizontal row instead of the full
+   *  card. Used inside the Studio layout's right panel. */
+  compact?: boolean;
 }
 
 function extFromName(filename: string): string {
@@ -52,6 +55,7 @@ export default function SheetMusicUploader({
   onFileUpload,
   onProcessing,
   onConvertingChange,
+  compact = false,
 }: SheetMusicUploaderProps) {
   const [dragActive, setDragActive] = useState(false);
   const [activeFile, setActiveFile] = useState<{ id: string; name: string; size: number; blobUrl?: string } | null>(null);
@@ -768,6 +772,91 @@ export default function SheetMusicUploader({
   };
 
   const btnState = getConvertButtonState();
+
+  // ── Compact strip (Studio right panel) ─────────────────────────────────────
+  if (compact) {
+    const isConverting = isConvertingLocal;
+    const isFullyDone = !isConverting && !conversionError && conversionSteps.analysis === 'completed';
+    const hasFailed   = !isConverting && Boolean(conversionError);
+    const needsConvert = !isConverting && !isFullyDone && activeFile && conversionSteps.upload === 'completed';
+
+    return (
+      <div className="w-full flex items-center gap-2 px-3 py-2 border-b border-border/20 bg-card/20 min-h-[44px]">
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileChange}
+          accept=".pdf,.jpg,.jpeg,.png,.webp,.gif,.bmp,.tif,.tiff,.heic,.avif,.svg,application/pdf,image/*"
+          className="hidden"
+        />
+
+        {!activeFile ? (
+          /* No file yet — show upload button */
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold border border-primary/20 transition-colors"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Upload Sheet Music
+          </button>
+        ) : (
+          <>
+            {/* File name pill */}
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+              <Music className="w-3.5 h-3.5 text-primary shrink-0" />
+              <span className="text-xs text-foreground truncate font-medium" title={activeFile.name}>
+                {activeFile.name}
+              </span>
+            </div>
+
+            {/* Status badge */}
+            {isConverting && (
+              <span className="flex items-center gap-1 text-xs text-primary shrink-0">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Converting…
+              </span>
+            )}
+            {hasFailed && (
+              <span className="flex items-center gap-1 text-xs text-red-400 shrink-0">
+                <AlertCircle className="w-3 h-3" />
+                Error
+              </span>
+            )}
+            {isFullyDone && (
+              <span className="flex items-center gap-1 text-xs text-emerald-400 shrink-0">
+                <Check className="w-3 h-3" />
+                Ready
+              </span>
+            )}
+
+            {/* Action: Convert / Retry / Re-convert */}
+            {(needsConvert || hasFailed || isFullyDone) && (
+              <button
+                type="button"
+                onClick={handleConvert}
+                disabled={isConverting}
+                className="text-xs text-primary/80 hover:text-primary font-semibold shrink-0 disabled:opacity-40 transition-colors px-1.5"
+              >
+                {hasFailed ? 'Retry' : isFullyDone ? 'Re-convert' : 'Convert'}
+              </button>
+            )}
+
+            {/* Change file */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isConverting}
+              className="text-xs text-muted-foreground hover:text-foreground font-medium shrink-0 disabled:opacity-40 transition-colors"
+            >
+              Change
+            </button>
+          </>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="w-full flex flex-col gap-3">

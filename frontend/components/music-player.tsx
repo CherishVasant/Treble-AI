@@ -34,6 +34,9 @@ interface MusicPlayerProps {
   onLoopEndChange?: (measure: number) => void;
   secondsPerMeasure?: number;
   measuresMap?: any[];
+  /** Render as a compact horizontal dock bar instead of the default card.
+   *  Used by the Studio layout's fixed audio dock at the bottom of the page. */
+  variant?: 'default' | 'dock';
 }
 
 function extFromName(filename: string): string {
@@ -73,6 +76,7 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
   onLoopEndChange,
   secondsPerMeasure = 2.0,
   measuresMap = [],
+  variant = 'default',
 }, ref) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const isSeekingRef = useRef(false);
@@ -610,6 +614,117 @@ const MusicPlayer = forwardRef<MusicPlayerRef, MusicPlayerProps>(({
   };
 
   const progressPercent = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
+
+  // ── Dock variant — compact horizontal bar ─────────────────────────────────
+  if (variant === 'dock') {
+    return (
+      <div className={`w-full h-[68px] flex items-center gap-3 px-4 border-t border-border/20 bg-card/50 backdrop-blur-md ${className}`}>
+        <audio ref={audioRef} src={audioUrl} preload="auto" className="hidden" />
+
+        {/* Title */}
+        <div className="min-w-0 w-28 shrink-0 hidden sm:block">
+          <p className="text-xs font-semibold text-foreground truncate" title={title}>
+            {hasAudio ? title : 'No track loaded'}
+          </p>
+        </div>
+
+        {/* Play / Pause */}
+        <button
+          onClick={handlePlayPause}
+          disabled={!hasAudio || isConverting}
+          className="p-2 rounded-lg bg-gradient-primary hover:shadow-glow text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed shrink-0"
+          aria-label={isPlaying ? 'Pause' : 'Play'}
+        >
+          {isConverting
+            ? <Loader2 className="w-4 h-4 animate-spin" />
+            : isPlaying
+              ? <Pause className="w-4 h-4" />
+              : <Play className="w-4 h-4 ml-0.5" />
+          }
+        </button>
+
+        {/* Seek bar + times */}
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{formatTime(currentTime)}</span>
+          <input
+            type="range"
+            min={0}
+            max={duration > 0 ? duration : 100}
+            step={0.1}
+            value={duration > 0 ? currentTime : 0}
+            onInput={handleSeekInput}
+            onChange={handleSeekInput}
+            onPointerDown={handleSeekStart}
+            onPointerUp={handleSeekEnd}
+            onPointerCancel={handleSeekEnd}
+            onKeyUp={handleSeekEnd}
+            disabled={!hasAudio || isConverting || duration <= 0}
+            aria-label="Seek playback position"
+            className="music-player-seek flex-1 min-w-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ '--range-progress': `${progressPercent}%` } as React.CSSProperties}
+          />
+          <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">{formatTime(duration)}</span>
+        </div>
+
+        {/* Measure inputs (only when audio loaded) */}
+        {hasAudio && (
+          <div className="hidden md:flex items-center gap-1.5 shrink-0">
+            <span className="text-[10px] text-muted-foreground font-semibold">M:</span>
+            <input
+              type="number"
+              min={1}
+              value={loopStartMeasure}
+              onChange={(e) => onLoopStartChange?.(Math.max(1, parseInt(e.target.value) || 1))}
+              className="w-10 h-7 px-1 text-center bg-card/50 border border-border/30 rounded text-[10px] text-foreground focus:outline-none focus:border-primary font-semibold"
+              title="Start Measure"
+            />
+            <span className="text-[10px] text-muted-foreground">–</span>
+            <input
+              type="number"
+              min={loopStartMeasure}
+              value={loopEndMeasure}
+              onChange={(e) => onLoopEndChange?.(Math.max(loopStartMeasure, parseInt(e.target.value) || loopStartMeasure))}
+              className="w-10 h-7 px-1 text-center bg-card/50 border border-border/30 rounded text-[10px] text-foreground focus:outline-none focus:border-primary font-semibold"
+              title="End Measure"
+            />
+          </div>
+        )}
+
+        {/* Speed */}
+        <select
+          value={playbackSpeed}
+          onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+          disabled={!hasAudio || isConverting}
+          className="hidden sm:block bg-card border border-border/30 rounded px-1.5 py-1 text-[10px] text-foreground focus:outline-none focus:border-primary disabled:opacity-40 font-semibold shrink-0 h-7"
+        >
+          <option value={0.5}>0.5×</option>
+          <option value={0.75}>0.75×</option>
+          <option value={1}>1×</option>
+          <option value={1.25}>1.25×</option>
+          <option value={1.5}>1.5×</option>
+          <option value={2}>2×</option>
+        </select>
+
+        {/* Volume */}
+        <div className="hidden md:flex items-center gap-1.5 shrink-0 w-[88px]">
+          <Volume2 className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <input
+            type="range"
+            min={0}
+            max={100}
+            step={1}
+            value={volume}
+            onInput={handleVolumeInput}
+            onChange={handleVolumeInput}
+            disabled={!hasAudio || isConverting}
+            aria-label="Volume"
+            className="music-player-seek flex-1 min-w-0 cursor-pointer disabled:opacity-40"
+            style={{ '--range-progress': `${volume}%` } as React.CSSProperties}
+          />
+        </div>
+      </div>
+    );
+  }
 
   // Stepper Visual Nodes Config
   const stepsList = [

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Suspense } from 'react';
+import { usePathname } from 'next/navigation';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { ChatProvider } from '@/context/chat-context';
 import { SidebarProvider, useSidebar } from '@/context/sidebar-context';
@@ -11,7 +12,11 @@ import { Loader2, Music } from 'lucide-react';
 
 function AppLayoutContent({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
-  const { collapsed } = useSidebar();
+  const { collapsed, layoutMode } = useSidebar();
+  const pathname = usePathname();
+  // In Studio mode on Practice Studio, <main> must clip overflow so the grid
+  // can fill the remaining viewport height without the page scrolling.
+  const isStudioActive = layoutMode === 'studio' && pathname.startsWith('/practice-studio');
 
   if (isLoading) {
     return (
@@ -37,9 +42,10 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
         <Sidebar />
       </Suspense>
       {/* Dynamic left padding matches sidebar width (w-14=56px collapsed, w-64=256px expanded) */}
-      <div className={`flex flex-col min-h-screen transition-all duration-300 ${collapsed ? 'md:pl-14' : 'md:pl-64'}`}>
+      {/* In Studio mode the outer wrapper is h-screen (not min-h-screen) so the flex grid can fill exactly the viewport */}
+      <div className={`flex flex-col transition-all duration-300 ${collapsed ? 'md:pl-14' : 'md:pl-64'} ${isStudioActive ? 'h-screen overflow-hidden' : 'min-h-screen'}`}>
         <Navbar />
-        <main className="flex-1">
+        <main className={`flex-1${isStudioActive ? ' overflow-hidden flex flex-col min-h-0' : ''}`}>
           {children}
         </main>
       </div>

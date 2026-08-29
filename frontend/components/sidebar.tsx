@@ -7,7 +7,8 @@ import {
   Music, Star, Settings, Plus, Search,
   MessageSquare, X, Trash2, Loader2, Edit2, Check, LogOut, User,
   KeyRound, SlidersHorizontal, PanelLeftClose, PanelLeftOpen, Eye, EyeOff,
-  HelpCircle, ChevronRight, ArrowLeft, AlertTriangle
+  HelpCircle, ChevronRight, ArrowLeft, AlertTriangle,
+  LayoutGrid, AlignJustify,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -438,7 +439,7 @@ export default function Sidebar() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const { collapsed, toggleCollapsed } = useSidebar();
+  const { collapsed, toggleCollapsed, layoutMode, setLayoutMode, toggleLayoutMode } = useSidebar();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -609,6 +610,24 @@ export default function Sidebar() {
           <Button onClick={() => router.push('/practice-studio')} className="w-full bg-gradient-primary hover:shadow-glow text-white text-xs py-2 px-3 rounded-lg flex items-center justify-center gap-1.5 h-9 shrink-0 shadow-glow" size="sm">
             <Plus className="w-4 h-4" /> New Chat
           </Button>
+
+          {/* ── Layout Toggle ── only on practice-studio ── */}
+          <div className="flex items-center gap-1 p-1 bg-background/40 border border-border/20 rounded-lg shrink-0" title="Switch layout">
+            <button
+              onClick={() => setLayoutMode('studio')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold transition-all ${layoutMode === 'studio' ? 'bg-primary/15 text-primary border border-primary/20 shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5 shrink-0" />
+              Studio
+            </button>
+            <button
+              onClick={() => setLayoutMode('classic')}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-semibold transition-all ${layoutMode === 'classic' ? 'bg-card/65 text-foreground border border-border/30 shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              <AlignJustify className="w-3.5 h-3.5 shrink-0" />
+              Classic
+            </button>
+          </div>
           <div className="relative shrink-0">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
             <input type="text" placeholder="Search history..." value={practiceSearch} onChange={e => setPracticeSearch(e.target.value)}
@@ -737,6 +756,21 @@ export default function Sidebar() {
         title="Music Library">
         <Music className="w-4 h-4" />
       </Link>
+
+      {/* Layout toggle — icon rail, only on practice-studio */}
+      {pathname === '/practice-studio' && (
+        <>
+          <div className="w-8 border-t border-border/25 my-1" />
+          <button
+            onClick={toggleLayoutMode}
+            className={`p-2 rounded-lg transition-colors ${layoutMode === 'studio' ? 'text-primary bg-primary/10' : 'text-muted-foreground hover:text-foreground hover:bg-card/60'}`}
+            title={layoutMode === 'studio' ? 'Switch to Classic layout' : 'Switch to Studio layout'}
+          >
+            {layoutMode === 'studio' ? <LayoutGrid className="w-4 h-4" /> : <AlignJustify className="w-4 h-4" />}
+          </button>
+        </>
+      )}
+
       <div className="flex-1" />
       <button onClick={() => setShowSettings(true)}
         className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center hover:shadow-glow transition-shadow"

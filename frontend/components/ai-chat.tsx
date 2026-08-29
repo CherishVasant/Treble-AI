@@ -165,12 +165,15 @@ export default function AIChat({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-grow textarea height as the user types; reset when cleared
+  // Auto-grow textarea height as the user types; reset when cleared.
+  // Scrollbar is hidden unless content exceeds the 160px max-height cap.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = 'auto';
-    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+    const next = Math.min(el.scrollHeight, 160);
+    el.style.height = next + 'px';
+    el.style.overflowY = el.scrollHeight > 160 ? 'auto' : 'hidden';
   }, [input]);
 
   const messages = externalMessages !== undefined ? externalMessages : internalMessages;
@@ -617,7 +620,7 @@ export default function AIChat({
               }
             }}
             disabled={loading || isLoading}
-            className="flex-1 resize-none overflow-y-auto min-h-[44px] max-h-[160px] py-2.5 px-3.5 bg-input border border-border/50 text-foreground text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/20 focus:outline-none rounded-xl leading-relaxed transition-colors"
+            className="flex-1 resize-none overflow-y-hidden min-h-[44px] max-h-[160px] py-2.5 px-3.5 bg-input border border-border/50 text-foreground text-sm placeholder:text-muted-foreground focus:border-primary/50 focus:ring-1 focus:ring-primary/20 focus:outline-none rounded-xl leading-relaxed transition-colors"
             style={{ height: 44 }}
           />
           <Button

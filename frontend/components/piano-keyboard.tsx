@@ -155,9 +155,9 @@ function _playOscillator(midiNumber: number): void {
 }
 
 // Roland convention: middle C (MIDI 60) = C5
-// Range: C2 (MIDI 24) → C9 (MIDI 108)
-const MIDI_MIN    = 24;   // C2  (Roland)
-const MIDI_MAX    = 108;  // C9  (Roland)
+// Range: C1 (MIDI 12) → C8 (MIDI 96)
+const MIDI_MIN    = 12;   // C1  (Roland)
+const MIDI_MAX    = 96;   // C8  (Roland)
 const MIDI_C4     = 48;   // C4  (Roland) — bold octave label emphasis
 const MIDI_CENTER = 53;   // F4  (Roland) — scroll target; full 4th octave visible
 

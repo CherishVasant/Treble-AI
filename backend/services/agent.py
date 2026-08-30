@@ -229,21 +229,18 @@ class AgentService:
                 f"{active_score_ctx}\n\n"
                 f"{score_instructions}"
                 "You have access to search tools (search_local_reference_library and search_web) to look up exact definitions, formulas, and general guides if needed.\n\n"
-                "RESPONSE STYLE — follow this format for all answers:\n"
-                "• Use clear section headers (## heading) to structure your response\n"
-                "• Use markdown tables for chord tones, scale degrees, fingering charts, or any comparison data\n"
-                "• Use code blocks (``` ```) for note sequences, patterns, or step-by-step formulas\n"
-                "• Use blockquotes (>) for tips, mnemonics, or key insights\n"
-                "• Be concise but complete — quality over length\n\n"
-                "You MUST respond ONLY with a valid JSON object matching this structure:\n"
+                "RESPONSE STYLE — adapt length and format to what the question actually needs:\n"
+                "• Simple or factual questions → 1–3 sentences of plain prose. No headers, no bullets.\n"
+                "• 'How do I practice X?' or technique questions → 1–3 focused paragraphs. Use a short bullet list only if steps are genuinely sequential.\n"
+                "• Complex or multi-part questions → use ## headers, tables, and code blocks only where they add real clarity.\n"
+                "Never add structure just to look thorough. A crisp 2-sentence answer beats a 5-section template.\n"
+                "Avoid generic textbook explanations — be direct, specific, and practical.\n"
+                "Use ``` code blocks only for note/interval sequences or patterns. Use tables only for side-by-side comparisons. Use > blockquotes only for a single key insight.\n\n"
+                "You MUST respond ONLY with a valid JSON object — raw JSON, no markdown fences:\n"
                 "{\n"
-                '  "response": "Your tutor answer in Markdown. Use headers, tables, code blocks, and blockquote tips.",\n'
+                '  "response": "Your answer. Plain prose for simple questions; structured markdown only when it genuinely helps.",\n'
                 '  "suggested_follow_up_questions": ["Short question 1?", "Short question 2?", "Short question 3?"]\n'
-                "}\n\n"
-                "Rules:\n"
-                "- suggested_follow_up_questions: exactly 3 short, specific questions the student might ask next\n"
-                "- Do NOT include citations or related_concepts fields\n"
-                "- Do not wrap in markdown code block, just output raw JSON"
+                "}"
             )
             tools = [search_local_reference_library, search_web]
             agent_role = "Practice Coach"
@@ -251,23 +248,20 @@ class AgentService:
             # General Music Theory Agent
             sys_msg = (
                 f"{system_prompt}\n\n"
-                "Answer the user's music theory queries, scale or chord formulas, music history, or definitions. "
-                "You have access to search tools (search_local_reference_library and search_web) to lookup exact definitions or formulas if needed.\n\n"
-                "RESPONSE STYLE — follow this format for all answers:\n"
-                "• Use clear section headers (## heading) to structure your response\n"
-                "• Use markdown tables for chord tones, scale degrees, interval comparisons, or any structured data\n"
-                "• Use code blocks (``` ```) for note sequences, patterns, formulas, or step-by-step progressions\n"
-                "• Use blockquotes (>) for key insights, mnemonics, or practice tips\n"
-                "• Be concise but complete — quality over length\n\n"
-                "You MUST respond ONLY with a valid JSON object matching this structure:\n"
+                "Answer music theory questions with expertise and directness. "
+                "You have access to search tools (search_local_reference_library and search_web) to look up exact definitions or formulas if needed.\n\n"
+                "RESPONSE STYLE — adapt length and format to what the question actually needs:\n"
+                "• Simple or factual questions (define a term, name a note) → 1–3 sentences of plain prose. No headers, no bullets.\n"
+                "• Explanatory questions (how does X work?) → 1–3 focused paragraphs, add a bullet list or example only if it genuinely helps.\n"
+                "• Complex or multi-part questions → use ## headers, tables, and code blocks where they add real clarity.\n"
+                "Never pad a short answer with structure. A crisp 2-sentence answer beats a 5-section template.\n"
+                "Avoid generic textbook explanations — be direct, specific, and precise.\n"
+                "Use ``` code blocks only for note/interval sequences or patterns. Use tables only for direct comparisons. Use > blockquotes only for a single memorable insight.\n\n"
+                "You MUST respond ONLY with a valid JSON object — raw JSON, no markdown fences:\n"
                 "{\n"
-                '  "response": "Your tutor answer in Markdown. Use headers, tables, code blocks, and blockquote tips.",\n'
+                '  "response": "Your answer. Plain prose for simple questions; structured markdown only when it genuinely helps.",\n'
                 '  "suggested_follow_up_questions": ["Short question 1?", "Short question 2?", "Short question 3?"]\n'
-                "}\n\n"
-                "Rules:\n"
-                "- suggested_follow_up_questions: exactly 3 short, specific questions the student might ask next\n"
-                "- Do NOT include citations or related_concepts fields\n"
-                "- Do not wrap in markdown code block, just output raw JSON"
+                "}"
             )
             tools = [search_local_reference_library, search_web]
             agent_role = "Theory Scholar"

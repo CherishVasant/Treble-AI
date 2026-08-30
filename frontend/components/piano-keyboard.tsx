@@ -12,6 +12,8 @@ interface PianoKeyboardProps {
   leftHandMidiNotes?: number[];
   rightHandMidiNotes?: number[];
   className?: string;
+  /** Compact mode: shorter keys that fit in confined spaces (studio piano strip) */
+  compact?: boolean;
 }
 
 const isBlackKey = (midi: number): boolean => {
@@ -170,6 +172,7 @@ export default function PianoKeyboard({
   leftHandMidiNotes = [],
   rightHandMidiNotes = [],
   className = '',
+  compact = false,
 }: PianoKeyboardProps) {
   const scrollRef    = useRef<HTMLDivElement>(null);
   const centerKeyRef = useRef<HTMLDivElement>(null); // F4 — kept at visual centre
@@ -275,14 +278,14 @@ export default function PianoKeyboard({
                     if (e.key === 'Enter' || e.key === ' ') handleKeyPress(midi);
                   }}
                   aria-label={`Play ${getNoteName(midi)}${getOctave(midi)}`}
-                  className={`w-full h-36 sm:h-44 md:h-48 rounded-b-lg border-l border-r border-b transition-all duration-100 cursor-pointer select-none focus:outline-none flex flex-col justify-end pb-2 items-center relative ${whiteKeyHighlightClass}`}
+                  className={`w-full ${compact ? 'h-24 sm:h-28' : 'h-36 sm:h-44 md:h-48'} rounded-b-lg border-l border-r border-b transition-all duration-100 cursor-pointer select-none focus:outline-none flex flex-col justify-end pb-2 items-center relative ${whiteKeyHighlightClass}`}
                 >
-                  {/* Show C-octave label on the key itself; C4 is bold */}
+                  {/* C-octave label — anchored from bottom so it stays visible in compact mode */}
                   {isCKey && (
                     <span
-                      className={`text-[8px] sm:text-[9px] font-bold tracking-tight select-none pointer-events-none leading-none ${
-                        isC4 ? 'text-primary' : 'text-slate-500'
-                      } ${isWhiteActive ? 'text-black' : ''}`}
+                      className={`text-[9px] sm:text-[10px] font-bold tracking-tight select-none pointer-events-none leading-none ${
+                        isC4 ? 'text-primary' : 'text-slate-400'
+                      } ${isWhiteActive ? '!text-black' : ''}`}
                     >
                       C{getOctave(midi)}
                     </span>

@@ -26,11 +26,53 @@
   font-display: swap;
 }
 
+/* ── Dark theme (default) ─── */
 :root {
+  --background:             240 10% 8%;
+  --foreground:             0 0% 98%;
+  --card:                   240 10% 15%;
+  --card-foreground:        0 0% 98%;
+  --muted:                  240 10% 35%;
+  --muted-foreground:       0 0% 70%;
+  --accent:                 270 100% 65%;
+  --accent-foreground:      0 0% 98%;
+  --primary:                220 90% 56%;
+  --primary-foreground:     0 0% 98%;
+  --secondary:              270 80% 60%;
+  --secondary-foreground:   0 0% 98%;
+  --destructive:            0 84% 60%;
+  --destructive-foreground: 0 0% 98%;
+  --border:                 240 10% 25%;
+  --input:                  240 10% 20%;
+  --ring:                   270 100% 65%;
+
   --font-geist: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-geist-mono: 'Geist Mono', 'Courier New', monospace;
-  
+
   color-scheme: dark;
+}
+
+/* ── Light theme ─────────── */
+.light {
+  --background:             33 33% 94%;
+  --foreground:             30 15% 16%;
+  --card:                   33 22% 87%;
+  --card-foreground:        30 15% 16%;
+  --muted:                  30 10% 80%;
+  --muted-foreground:       30 8% 40%;
+  --accent:                 179 55% 48%;
+  --accent-foreground:      0 0% 98%;
+  --primary:                220 85% 50%;
+  --primary-foreground:     0 0% 98%;
+  --secondary:              270 75% 56%;
+  --secondary-foreground:   0 0% 98%;
+  --destructive:            0 78% 50%;
+  --destructive-foreground: 0 0% 98%;
+  --border:                 30 15% 76%;
+  --input:                  33 18% 91%;
+  --ring:                   270 90% 60%;
+
+  color-scheme: light;
 }
 
 * {
@@ -135,7 +177,7 @@ body {
   @apply bg-muted/50 text-accent font-mono text-xs px-1.5 py-0.5 rounded border border-border/20 font-semibold;
 }
 .prose-chat pre {
-  @apply bg-black/45 p-4 rounded-xl border border-border/30 my-3 overflow-x-auto text-xs font-mono shadow-inner;
+  @apply bg-card/65 p-4 rounded-xl border border-border/20 my-3 overflow-x-auto text-xs font-mono shadow-inner;
 }
 .prose-chat pre code {
   @apply bg-transparent text-foreground p-0 border-0 text-xs font-normal;
@@ -229,11 +271,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
+  background: hsl(var(--border) / 0.5);
   border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.14);
+  background: hsl(var(--border) / 0.85);
 }
 /* Remove up/down/left/right arrow buttons */
 ::-webkit-scrollbar-button {
@@ -248,5 +290,5 @@ body {
 /* Firefox thin scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+  scrollbar-color: hsl(var(--border) / 0.5) transparent;
 }

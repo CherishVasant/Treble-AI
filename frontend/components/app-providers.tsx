@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { AuthProvider, useAuth } from '@/context/auth-context';
 import { ChatProvider } from '@/context/chat-context';
 import { SidebarProvider, useSidebar } from '@/context/sidebar-context';
+import { ThemeProvider } from '@/context/theme-context';
 import Sidebar from '@/components/sidebar';
 import Navbar from '@/components/navbar';
 import AuthLandingPage from '@/components/auth-landing-page';
@@ -63,10 +64,12 @@ function AppLayoutWithSidebar({ children }: { children: React.ReactNode }) {
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
-      <ChatProvider>
-        <AppLayoutWithSidebar>{children}</AppLayoutWithSidebar>
-      </ChatProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <ChatProvider>
+          <AppLayoutWithSidebar>{children}</AppLayoutWithSidebar>
+        </ChatProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }

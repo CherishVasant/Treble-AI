@@ -348,10 +348,10 @@ export default function AIChat({
   };
 
   return (
-    <div className={`flex flex-col h-full bg-card/10 rounded-xl border border-border/30 overflow-hidden shadow-glow/10 ${className}`}>
+    <div className={`flex flex-col h-full overflow-hidden ${className}`}>
       {/* Header */}
       {title && (
-        <div className="px-6 py-4 border-b border-border/30 bg-card/25 flex items-center justify-between">
+        <div className="px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
             <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">{title}</h2>

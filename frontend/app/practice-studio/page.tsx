@@ -878,6 +878,7 @@ function PracticeStudioContent() {
               <PianoKeyboard
                 activeMidiNotes={activeMidiNotes}
                 onNotePlay={handleNotePlay}
+                compact
               />
             </div>
           )}
@@ -1027,8 +1028,8 @@ function PracticeStudioContent() {
 
       {/* Row 5: Deterministic Score Analysis Dashboard */}
       {processedMetadata?.musicalInfo?.difficulty && (
-        <div className="w-full bg-card/25 rounded-xl overflow-hidden flex flex-col transition-all duration-300 animate-fade-in">
-          <div className="px-6 py-4 flex items-center justify-between bg-card/10">
+        <div className="w-full flex flex-col transition-all duration-300 animate-fade-in">
+          <div className="px-2 py-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />

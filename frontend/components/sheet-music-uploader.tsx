@@ -860,7 +860,7 @@ export default function SheetMusicUploader({
 
   return (
     <div className="w-full flex flex-col gap-3">
-      <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-4 rounded-xl bg-card/25 shadow-sm animate-fade-in relative overflow-hidden">
+      <div className="w-full flex flex-col lg:flex-row lg:items-center justify-between gap-6 p-4 animate-fade-in relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full pointer-events-none" />
         
         {/* Hidden file input */}

@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useChat } from '@/context/chat-context';
+import ThemeToggle from '@/components/theme-toggle';
 
 // ── SVG icons ─────────────────────────────────────────────────────────────────
 
@@ -66,11 +67,11 @@ export default function Navbar() {
 
   return (
     // Transparent container — only contributes height to the flex column layout.
-    // The visual pill floats inside it via its own shadow/border/backdrop.
-    <nav className="h-14 relative z-50 flex items-center justify-center pointer-events-none">
+    // The visual pill floats inside it, shifted down a touch for breathing room.
+    <nav className="h-14 relative z-50 flex items-center justify-center pointer-events-none pt-2">
 
       {/* ── Floating island pill ── */}
-      <div className="pointer-events-auto flex items-center gap-0.5 px-1.5 py-1.5 rounded-2xl border border-border/30 bg-card/80 backdrop-blur-xl shadow-2xl shadow-black/50">
+      <div className="pointer-events-auto flex items-center gap-0.5 px-1.5 py-1.5 rounded-2xl border border-border/30 bg-card/80 backdrop-blur-xl shadow-2xl shadow-black/30">
         {NAV_ITEMS.map((item, i) => {
           const isActive = pathname.startsWith(item.path);
           return (
@@ -94,6 +95,11 @@ export default function Navbar() {
             </React.Fragment>
           );
         })}
+      </div>
+
+      {/* ── Theme toggle — floats at left edge ── */}
+      <div className="pointer-events-auto absolute left-4">
+        <ThemeToggle className="bg-card/70 backdrop-blur-sm border border-border/30 shadow-md hover:bg-card/90" />
       </div>
 
       {/* ── Mobile sidebar toggle — floats at right edge ── */}

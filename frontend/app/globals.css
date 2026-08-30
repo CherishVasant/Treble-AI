@@ -58,30 +58,30 @@
 }
 
 /* ── Light theme ─────────── */
-/* Identity: teal → periwinkle, matching the Gradient Wordmark */
+/* Identity: teal → periwinkle — exact shades from the landing page gradient wordmark */
 .light {
-  --background:             210 22% 96%;
+  --background:             195 18% 97%;
   --foreground:             215 28% 12%;
-  --card:                   210 18% 91%;
+  --card:                   200 16% 93%;
   --card-foreground:        215 28% 12%;
-  --muted:                  210 14% 82%;
-  --muted-foreground:       215 16% 40%;
-  --accent:                 175 72% 36%;
+  --muted:                  200 12% 85%;
+  --muted-foreground:       210 14% 42%;
+  --accent:                 178 65% 44%;
   --accent-foreground:      0 0% 98%;
-  --primary:                175 72% 34%;   /* teal */
+  --primary:                178 65% 44%;   /* teal — solid use (buttons, links) */
   --primary-foreground:     0 0% 98%;
-  --secondary:              235 68% 56%;   /* periwinkle */
+  --secondary:              237 58% 60%;   /* periwinkle — solid use */
   --secondary-foreground:   0 0% 98%;
   --destructive:            0 78% 50%;
   --destructive-foreground: 0 0% 98%;
-  --border:                 210 16% 78%;
-  --input:                  210 20% 93%;
-  --ring:                   235 68% 56%;
+  --border:                 200 14% 80%;
+  --input:                  200 18% 94%;
+  --ring:                   237 58% 60%;
 
-  /* Gradient endpoints — teal → periwinkle in light */
-  --gradient-from:          175 72% 34%;
-  --gradient-to:            235 68% 56%;
-  --glow-color:             235 68% 56%;
+  /* Gradient endpoints — lighter, more vibrant for gradient text & backgrounds */
+  --gradient-from:          178 65% 50%;   /* teal  (matches landing page headline left) */
+  --gradient-to:            237 60% 65%;   /* periwinkle (matches landing page headline right) */
+  --glow-color:             237 60% 62%;
 
   color-scheme: light;
 }

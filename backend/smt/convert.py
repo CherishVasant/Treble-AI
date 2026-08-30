@@ -64,8 +64,10 @@ def _ensure_smt_repo():
 # ── image preprocessing ───────────────────────────────────────────────────────
 def load_and_enhance(image_path: Path):
     """
-    Load BGR image → grayscale with OMR-quality enhancements
-    (denoise, CLAHE, unsharp mask). Returns uint8 grayscale ndarray.
+    Load image → grayscale.
+    SMT was trained on clean PDF-extracted images; heavy enhancement
+    (CLAHE, unsharp) makes real-world images look nothing like training data
+    and causes hallucination. Use plain grayscale conversion only.
     """
     import cv2
     import numpy as np
@@ -75,21 +77,15 @@ def load_and_enhance(image_path: Path):
     if bgr is None:
         raise RuntimeError(f"Could not decode: {image_path}")
 
-    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
-
-    gray = cv2.fastNlMeansDenoising(gray, None, h=10, templateWindowSize=7, searchWindowSize=21)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    gray = clahe.apply(gray)
-    blurred = cv2.GaussianBlur(gray, (0, 0), sigmaX=1.0)
-    gray = np.clip(cv2.addWeighted(gray, 1.5, blurred, -0.5, 0), 0, 255).astype(np.uint8)
-
-    return gray
+    return cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
 
 
 def split_into_systems(gray, target_h: int = SMT_MAX_HEIGHT, min_h: int = 60):
     """
     Detect horizontal white-band gaps between grand-staff systems and split.
-    Each strip is resized to exactly target_h height (model's max).
+    Each strip is resized to exactly target_h height; width is PRESERVED
+    (not scaled proportionally) so the model sees a full-width system crop
+    matching its training distribution (~1500–3056 px wide, 256 px tall).
 
     Returns a list of uint8 grayscale ndarrays, one per system.
     """
@@ -98,44 +94,67 @@ def split_into_systems(gray, target_h: int = SMT_MAX_HEIGHT, min_h: int = 60):
 
     h, w = gray.shape
 
-    # If the image already fits, skip splitting
+    # If the image already fits in height, return as-is (or just resize height)
     if h <= target_h:
-        return [gray]
+        if h == target_h:
+            return [gray]
+        resized = cv2.resize(gray, (w, target_h), interpolation=cv2.INTER_LANCZOS4)
+        return [resized]
 
     # Row projection: fraction of pixels that are "white" (≥ 200)
     row_white = np.mean(gray >= 200, axis=1)   # shape (H,)
 
-    # A gap row = >92% white — indicates space between systems
-    GAP_THRESH = 0.92
-    is_gap = row_white > GAP_THRESH
+    # Smooth with a small window to avoid noise triggering gaps
+    import numpy as np
+    kernel = np.ones(5) / 5
+    row_white_smooth = np.convolve(row_white, kernel, mode='same')
 
-    # Collect runs of non-gap rows = individual systems
-    systems_raw = []
-    in_system = False
-    start = 0
+    # A gap row = >80% white (less strict than before so gaps between systems are found)
+    GAP_THRESH = 0.80
+    is_gap = row_white_smooth > GAP_THRESH
+
+    # Require a gap to be at least 3 consecutive rows to count
+    MIN_GAP_ROWS = 3
+    gap_starts = []
+    in_gap = False
+    gap_start = 0
     for i, gap in enumerate(is_gap):
-        if not gap and not in_system:
-            start = i
-            in_system = True
-        elif gap and in_system:
-            if i - start >= min_h:
-                systems_raw.append(gray[start:i, :])
-            in_system = False
-    if in_system and (h - start) >= min_h:
-        systems_raw.append(gray[start:, :])
+        if gap and not in_gap:
+            gap_start = i
+            in_gap = True
+        elif not gap and in_gap:
+            if i - gap_start >= MIN_GAP_ROWS:
+                gap_starts.append((gap_start, i))
+            in_gap = False
+    if in_gap and (h - gap_start) >= MIN_GAP_ROWS:
+        gap_starts.append((gap_start, h))
+
+    # Convert gaps → system spans
+    systems_raw = []
+    prev_end = 0
+    for g_start, g_end in gap_starts:
+        if g_start - prev_end >= min_h:
+            systems_raw.append(gray[prev_end:g_start, :])
+        prev_end = g_end
+    if h - prev_end >= min_h:
+        systems_raw.append(gray[prev_end:, :])
 
     if not systems_raw:
-        # Fallback: no clear gaps — use whole image resized
-        print(f"  [split] no system gaps found; treating as single system")
-        systems_raw = [gray]
+        # Fallback: divide image evenly into estimated number of systems
+        # Assume each system is ~220px tall in original resolution
+        n_est = max(1, round(h / 220))
+        print(f"  [split] no gaps found; dividing into {n_est} equal strips")
+        strip_h = h // n_est
+        systems_raw = [gray[i*strip_h:(i+1)*strip_h, :] for i in range(n_est)]
+        if h % n_est:
+            systems_raw[-1] = gray[(n_est-1)*strip_h:, :]
 
-    # Resize each strip to target_h (width scales proportionally)
+    # Resize each strip to target_h; keep original width (matches training distribution)
     systems = []
     for idx, strip in enumerate(systems_raw):
         sh, sw = strip.shape
-        new_w = max(1, int(sw * target_h / sh))
-        resized = cv2.resize(strip, (new_w, target_h), interpolation=cv2.INTER_LANCZOS4)
-        print(f"  [split] system {idx+1}/{len(systems_raw)}  {sw}×{sh} → {new_w}×{target_h}")
+        resized = cv2.resize(strip, (sw, target_h), interpolation=cv2.INTER_LANCZOS4)
+        print(f"  [split] system {idx+1}/{len(systems_raw)}  {sw}×{sh} → {sw}×{target_h}")
         systems.append(resized)
 
     return systems
@@ -174,17 +193,53 @@ def get_model(model_id: str):
 def run_smt_on_system(system_gray, model_id: str) -> str:
     """
     Run SMT on a single system image (uint8 HW grayscale).
-    Returns the kern text for that system (special tokens already replaced).
+    Uses a custom greedy loop with repetition-break so the model doesn't
+    hallucinate one token forever when the image is uncertain.
+    Returns the kern text (SMT special tokens replaced with whitespace).
     """
     import torch
+    import numpy as np
 
     model, device = get_model(model_id)
+    i2w = model.i2w
+    w2i = model.w2i
+    maxlen = model.maxlen
 
     tensor = gray_to_tensor(system_gray).unsqueeze(0).to(device)   # (1,1,H,W)
-    with torch.no_grad():
-        predictions, _ = model.predict(tensor, convert_to_str=True)
 
-    raw = "".join(predictions)
+    with torch.no_grad():
+        encoder_output = model.forward_encoder(tensor)
+
+        predicted = torch.tensor([[w2i['<bos>']]], device=device)
+        text_seq = []
+        repeat_count = 0
+        last_token = None
+
+        for _ in range(maxlen - 1):
+            out = model.forward_decoder(encoder_output=encoder_output,
+                                        last_predictions=predicted)
+            tok_id = int(torch.argmax(out.logits[:, -1, :], dim=-1).item())
+            tok = i2w[str(tok_id)]
+
+            if tok == '<eos>':
+                break
+
+            # Break if the same token repeats more than 8 times in a row
+            if tok == last_token:
+                repeat_count += 1
+                if repeat_count >= 8:
+                    print(f"  [SMT] repetition break at token '{tok}'")
+                    break
+            else:
+                repeat_count = 0
+                last_token = tok
+
+            text_seq.append(tok)
+            predicted = torch.cat(
+                [predicted, torch.tensor([[tok_id]], device=device)], dim=1
+            )
+
+    raw = "".join(text_seq)
     kern = raw.replace("<b>", "\n").replace("<s>", " ").replace("<t>", "\t")
     return kern
 

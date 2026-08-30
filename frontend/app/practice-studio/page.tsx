@@ -379,8 +379,19 @@ function PracticeStudioContent() {
       if (backfillAttemptedRef.current.has(sessionId)) return;
       backfillAttemptedRef.current.add(sessionId);
 
+      // ── Session-safety: capture everything at effect time ──────────────────
+      // The fetch is async. If the user navigates to a different session while
+      // it is in-flight, activeSessionIdRef.current will point to the NEW session.
+      // Calling handleMetadataUpdate (which reads the ref live) would then attach
+      // Session A's file data to Session B — the duplicate-score bug.
+      // Fix: snapshot the session-specific values now and abort the update if
+      // the user has navigated away by the time the promise resolves.
+      const capturedSessionId   = sessionId;
+      const capturedFileData    = uploadedFileData;
+      const capturedMeta        = processedMetadata;
+
       console.log('[PracticeStudio] Enriched analysis details or notes missing. Backfilling from server for job:', jobId);
-      
+
       fetch(`/api/convert-sheet/result?jobId=${jobId}&fileId=${uploadedFileData.id}`, { cache: 'no-store' })
         .then(res => {
           if (res.ok) return res.json();
@@ -388,14 +399,26 @@ function PracticeStudioContent() {
         })
         .then(resultData => {
           if (resultData?.musicalInfo?.notes || resultData?.musicalInfo?.difficulty) {
+            // Guard: abort if the user navigated away while the fetch was in-flight.
+            if (activeSessionIdRef.current !== capturedSessionId) {
+              console.warn('[PracticeStudio] Backfill resolved after session change — discarding to prevent score bleed.');
+              return;
+            }
             console.log('[PracticeStudio] Music analysis and notes successfully backfilled.');
-            handleMetadataUpdate(resultData);
+            // Use captured values directly instead of handleMetadataUpdate so we
+            // never touch a session other than the one the backfill was started for.
+            updatePracticeSessionAssets(
+              capturedSessionId,
+              capturedFileData,
+              { ...capturedMeta, ...resultData }
+            );
           }
         })
         .catch(err => {
           console.warn('[PracticeStudio] Failed to backfill notes or analysis:', err);
         });
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId, processedMetadata, uploadedFileData]);
 
   const handleSendMessage = async (messageText: string) => {

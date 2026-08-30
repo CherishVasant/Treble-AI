@@ -351,11 +351,8 @@ export default function AIChat({
     <div className={`flex flex-col h-full overflow-hidden ${className}`}>
       {/* Header */}
       {title && (
-        <div className="px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
-            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">{title}</h2>
-          </div>
+        <div className="px-6 py-3 border-b border-border/20 shrink-0">
+          <h2 className="text-base font-semibold text-foreground leading-tight truncate">{title}</h2>
         </div>
       )}
 

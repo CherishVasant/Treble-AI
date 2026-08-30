@@ -66,7 +66,7 @@ function TheoryTutorContent() {
       {/* Chat panel fills remaining space; its inner messages area scrolls */}
       <div className="relative z-10 flex-1 flex flex-col min-h-0">
         <AIChat
-          title={undefined}
+          title={activeSession?.title}
           apiPath="/api/theory-chat"
           suggestedPrompts={suggestedPrompts}
           context=""

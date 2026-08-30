@@ -680,6 +680,7 @@ function PracticeStudioContent() {
               <div className="flex-1 min-h-0 overflow-hidden">
                 {activeTab === 'chat' ? (
                   <AIChat
+                    title={activeSession?.title}
                     apiPath="/api/chat"
                     welcomeTitle="Hello, I am Treble."
                     welcomeSubtitle="Upload sheet music or ask me anything about music theory, practice techniques, or your piece."
@@ -1242,6 +1243,7 @@ function PracticeStudioContent() {
       {/* Row 6: Practice Chat */}
       <div className="w-full">
         <AIChat
+          title={activeSession?.title}
           apiPath="/api/chat"
           welcomeTitle="Hello, I am Treble."
           welcomeSubtitle="I can help you improve your performance, analyze uploaded sheet music, answer practical music questions, and guide your practice sessions. What would you like to work on today?"

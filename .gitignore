@@ -39,6 +39,7 @@ backend/oemer/
 backend/smt/venv/
 backend/smt/input/
 backend/smt/output/
+backend/smt/smt_repo/
 
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 

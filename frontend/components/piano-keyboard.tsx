@@ -256,11 +256,11 @@ export default function PianoKeyboard({
             const isCenterKey = midi === MIDI_CENTER;    // scroll anchor
 
             const whiteKeyHighlightClass = isWhiteActive
-              ? 'bg-[#C8A800] text-black shadow-[0_0_8px_rgba(180,148,0,0.45)_inset,0_0_10px_rgba(180,148,0,0.30)] border-transparent font-extrabold scale-[0.98]'
+              ? 'bg-[#FFD700] text-black shadow-[0_0_6px_rgba(255,215,0,0.35)_inset,0_0_8px_rgba(255,215,0,0.20)] border-transparent font-extrabold scale-[0.98]'
               : 'bg-[#f8fafc] text-slate-700 hover:bg-slate-100 active:scale-[0.99] border-slate-300';
 
             const blackKeyHighlightClass = isBlackActive
-              ? 'bg-[#B89600] shadow-[0_0_8px_rgba(160,130,0,0.45)_inset,0_0_10px_rgba(160,130,0,0.30)] border-transparent scale-[0.97]'
+              ? 'bg-[#FFD700] shadow-[0_0_6px_rgba(255,215,0,0.35)_inset,0_0_8px_rgba(255,215,0,0.20)] border-transparent scale-[0.97]'
               : 'bg-[#0f172a] hover:bg-[#1e293b] active:scale-[0.98] border-black';
 
             return (

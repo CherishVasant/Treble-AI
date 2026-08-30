@@ -60,22 +60,22 @@
 /* ── Light theme ─────────── */
 /* Identity: teal → periwinkle — exact shades from the landing page gradient wordmark */
 .light {
-  --background:             195 18% 97%;
-  --foreground:             215 28% 12%;
-  --card:                   200 16% 93%;
-  --card-foreground:        215 28% 12%;
-  --muted:                  200 12% 85%;
-  --muted-foreground:       210 14% 42%;
+  --background:             35 22% 97%;    /* warm white — matches landing page orb canvas */
+  --foreground:             220 25% 12%;
+  --card:                   35 16% 93%;
+  --card-foreground:        220 25% 12%;
+  --muted:                  30 10% 84%;
+  --muted-foreground:       220 12% 42%;
   --accent:                 178 65% 44%;
   --accent-foreground:      0 0% 98%;
-  --primary:                178 65% 44%;   /* teal — solid use (buttons, links) */
+  --primary:                178 65% 44%;   /* teal — solid buttons / links */
   --primary-foreground:     0 0% 98%;
-  --secondary:              237 58% 60%;   /* periwinkle — solid use */
+  --secondary:              237 58% 60%;   /* periwinkle — solid secondary */
   --secondary-foreground:   0 0% 98%;
   --destructive:            0 78% 50%;
   --destructive-foreground: 0 0% 98%;
-  --border:                 200 14% 80%;
-  --input:                  200 18% 94%;
+  --border:                 30 12% 80%;
+  --input:                  35 18% 94%;
   --ring:                   237 58% 60%;
 
   /* Gradient endpoints — lighter, more vibrant for gradient text & backgrounds */

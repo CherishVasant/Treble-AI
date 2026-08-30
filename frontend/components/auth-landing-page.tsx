@@ -6,7 +6,7 @@ import { useTheme } from '@/context/theme-context';
 import ThemeToggle from '@/components/theme-toggle';
 import {
   Music, Eye, EyeOff, Loader2, Info,
-  ChevronRight, Sparkles, BookOpen, Library, Zap,
+  ChevronRight, Sparkles, BookOpen, Library,
 } from 'lucide-react';
 
 // ── Piano ──────────────────────────────────────────────────────────────────────
@@ -441,59 +441,77 @@ export default function AuthLandingPage() {
       </header>
 
       {/* ── Hero ───────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden py-20 md:py-28 px-6 md:px-10">
+      <section className="relative overflow-hidden py-24 md:py-32 px-6 md:px-10">
 
-        {/* Orbs — teal top-left, periwinkle bottom-right, coral small */}
+        {/* Background orbs — rose-pink top-left, blue-lavender bottom-right */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-32 -left-32 w-[500px] h-[500px] rounded-full blur-3xl"
-            style={{ background: 'radial-gradient(circle, rgba(94,207,207,.18) 0%, transparent 70%)' }} />
-          <div className="absolute -bottom-24 -right-24 w-[420px] h-[420px] rounded-full blur-3xl"
-            style={{ background: 'radial-gradient(circle, rgba(139,143,212,.16) 0%, transparent 70%)' }} />
-          <div className="absolute top-1/3 right-1/4 w-48 h-48 rounded-full blur-3xl"
-            style={{ background: 'radial-gradient(circle, rgba(224,120,120,.10) 0%, transparent 70%)' }} />
+          <div className="absolute -top-28 -left-28 w-[540px] h-[540px] rounded-full"
+            style={{ background: 'radial-gradient(circle, rgba(242,168,200,0.52) 0%, transparent 68%)', filter: 'blur(72px)' }} />
+          <div className="absolute -bottom-20 -right-20 w-[480px] h-[480px] rounded-full"
+            style={{ background: 'radial-gradient(circle, rgba(160,170,238,0.48) 0%, transparent 68%)', filter: 'blur(72px)' }} />
+          {/* Small floating dots */}
+          <div className="absolute top-14 left-10 w-2 h-2 rounded-full" style={{ background: 'rgba(220,140,175,0.55)' }} />
+          <div className="absolute top-28 right-20 w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(155,160,225,0.50)' }} />
+          <div className="absolute bottom-20 left-1/4 w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(200,150,200,0.45)' }} />
+          <div className="absolute bottom-32 right-12 w-2 h-2 rounded-full" style={{ background: 'rgba(145,165,235,0.50)' }} />
         </div>
 
-        <div className="relative max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+        {/* Centered hero content */}
+        <div className="relative max-w-3xl mx-auto text-center">
 
-            {/* Left: headline + piano */}
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold tracking-wider uppercase mb-6">
-                <Zap className="w-3.5 h-3.5" />
-                AI-Powered Music Learning
-              </div>
+          {/* Badge — "• TrebleAI" */}
+          <div className="inline-flex items-center gap-2 text-sm text-muted-foreground mb-8">
+            <span className="w-1.5 h-1.5 rounded-full inline-block bg-primary" />
+            <span className="font-medium tracking-wide">TrebleAI</span>
+          </div>
 
-              <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold leading-[1.08] tracking-tight mb-5">
-                The smarter way to{' '}
-                <span className="bg-gradient-primary bg-clip-text text-transparent">
-                  practice music
-                </span>
-              </h1>
+          {/* Headline */}
+          <h1 className="text-5xl md:text-6xl lg:text-7xl font-extrabold leading-[1.06] tracking-tight mb-6 text-foreground">
+            The smarter way to{' '}
+            <br className="hidden sm:block" />
+            <span className="bg-gradient-primary bg-clip-text text-transparent">
+              practice music
+            </span>
+          </h1>
 
-              <p className="text-base md:text-lg text-muted-foreground leading-relaxed mb-10 max-w-lg">
-                Upload a score, get instant analysis, and practice with an AI that hears every nuance — from harmony to fingering.
-              </p>
+          {/* Subtitle — exact text from design */}
+          <p className="text-base md:text-lg text-muted-foreground leading-relaxed mb-10 max-w-xl mx-auto">
+            Upload any score — get instant analysis, MIDI playback, and an AI
+            coach that hears every nuance in your playing.
+          </p>
 
-              {/* Interactive piano */}
-              <div className="p-5 rounded-2xl bg-card/40 backdrop-blur-sm border border-border/20">
-                <InteractivePiano />
-              </div>
-            </div>
+          {/* CTA buttons */}
+          <div className="flex flex-wrap items-center justify-center gap-4 mb-16">
+            <a href="#get-started"
+              className="px-7 py-3.5 rounded-full bg-primary text-white font-bold text-sm hover:opacity-90 hover:shadow-glow transition-all duration-200">
+              Start Practicing Free
+            </a>
+            <a href="#features"
+              className="px-5 py-3.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
+              Watch Demo <span className="ml-0.5">→</span>
+            </a>
+          </div>
 
-            {/* Right: auth form */}
-            <div className="relative">
-              <div className="p-7 rounded-2xl bg-card/50 backdrop-blur-sm border border-border/20 shadow-2xl shadow-black/10">
-                <h2 className="text-xl font-bold text-foreground mb-1">Get started free</h2>
-                <p className="text-sm text-muted-foreground mb-6">Your AI music studio is waiting.</p>
-                <AuthForm />
-              </div>
-            </div>
+          {/* Playable piano */}
+          <div className="p-5 rounded-2xl bg-card/40 backdrop-blur-sm border border-border/20">
+            <InteractivePiano />
           </div>
         </div>
       </section>
 
+      {/* ── Auth / Get started ──────────────────────────────────── */}
+      <section id="get-started" className="py-16 px-6 md:px-10 border-t border-border/10">
+        <div className="max-w-sm mx-auto text-center mb-8">
+          <h2 className="text-2xl font-extrabold text-foreground mb-2">Get started free</h2>
+          <p className="text-sm text-muted-foreground">Your AI music studio is waiting.</p>
+        </div>
+        <div className="max-w-sm mx-auto p-7 rounded-2xl bg-card/50 backdrop-blur-sm border border-border/20 shadow-xl shadow-black/5">
+          <AuthForm />
+        </div>
+      </section>
+
       {/* ── Features ───────────────────────────────────────────── */}
-      <section className="py-16 px-6 md:px-10 border-t border-border/10">
+      <section id="features" className="py-16 px-6 md:px-10 border-t border-border/10">
         <div className="max-w-6xl mx-auto">
           <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Everything you need</p>
           <h2 className="text-2xl md:text-3xl font-extrabold text-foreground mb-10">

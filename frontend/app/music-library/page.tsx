@@ -839,7 +839,7 @@ function MusicLibraryContent() {
         {/* Selected Active Category Heading & Subtitle Section */}
         {!isSearching && (activeGroup || activeSection) && (
           <div className="space-y-1.5 py-1">
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">
+            <h1 className="text-3xl font-extrabold text-foreground tracking-tight">
               {activeGroup?.name === 'Intervals' ? 'Musical Intervals' :
                activeGroup?.name === 'Notation' ? 'Musical Notation Reference' :
                activeGroup?.name === 'Music History' ? 'Music Theory & Core Concepts' :
@@ -919,10 +919,10 @@ function MusicLibraryContent() {
               <div className="space-y-6">
                 <div className="bg-card/45 backdrop-blur-md border border-border/15 p-5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-sm font-semibold text-white">Transpose Root Note</h3>
+                    <h3 className="text-sm font-semibold text-foreground">Transpose Root Note</h3>
                     <p className="text-xs text-muted-foreground">Select a root note to dynamically transpose all interval examples.</p>
                   </div>
-                  <div className="flex flex-wrap gap-1 bg-[#111219]/60 p-1 rounded-xl border border-border/15 max-w-max">
+                  <div className="flex flex-wrap gap-1 bg-muted/40 p-1 rounded-xl border border-border/20 max-w-max">
                     {CHROMATIC_SCALE_NOTES.map((note) => (
                       <button
                         key={note}
@@ -963,7 +963,7 @@ function MusicLibraryContent() {
                           <div className="flex justify-between items-start gap-2">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
-                                <h3 className="font-bold text-white tracking-tight">{interval.name}</h3>
+                                <h3 className="font-bold text-foreground tracking-tight">{interval.name}</h3>
                                 <span className="text-[10px] px-1.5 py-0.5 rounded-md font-bold bg-primary/10 border border-primary/25 text-primary">
                                   {interval.abbr}
                                 </span>
@@ -987,9 +987,9 @@ function MusicLibraryContent() {
                           </div>
 
                           {/* Notes rendering */}
-                          <div className="bg-[#07080c]/50 border border-border/10 rounded-xl p-4 text-center">
+                          <div className="bg-muted/25 border border-border/20 rounded-xl p-4 text-center">
                             <span className="text-xs text-muted-foreground block mb-1">Diatonic Pair</span>
-                            <div className="flex items-center justify-center gap-3 text-2xl font-mono font-black tracking-wider text-white">
+                            <div className="flex items-center justify-center gap-3 text-2xl font-mono font-black tracking-wider text-foreground">
                               <span className="text-primary font-bold">{intervalRoot}</span>
                               <span className="text-muted-foreground/45 text-lg">➔</span>
                               <span className="text-purple-400 font-bold">{target}</span>
@@ -1000,7 +1000,7 @@ function MusicLibraryContent() {
                           <div className="space-y-1.5">
                             <div className="flex justify-between text-xs text-muted-foreground border-b border-border/10 pb-1.5">
                               <span>Distance:</span>
-                              <span className="font-semibold text-white">{interval.semitones} Semitones</span>
+                              <span className="font-semibold text-foreground">{interval.semitones} Semitones</span>
                             </div>
                             <p className="text-xs text-muted-foreground leading-relaxed pt-1">
                               {interval.desc}
@@ -1058,7 +1058,7 @@ function MusicLibraryContent() {
                               <Star className={`w-4 h-4 ${favorites.includes(item.title) ? 'text-yellow-400 fill-yellow-400' : ''}`} />
                             </button>
                           </div>
-                          <h3 className="text-lg font-bold text-white tracking-tight">{item.title}</h3>
+                          <h3 className="text-lg font-bold text-foreground tracking-tight">{item.title}</h3>
                           <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
                         </div>
                       </div>
@@ -1241,7 +1241,7 @@ function MusicLibraryContent() {
                           <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 border-b border-border/10 pb-5">
                             <div className="space-y-1">
                               <div className="flex items-center gap-3">
-                                <h2 className="text-2xl font-black text-white tracking-tight">{keyName}</h2>
+                                <h2 className="text-2xl font-black text-foreground tracking-tight">{keyName}</h2>
                                 <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
                                   isMajor 
                                     ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' 
@@ -1252,7 +1252,7 @@ function MusicLibraryContent() {
                               </div>
                               <p className="text-xs text-muted-foreground flex items-center gap-1.5">
                                 <Info className="w-3.5 h-3.5 text-muted-foreground" />
-                                Characteristic: <span className="text-white font-medium italic">{character}</span>
+                                Characteristic: <span className="text-foreground font-medium italic">{character}</span>
                               </p>
                             </div>
                             
@@ -1290,13 +1290,13 @@ function MusicLibraryContent() {
                             <div className="space-y-3.5">
                               <div>
                                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Key Signature</span>
-                                <p className="text-sm font-semibold text-white bg-[#07080c]/50 border border-border/10 p-3 rounded-xl">
+                                <p className="text-sm font-semibold text-foreground bg-muted/25 border border-border/20 p-3 rounded-xl">
                                   {sector.accidentals}
                                 </p>
                               </div>
                               <div>
                                 <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Relative Key</span>
-                                <p className="text-sm font-semibold text-purple-300 bg-[#07080c]/50 border border-border/10 p-3 rounded-xl">
+                                <p className="text-sm font-semibold text-primary bg-muted/25 border border-border/20 p-3 rounded-xl">
                                   {relativeKey}
                                 </p>
                               </div>
@@ -1313,8 +1313,8 @@ function MusicLibraryContent() {
                                       key={idx}
                                       className={`w-10 h-10 rounded-xl border flex flex-col items-center justify-center transition-all duration-200 ${
                                         isPlaying
-                                          ? 'bg-primary/25 border-primary text-white font-black scale-110 shadow-glow'
-                                          : 'bg-[#111219]/60 border-border/15 text-muted-foreground'
+                                          ? 'bg-primary/25 border-primary text-foreground font-black scale-110 shadow-glow'
+                                          : 'bg-muted/40 border-border/20 text-muted-foreground'
                                       }`}
                                     >
                                       <span className="text-xs font-black">{n}</span>
@@ -1337,10 +1337,10 @@ function MusicLibraryContent() {
                                 return (
                                   <div
                                     key={idx}
-                                    className="bg-[#111219]/40 border border-border/15 p-2 rounded-xl text-center flex flex-col items-center justify-center"
+                                    className="bg-muted/25 border border-border/20 p-2 rounded-xl text-center flex flex-col items-center justify-center"
                                   >
                                     <span className="text-[9px] font-black text-muted-foreground block mb-0.5">{roman}</span>
-                                    <span className="text-xs font-extrabold text-white truncate max-w-full">{chord}</span>
+                                    <span className="text-xs font-extrabold text-foreground truncate max-w-full">{chord}</span>
                                   </div>
                                 );
                               })}
@@ -1353,7 +1353,7 @@ function MusicLibraryContent() {
                 </div>
 
                 <div className="border-t border-border/15 pt-8">
-                  <h2 className="text-xl font-black text-white mb-5 tracking-tight border-l-2 border-primary pl-3">
+                  <h2 className="text-xl font-black text-foreground mb-5 tracking-tight border-l-2 border-primary pl-3">
                     Core Theory Reference Sheets
                   </h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -1408,7 +1408,7 @@ function MusicLibraryContent() {
                                 <Star className={`w-4 h-4 ${favorites.includes(item.title) ? 'text-yellow-400 fill-yellow-400' : ''}`} />
                               </button>
                             </div>
-                            <h3 className="text-lg font-bold text-white tracking-tight">{item.title}</h3>
+                            <h3 className="text-lg font-bold text-foreground tracking-tight">{item.title}</h3>
                             <p className="text-sm text-muted-foreground leading-relaxed">{item.description}</p>
                           </div>
                         </div>
@@ -1425,17 +1425,17 @@ function MusicLibraryContent() {
                     {/* Top row */}
                     <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
                       <div>
-                        <h3 className="text-lg font-bold text-white">Scale Family Reference</h3>
+                        <h3 className="text-lg font-bold text-foreground">Scale Family Reference</h3>
                         <p className="text-xs text-muted-foreground">Shared properties across all keys in this family.</p>
                       </div>
                       <div className="flex flex-wrap gap-2 text-xs">
-                        <div className="bg-[#111219]/60 border border-border/20 px-3 py-1.5 rounded-xl flex items-center gap-2">
+                        <div className="bg-muted/40 border border-border/20 px-3 py-1.5 rounded-xl flex items-center gap-2">
                           <span className="text-muted-foreground">Type:</span>
-                          <span className="font-semibold text-white">{commonScaleInfo.type}</span>
+                          <span className="font-semibold text-foreground">{commonScaleInfo.type}</span>
                         </div>
-                        <div className="bg-[#111219]/60 border border-border/20 px-3 py-1.5 rounded-xl flex items-center gap-2">
+                        <div className="bg-muted/40 border border-border/20 px-3 py-1.5 rounded-xl flex items-center gap-2">
                           <span className="text-muted-foreground">Character:</span>
-                          <span className="font-semibold text-white">{commonScaleInfo.character}</span>
+                          <span className="font-semibold text-foreground">{commonScaleInfo.character}</span>
                         </div>
                       </div>
                     </div>
@@ -1444,13 +1444,13 @@ function MusicLibraryContent() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-border/15 pt-4">
                       <div className="space-y-1">
                         <span className="text-xs font-semibold text-muted-foreground">Formula</span>
-                        <p className="text-sm font-mono text-purple-300 tracking-wider bg-[#07080c]/50 p-2.5 rounded-xl border border-border/15">
+                        <p className="text-sm font-mono text-primary tracking-wider bg-muted/25 p-2.5 rounded-xl border border-border/20">
                           {commonScaleInfo.formula.split('-').join(' - ')}
                         </p>
                       </div>
                       <div className="space-y-1">
                         <span className="text-xs font-semibold text-muted-foreground">Scale Degrees</span>
-                        <p className="text-sm font-mono text-purple-300 tracking-wider bg-[#07080c]/50 p-2.5 rounded-xl border border-border/15">
+                        <p className="text-sm font-mono text-primary tracking-wider bg-muted/25 p-2.5 rounded-xl border border-border/20">
                           {commonScaleInfo.degrees}
                         </p>
                       </div>
@@ -1462,7 +1462,7 @@ function MusicLibraryContent() {
                         <span className="text-xs font-semibold text-muted-foreground">Degree Names</span>
                         <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2">
                           {commonScaleInfo.degreeNames.map((name, i) => (
-                            <div key={i} className="bg-[#111219]/40 border border-border/15 py-2 px-3 rounded-xl text-center text-xs font-medium text-foreground truncate" title={name}>
+                            <div key={i} className="bg-muted/25 border border-border/20 py-2 px-3 rounded-xl text-center text-xs font-medium text-foreground truncate" title={name}>
                               <span className="text-[10px] text-muted-foreground block mb-0.5">{i + 1}</span>
                               {name}
                             </div>

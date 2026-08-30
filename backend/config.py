@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -37,9 +38,32 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 15
     jwt_refresh_token_expire_days: int = 7
 
+    # ── LangSmith observability ───────────────────────────────────────────────
+    # Set LANGCHAIN_API_KEY to enable tracing. All other fields have sensible
+    # defaults and are optional.
+    langchain_api_key: str | None = None
+    langchain_tracing_v2: str = "false"
+    langchain_project: str = "treble-ai"
+    langchain_endpoint: str = "https://api.smith.langchain.com"
+
 
 def get_settings() -> Settings:
     return Settings()
 
 
 settings = get_settings()
+
+
+def configure_langsmith(s: Settings | None = None) -> None:
+    """
+    Push LangSmith config into os.environ so LangChain picks it up automatically.
+    Call once at app startup (main.py lifespan). Safe to call when the key is absent
+    — tracing stays off and no error is raised.
+    """
+    s = s or settings
+    if s.langchain_api_key:
+        os.environ.setdefault("LANGCHAIN_API_KEY",      s.langchain_api_key)
+        os.environ.setdefault("LANGCHAIN_TRACING_V2",   "true")
+        os.environ.setdefault("LANGCHAIN_PROJECT",      s.langchain_project)
+        os.environ.setdefault("LANGCHAIN_ENDPOINT",     s.langchain_endpoint)
+        print(f"[LangSmith] Tracing enabled → project: {s.langchain_project}")

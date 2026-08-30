@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from config import settings
+from config import settings, configure_langsmith
 from database import get_db, SessionLocal
 from models import PracticeSession, AnalysisReport
 from reference_library import initialize_cache
@@ -113,6 +113,7 @@ def _upload_processed_files(job_id: str, job_dir: Path, base_name: str) -> dict:
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    configure_langsmith()   # enable LangSmith tracing if LANGCHAIN_API_KEY is set
     run_startup_seed()
     db = SessionLocal()
     try:

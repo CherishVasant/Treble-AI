@@ -796,7 +796,7 @@ export default function Sidebar() {
             <div className="p-2 bg-gradient-primary rounded-lg group-hover:shadow-glow transition-shadow shrink-0">
               <Music className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent truncate">TrebleAI</span>
+            <span className="text-lg font-bold bg-gradient-primary bg-clip-text text-transparent truncate">TrebleAI</span>
           </Link>
           <button onClick={toggleCollapsed} className="hidden md:flex p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-card/60 transition-colors" title="Collapse sidebar">
             <PanelLeftClose className="w-4 h-4" />

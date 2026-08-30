@@ -46,6 +46,11 @@
   --input:                  240 10% 20%;
   --ring:                   270 100% 65%;
 
+  /* Gradient endpoints — blue → purple in dark */
+  --gradient-from:          220 90% 56%;
+  --gradient-to:            270 100% 65%;
+  --glow-color:             270 100% 65%;
+
   --font-geist: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-geist-mono: 'Geist Mono', 'Courier New', monospace;
 
@@ -53,24 +58,30 @@
 }
 
 /* ── Light theme ─────────── */
+/* Identity: teal → periwinkle, matching the Gradient Wordmark */
 .light {
-  --background:             33 33% 94%;
-  --foreground:             30 15% 16%;
-  --card:                   33 22% 87%;
-  --card-foreground:        30 15% 16%;
-  --muted:                  30 10% 80%;
-  --muted-foreground:       30 8% 40%;
-  --accent:                 179 55% 48%;
+  --background:             210 22% 96%;
+  --foreground:             215 28% 12%;
+  --card:                   210 18% 91%;
+  --card-foreground:        215 28% 12%;
+  --muted:                  210 14% 82%;
+  --muted-foreground:       215 16% 40%;
+  --accent:                 175 72% 36%;
   --accent-foreground:      0 0% 98%;
-  --primary:                220 85% 50%;
+  --primary:                175 72% 34%;   /* teal */
   --primary-foreground:     0 0% 98%;
-  --secondary:              270 75% 56%;
+  --secondary:              235 68% 56%;   /* periwinkle */
   --secondary-foreground:   0 0% 98%;
   --destructive:            0 78% 50%;
   --destructive-foreground: 0 0% 98%;
-  --border:                 30 15% 76%;
-  --input:                  33 18% 91%;
-  --ring:                   270 90% 60%;
+  --border:                 210 16% 78%;
+  --input:                  210 20% 93%;
+  --ring:                   235 68% 56%;
+
+  /* Gradient endpoints — teal → periwinkle in light */
+  --gradient-from:          175 72% 34%;
+  --gradient-to:            235 68% 56%;
+  --glow-color:             235 68% 56%;
 
   color-scheme: light;
 }
@@ -183,6 +194,20 @@ body {
   @apply bg-transparent text-foreground p-0 border-0 text-xs font-normal;
 }
 
+/* ── Theme-aware gradient & glow overrides ──────────────────────────────────── */
+/* bg-gradient-primary: switches between dark (blue→purple) & light (teal→periwinkle) */
+.bg-gradient-primary {
+  background-image: linear-gradient(135deg, hsl(var(--gradient-from)) 0%, hsl(var(--gradient-to)) 100%);
+}
+
+/* Glow shadows use the theme's glow-color variable */
+.shadow-glow {
+  box-shadow: 0 0 20px hsl(var(--glow-color) / 0.35);
+}
+.shadow-glow-lg {
+  box-shadow: 0 0 40px hsl(var(--glow-color) / 0.45);
+}
+
 /* Visible, draggable range thumbs for the music player */
 .music-player-seek {
   -webkit-appearance: none;
@@ -191,8 +216,8 @@ body {
   border-radius: 9999px;
   background: transparent;
   cursor: pointer;
-  --range-track: hsl(240 10% 25%);
-  --range-fill: hsl(220 90% 56%);
+  --range-track: hsl(var(--border));
+  --range-fill: hsl(var(--gradient-from));   /* uses theme's gradient start */
   --range-progress: 0%;
 }
 
@@ -220,14 +245,14 @@ body {
   height: 16px;
   margin-top: -5px;
   border-radius: 9999px;
-  border: 2px solid hsl(240 10% 8%);
-  background: hsl(220 90% 56%);
-  box-shadow: 0 0 0 1px hsl(220 90% 56% / 0.35), 0 2px 6px hsl(220 90% 56% / 0.45);
+  border: 2px solid hsl(var(--background));
+  background: hsl(var(--gradient-from));
+  box-shadow: 0 0 0 1px hsl(var(--gradient-from) / 0.35), 0 2px 6px hsl(var(--gradient-from) / 0.45);
   cursor: pointer;
 }
 
 .music-player-seek:disabled::-webkit-slider-thumb {
-  background: hsl(240 10% 35%);
+  background: hsl(var(--muted));
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -247,15 +272,15 @@ body {
 .music-player-seek::-moz-range-thumb {
   width: 16px;
   height: 16px;
-  border: 2px solid hsl(240 10% 8%);
+  border: 2px solid hsl(var(--background));
   border-radius: 9999px;
-  background: hsl(220 90% 56%);
-  box-shadow: 0 0 0 1px hsl(220 90% 56% / 0.35), 0 2px 6px hsl(220 90% 56% / 0.45);
+  background: hsl(var(--gradient-from));
+  box-shadow: 0 0 0 1px hsl(var(--gradient-from) / 0.35), 0 2px 6px hsl(var(--gradient-from) / 0.45);
   cursor: pointer;
 }
 
 .music-player-seek:disabled::-moz-range-thumb {
-  background: hsl(240 10% 35%);
+  background: hsl(var(--muted));
   box-shadow: none;
   cursor: not-allowed;
 }

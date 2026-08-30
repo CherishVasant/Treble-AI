@@ -349,10 +349,13 @@ export default function AIChat({
 
   return (
     <div className={`flex flex-col h-full overflow-hidden ${className}`}>
-      {/* Header */}
+      {/* Session title heading */}
       {title && (
-        <div className="px-6 py-3 border-b border-border/20 shrink-0">
-          <h2 className="text-base font-semibold text-foreground leading-tight truncate">{title}</h2>
+        <div className="px-6 pt-5 pb-3 shrink-0">
+          <h2 className="text-xl font-bold leading-snug bg-gradient-primary bg-clip-text text-transparent line-clamp-2">
+            {title}
+          </h2>
+          <div className="mt-2 h-px bg-gradient-primary opacity-20 rounded-full" />
         </div>
       )}
 

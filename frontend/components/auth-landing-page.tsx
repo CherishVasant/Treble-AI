@@ -1,303 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState } from 'react';
 import { useAuth } from '@/context/auth-context';
 import { useTheme } from '@/context/theme-context';
 import ThemeToggle from '@/components/theme-toggle';
 import {
   Music, Eye, EyeOff, Loader2, Info,
-  ChevronRight, Sparkles, BookOpen, Library,
+  ChevronRight, BookOpen, Library, X,
+  Upload, Play, MessageSquare, BarChart3, Search, RefreshCw,
 } from 'lucide-react';
-
-// ── Piano ──────────────────────────────────────────────────────────────────────
-
-// 2 octaves: C3 – B4 (29 white keys, 20 black keys)
-const WHITE_NOTES = [
-  'C3','D3','E3','F3','G3','A3','B3',
-  'C4','D4','E4','F4','G4','A4','B4',
-  'C5','D5','E5','F5','G5','A5','B5',
-];
-
-// Which positions have a black key to the right: 0=C,1=D skip E,3=F,4=G,5=A skip B
-const HAS_BLACK_RIGHT = new Set([0,1,3,4,5]); // within each octave
-
-function noteToMidi(note: string): number {
-  const names: Record<string,number> = { C:0,D:2,E:4,F:5,G:7,A:9,B:11 };
-  const letter = note[0];
-  const octave  = parseInt(note.slice(1));
-  return (octave + 1) * 12 + names[letter];
-}
-
-function midiToFreq(midi: number): number {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
-// Derive black key notes from white key sequence
-const BLACK_NOTES: (string | null)[] = [];
-for (let w = 0; w < WHITE_NOTES.length; w++) {
-  const note  = WHITE_NOTES[w];
-  const step  = 'CDEFGAB'.indexOf(note[0]);
-  const octave= note.slice(1);
-  if (HAS_BLACK_RIGHT.has(step % 7)) {
-    const sharpLetter = 'CDEFGAB'['CDEFGAB'.indexOf(note[0]) + 1] ?? 'C';
-    BLACK_NOTES.push(note[0] + '#' + octave);
-  } else {
-    BLACK_NOTES.push(null);
-  }
-}
-// Remove last since last white has no black to the right in this range
-if (BLACK_NOTES.length > WHITE_NOTES.length) BLACK_NOTES.pop();
-
-interface ActiveNote { note: string; startTime: number; }
-
-function PianoKey({
-  note, isBlack, isActive, onPress, onRelease,
-}: {
-  note: string; isBlack: boolean; isActive: boolean;
-  onPress: (n: string) => void; onRelease: (n: string) => void;
-}) {
-  const base = isBlack
-    ? `absolute z-10 top-0 w-[28px] h-[90px] rounded-b-md cursor-pointer select-none transition-all duration-75 ${
-        isActive
-          ? 'bg-gradient-to-b from-primary/80 to-primary shadow-glow/40'
-          : 'bg-zinc-800 dark:bg-zinc-900 hover:bg-zinc-700 dark:hover:bg-zinc-800'
-      }`
-    : `relative z-0 w-[44px] h-[150px] rounded-b-lg border border-border/40 cursor-pointer select-none transition-all duration-75 flex items-end justify-center pb-2 ${
-        isActive
-          ? 'bg-primary/20 border-primary/60 shadow-inner'
-          : 'bg-white dark:bg-zinc-100 hover:bg-gray-50 dark:hover:bg-white'
-      }`;
-
-  return (
-    <div
-      className={base}
-      onPointerDown={(e) => { e.preventDefault(); onPress(note); }}
-      onPointerUp={() => onRelease(note)}
-      onPointerLeave={() => onRelease(note)}
-      title={note}
-    >
-      {!isBlack && (
-        <span className="text-[9px] font-bold text-gray-400 select-none pointer-events-none">
-          {note.replace(/\d/, '')}
-        </span>
-      )}
-    </div>
-  );
-}
-
-function InteractivePiano() {
-  const [activeNotes, setActiveNotes] = useState<Set<string>>(new Set());
-  const [loaded, setLoaded]   = useState(false);
-  const [loading, setLoading] = useState(false);
-  const audioCtx  = useRef<AudioContext | null>(null);
-  const buffers   = useRef<Map<string, AudioBuffer>>(new Map());
-  const gainNodes = useRef<Map<string, GainNode>>(new Map());
-
-  // Load soundfonts via soundfont-player CDN samples (Gleitz OGG)
-  const loadSounds = useCallback(async () => {
-    if (loaded || loading) return;
-    setLoading(true);
-    try {
-      if (!audioCtx.current) {
-        audioCtx.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-      }
-      const ctx = audioCtx.current;
-      // Load a handful of notes; we'll pitch-shift nearby ones
-      const notesToLoad = ['C3','E3','G3','C4','E4','G4','C5','E5','G5'];
-      await Promise.all(notesToLoad.map(async (note) => {
-        const midi  = noteToMidi(note);
-        const name  = note.replace('#', 's');
-        const url   = `https://gleitz.github.io/midi-js-soundfonts/MusyngKite/acoustic_grand_piano-ogg/${name}${midi >= 10 ? '' : '0'}.ogg`;
-        // Build a proper soundfont URL: each file is named like C4.ogg
-        const sfUrl = `https://gleitz.github.io/midi-js-soundfonts/MusyngKite/acoustic_grand_piano-ogg/${note.replace('#','s')}.ogg`;
-        try {
-          const resp = await fetch(sfUrl);
-          const buf  = await resp.arrayBuffer();
-          buffers.current.set(note, await ctx.decodeAudioData(buf));
-        } catch {}
-      }));
-      setLoaded(true);
-    } catch (err) {
-      console.error('[Piano] soundfont load error:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [loaded, loading]);
-
-  // Find closest loaded buffer for pitch-shifting
-  const getBuffer = (note: string): { buf: AudioBuffer; semitones: number } | null => {
-    if (buffers.current.has(note)) {
-      return { buf: buffers.current.get(note)!, semitones: 0 };
-    }
-    const targetMidi = noteToMidi(note);
-    let closest: string | null = null;
-    let minDist = Infinity;
-    for (const loaded of buffers.current.keys()) {
-      const d = Math.abs(noteToMidi(loaded) - targetMidi);
-      if (d < minDist) { minDist = d; closest = loaded; }
-    }
-    if (!closest) return null;
-    return { buf: buffers.current.get(closest)!, semitones: targetMidi - noteToMidi(closest) };
-  };
-
-  const playNote = useCallback(async (note: string) => {
-    if (!audioCtx.current) await loadSounds();
-    if (audioCtx.current?.state === 'suspended') await audioCtx.current.resume();
-    if (!loaded && !loading) { await loadSounds(); return; }
-    if (!audioCtx.current) return;
-
-    setActiveNotes(prev => new Set([...prev, note]));
-    const ctx = audioCtx.current;
-    const entry = getBuffer(note);
-    if (!entry) return;
-
-    const src  = ctx.createBufferSource();
-    src.buffer = entry.buf;
-    // Pitch-shift by detune (cents)
-    src.detune.value = entry.semitones * 100;
-
-    const gain = ctx.createGain();
-    gain.gain.setValueAtTime(0.9, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 3.5);
-
-    src.connect(gain);
-    gain.connect(ctx.destination);
-    src.start();
-    gainNodes.current.set(note, gain);
-  }, [loaded, loading, loadSounds]);
-
-  const releaseNote = useCallback((note: string) => {
-    setActiveNotes(prev => { const s = new Set(prev); s.delete(note); return s; });
-    const gain = gainNodes.current.get(note);
-    if (gain && audioCtx.current) {
-      gain.gain.cancelScheduledValues(audioCtx.current.currentTime);
-      gain.gain.setValueAtTime(gain.gain.value, audioCtx.current.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.current.currentTime + 0.4);
-    }
-  }, []);
-
-  // Keyboard mappings (home row = white keys C4–B4)
-  const keyMap: Record<string, string> = {
-    a:'C4', s:'D4', d:'E4', f:'F4', g:'G4', h:'A4', j:'B4',
-    k:'C5', l:'D5',
-    w:'C#4', e:'D#4', t:'F#4', y:'G#4', u:'A#4',
-    q:'C3', '2':'C#3', '3':'D#3',
-  };
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.repeat || e.metaKey || e.ctrlKey) return;
-      const note = keyMap[e.key.toLowerCase()];
-      if (note && !activeNotes.has(note)) playNote(note);
-    };
-    const up = (e: KeyboardEvent) => {
-      const note = keyMap[e.key.toLowerCase()];
-      if (note) releaseNote(note);
-    };
-    window.addEventListener('keydown', down);
-    window.addEventListener('keyup', up);
-    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
-  }, [activeNotes, playNote, releaseNote]);
-
-  const handleFirstTouch = () => { if (!loaded && !loading) loadSounds(); };
-
-  // Build white key + black key layout
-  const whiteWidth = 46; // px
-  const totalW = WHITE_NOTES.length * whiteWidth;
-
-  return (
-    <div className="flex flex-col items-center gap-4">
-      <div className="flex items-center gap-3">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          {loading ? 'Loading piano…' : loaded ? 'Play me · click keys or use keyboard (A–J)' : 'Click a key to load sounds'}
-        </span>
-        {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
-      </div>
-
-      {/* Piano container */}
-      <div
-        className="relative select-none touch-none overflow-x-auto"
-        style={{ width: '100%', maxWidth: `${totalW + 2}px` }}
-        onPointerDown={handleFirstTouch}
-      >
-        <div className="relative flex" style={{ height: '152px', width: `${totalW}px` }}>
-          {/* White keys */}
-          {WHITE_NOTES.map((note, i) => (
-            <div key={note} style={{ position: 'absolute', left: `${i * whiteWidth}px`, width: `${whiteWidth - 2}px` }}>
-              <PianoKey
-                note={note}
-                isBlack={false}
-                isActive={activeNotes.has(note)}
-                onPress={playNote}
-                onRelease={releaseNote}
-              />
-            </div>
-          ))}
-
-          {/* Black keys */}
-          {WHITE_NOTES.map((note, i) => {
-            const step = 'CDEFGAB'.indexOf(note[0]) % 7;
-            if (!HAS_BLACK_RIGHT.has(step)) return null;
-            const letters = 'CDEFGAB';
-            const nextLetter = letters[letters.indexOf(note[0]) + 1];
-            if (!nextLetter) return null;
-            const blackNote = `${note[0]}#${note.slice(1)}`;
-            const allBlackNotes: Record<string,string> = {
-              'C#3':'C#3','D#3':'D#3','F#3':'F#3','G#3':'G#3','A#3':'A#3',
-              'C#4':'C#4','D#4':'D#4','F#4':'F#4','G#4':'G#4','A#4':'A#4',
-              'C#5':'C#5','D#5':'D#5','F#5':'F#5','G#5':'G#5','A#5':'A#5',
-            };
-            const bn = allBlackNotes[blackNote];
-            if (!bn) return null;
-            return (
-              <div key={bn} style={{ position: 'absolute', left: `${i * whiteWidth + (whiteWidth - 2) * 0.65}px`, width: '28px', zIndex: 10 }}>
-                <PianoKey
-                  note={bn}
-                  isBlack={true}
-                  isActive={activeNotes.has(bn)}
-                  onPress={playNote}
-                  onRelease={releaseNote}
-                />
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Feature cards ──────────────────────────────────────────────────────────────
-
-const FEATURES = [
-  {
-    icon: <Music className="w-5 h-5" />,
-    label: 'Practice Studio',
-    color: '#5ECFCF',
-    bg: 'rgba(94,207,207,.10)',
-    desc: 'Upload any score — get instant analysis, MIDI playback, and AI coaching as you practice.',
-  },
-  {
-    icon: <BookOpen className="w-5 h-5" />,
-    label: 'Theory Tutor',
-    color: '#8B8FD4',
-    bg: 'rgba(139,143,212,.10)',
-    desc: 'Interactive lessons in harmony, counterpoint, ear training — taught by an AI that remembers your progress.',
-  },
-  {
-    icon: <Library className="w-5 h-5" />,
-    label: 'Music Library',
-    color: '#E07878',
-    bg: 'rgba(224,120,120,.10)',
-    desc: 'Your personal archive of scores, practice sessions, and analysis reports — all in one place.',
-  },
-  {
-    icon: <Sparkles className="w-5 h-5" />,
-    label: 'AI Analysis',
-    color: '#A870C8',
-    bg: 'rgba(168,112,200,.10)',
-    desc: 'Deterministic score reports: key, difficulty, voice leading, fingering — in seconds.',
-  },
-];
 
 // ── Auth form ─────────────────────────────────────────────────────────────────
 
@@ -421,45 +132,142 @@ function AuthForm() {
   );
 }
 
+// ── Auth modal ────────────────────────────────────────────────────────────────
+
+function AuthModal({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      {/* Backdrop */}
+      <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
+
+      {/* Card */}
+      <div
+        className="relative z-10 bg-background border border-border/20 rounded-2xl shadow-2xl p-8 w-full max-w-sm"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/40 transition-colors"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-foreground mb-1">Welcome to TrebleAI</h2>
+          <p className="text-sm text-muted-foreground">Your AI music studio is waiting.</p>
+        </div>
+
+        <AuthForm />
+      </div>
+    </div>
+  );
+}
+
+// ── Product sections ──────────────────────────────────────────────────────────
+
+const PRODUCTS = [
+  {
+    name: 'Practice Studio',
+    tagline: 'Upload a score. Start learning immediately.',
+    description:
+      'Turn any sheet music into a fully playable, analysable practice session. Upload a PDF or photo — TrebleAI reads it, builds a theory report, and lets you practice with an AI coach that listens.',
+    accentColor: '#3DBCB8',
+    accentBg: 'rgba(61,188,184,0.09)',
+    icon: <Music className="w-6 h-6" />,
+    steps: [
+      { icon: <Upload className="w-4 h-4" />, label: 'Upload', detail: 'Drop any PDF or photo of sheet music — solo, ensemble, lead sheet, anything.' },
+      { icon: <BarChart3 className="w-4 h-4" />, label: 'Analyse', detail: 'Instant report: key, chords, difficulty, voice-leading notes, and fingering suggestions.' },
+      { icon: <Play className="w-4 h-4" />, label: 'Practice', detail: 'Play MIDI playback, practice along, and ask your AI coach about any passage.' },
+    ],
+  },
+  {
+    name: 'Theory Tutor',
+    tagline: 'Ask anything. Learn everything.',
+    description:
+      'A chat-based AI tutor with expert knowledge of music theory — from beginner scales all the way to advanced counterpoint, harmonic analysis, and ear training.',
+    accentColor: '#7B82E8',
+    accentBg: 'rgba(123,130,232,0.09)',
+    icon: <BookOpen className="w-6 h-6" />,
+    steps: [
+      { icon: <MessageSquare className="w-4 h-4" />, label: 'Ask', detail: 'Type any question — "What is a tritone substitution?" or "Walk me through Dorian mode."' },
+      { icon: <ChevronRight className="w-4 h-4" />, label: 'Explore', detail: 'Follow up with more questions, request exercises, or ask for real musical examples.' },
+      { icon: <BookOpen className="w-4 h-4" />, label: 'Revisit', detail: 'Every conversation is saved — come back anytime to build on what you have learned.' },
+    ],
+  },
+  {
+    name: 'Music Library',
+    tagline: 'Your scores, organised and ready.',
+    description:
+      'Every score you upload lives here with its analysis, key info, and MIDI playback. Browse, filter, and deep-dive into your collection whenever you need it.',
+    accentColor: '#E07878',
+    accentBg: 'rgba(224,120,120,0.09)',
+    icon: <Library className="w-6 h-6" />,
+    steps: [
+      { icon: <Search className="w-4 h-4" />, label: 'Browse', detail: 'Filter your collection by key, scale, difficulty, or time signature.' },
+      { icon: <RefreshCw className="w-4 h-4" />, label: 'Re-analyse', detail: 'Run fresh AI analysis on any score as your ear and technique improve.' },
+      { icon: <BarChart3 className="w-4 h-4" />, label: 'Explore', detail: 'Use the built-in key, scale, and chord explorer to deepen your theory knowledge.' },
+    ],
+  },
+];
+
 // ── Main landing page ──────────────────────────────────────────────────────────
 
 export default function AuthLandingPage() {
-  const { theme } = useTheme();
+  const [showAuth, setShowAuth] = useState(false);
 
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
 
+      {/* Auth modal */}
+      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}
+
       {/* ── Top bar ────────────────────────────────────────────── */}
-      <header className="sticky top-0 z-50 h-14 flex items-center px-6 md:px-10 border-b border-border/20 bg-background/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 h-14 flex items-center px-6 md:px-10 border-b border-border/20 bg-background/80 backdrop-blur-xl">
         <div className="flex items-center gap-2 flex-1">
           <div className="p-1.5 bg-gradient-primary rounded-lg">
             <Music className="w-4 h-4 text-white" />
           </div>
           <span className="font-bold text-sm tracking-tight text-foreground">TrebleAI</span>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-3">
+          <ThemeToggle />
+          <button
+            onClick={() => setShowAuth(true)}
+            className="px-4 py-1.5 rounded-full bg-primary text-white text-sm font-semibold hover:opacity-90 transition-all"
+          >
+            Sign In
+          </button>
+        </div>
       </header>
 
       {/* ── Hero ───────────────────────────────────────────────── */}
-      <section className="relative overflow-hidden py-24 md:py-32 px-6 md:px-10">
+      <section className="relative overflow-hidden py-28 md:py-36 px-6 md:px-10">
 
         {/* Background orbs — rose-pink top-left, blue-lavender bottom-right */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-28 -left-28 w-[540px] h-[540px] rounded-full"
-            style={{ background: 'radial-gradient(circle, rgba(242,168,200,0.52) 0%, transparent 68%)', filter: 'blur(72px)' }} />
-          <div className="absolute -bottom-20 -right-20 w-[480px] h-[480px] rounded-full"
-            style={{ background: 'radial-gradient(circle, rgba(160,170,238,0.48) 0%, transparent 68%)', filter: 'blur(72px)' }} />
-          {/* Small floating dots */}
+          <div
+            className="absolute -top-28 -left-28 w-[540px] h-[540px] rounded-full"
+            style={{ background: 'radial-gradient(circle, rgba(242,168,200,0.52) 0%, transparent 68%)', filter: 'blur(72px)' }}
+          />
+          <div
+            className="absolute -bottom-20 -right-20 w-[480px] h-[480px] rounded-full"
+            style={{ background: 'radial-gradient(circle, rgba(160,170,238,0.48) 0%, transparent 68%)', filter: 'blur(72px)' }}
+          />
+          {/* Small accent dots */}
           <div className="absolute top-14 left-10 w-2 h-2 rounded-full" style={{ background: 'rgba(220,140,175,0.55)' }} />
           <div className="absolute top-28 right-20 w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(155,160,225,0.50)' }} />
           <div className="absolute bottom-20 left-1/4 w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(200,150,200,0.45)' }} />
           <div className="absolute bottom-32 right-12 w-2 h-2 rounded-full" style={{ background: 'rgba(145,165,235,0.50)' }} />
         </div>
 
-        {/* Centered hero content */}
+        {/* Centered content */}
         <div className="relative max-w-3xl mx-auto text-center">
 
-          {/* Badge — "• TrebleAI" */}
+          {/* Badge */}
           <div className="inline-flex items-center gap-2 text-sm text-muted-foreground mb-8">
             <span className="w-1.5 h-1.5 rounded-full inline-block bg-primary" />
             <span className="font-medium tracking-wide">TrebleAI</span>
@@ -474,60 +282,78 @@ export default function AuthLandingPage() {
             </span>
           </h1>
 
-          {/* Subtitle — exact text from design */}
+          {/* Subtitle */}
           <p className="text-base md:text-lg text-muted-foreground leading-relaxed mb-10 max-w-xl mx-auto">
             Upload any score — get instant analysis, MIDI playback, and an AI
             coach that hears every nuance in your playing.
           </p>
 
-          {/* CTA buttons */}
-          <div className="flex flex-wrap items-center justify-center gap-4 mb-16">
-            <a href="#get-started"
-              className="px-7 py-3.5 rounded-full bg-primary text-white font-bold text-sm hover:opacity-90 hover:shadow-glow transition-all duration-200">
-              Start Practicing Free
-            </a>
-            <a href="#features"
-              className="px-5 py-3.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors flex items-center gap-1">
-              Watch Demo <span className="ml-0.5">→</span>
-            </a>
-          </div>
-
-          {/* Playable piano */}
-          <div className="p-5 rounded-2xl bg-card/40 backdrop-blur-sm border border-border/20">
-            <InteractivePiano />
-          </div>
+          {/* Single CTA */}
+          <button
+            onClick={() => setShowAuth(true)}
+            className="px-8 py-4 rounded-full bg-primary text-white font-bold text-base hover:opacity-90 hover:shadow-glow transition-all duration-200"
+          >
+            Get Started Free
+          </button>
         </div>
       </section>
 
-      {/* ── Auth / Get started ──────────────────────────────────── */}
-      <section id="get-started" className="py-16 px-6 md:px-10 border-t border-border/10">
-        <div className="max-w-sm mx-auto text-center mb-8">
-          <h2 className="text-2xl font-extrabold text-foreground mb-2">Get started free</h2>
-          <p className="text-sm text-muted-foreground">Your AI music studio is waiting.</p>
-        </div>
-        <div className="max-w-sm mx-auto p-7 rounded-2xl bg-card/50 backdrop-blur-sm border border-border/20 shadow-xl shadow-black/5">
-          <AuthForm />
-        </div>
-      </section>
+      {/* ── Product sections ────────────────────────────────────── */}
+      <section className="py-20 px-6 md:px-10 border-t border-border/10">
+        <div className="max-w-5xl mx-auto">
 
-      {/* ── Features ───────────────────────────────────────────── */}
-      <section id="features" className="py-16 px-6 md:px-10 border-t border-border/10">
-        <div className="max-w-6xl mx-auto">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">Everything you need</p>
-          <h2 className="text-2xl md:text-3xl font-extrabold text-foreground mb-10">
-            One platform, complete musical intelligence
-          </h2>
+          <div className="text-center mb-16">
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">What you can do</p>
+            <h2 className="text-3xl md:text-4xl font-extrabold text-foreground">
+              One platform, complete musical intelligence
+            </h2>
+          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {FEATURES.map(f => (
-              <div key={f.label}
-                className="p-5 rounded-2xl border border-border/15 bg-card/30 hover:bg-card/50 transition-all duration-200 group">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110"
-                  style={{ background: f.bg, color: f.color }}>
-                  {f.icon}
+          <div className="space-y-10">
+            {PRODUCTS.map((product) => (
+              <div
+                key={product.name}
+                className="rounded-2xl border border-border/15 overflow-hidden"
+                style={{ background: product.accentBg }}
+              >
+                <div className="p-8 md:p-10">
+                  {/* Header */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: `${product.accentColor}22`, color: product.accentColor }}
+                    >
+                      {product.icon}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-extrabold text-foreground leading-tight">{product.name}</h3>
+                      <p className="text-sm font-medium" style={{ color: product.accentColor }}>{product.tagline}</p>
+                    </div>
+                  </div>
+
+                  {/* Description */}
+                  <p className="text-sm md:text-base text-muted-foreground leading-relaxed mb-8 max-w-2xl">
+                    {product.description}
+                  </p>
+
+                  {/* How to use steps */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    {product.steps.map((step, idx) => (
+                      <div key={step.label} className="flex gap-3">
+                        <div
+                          className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5"
+                          style={{ background: `${product.accentColor}20`, color: product.accentColor }}
+                        >
+                          {step.icon}
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-foreground mb-0.5 uppercase tracking-wide">{step.label}</p>
+                          <p className="text-xs text-muted-foreground leading-relaxed">{step.detail}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-                <h3 className="font-bold text-sm text-foreground mb-1.5">{f.label}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -536,14 +362,14 @@ export default function AuthLandingPage() {
 
       {/* ── How it works ───────────────────────────────────────── */}
       <section className="py-16 px-6 md:px-10 border-t border-border/10">
-        <div className="max-w-6xl mx-auto">
-          <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-3">How it works</p>
+        <div className="max-w-5xl mx-auto">
+          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">How it works</p>
           <h2 className="text-2xl md:text-3xl font-extrabold text-foreground mb-10">From score to mastery in three steps</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
               { n: '01', title: 'Upload your score', body: 'Drop a PDF or photo — TrebleAI reads it using Optical Music Recognition and converts it to playable MIDI in seconds.' },
-              { n: '02', title: 'Get instant insights', body: 'A full theory report lands immediately: key, harmony, difficulty, fingering suggestions, voice-leading checks.' },
+              { n: '02', title: 'Get instant insights', body: 'A full theory report lands immediately: key, harmony, difficulty, fingering suggestions, and voice-leading checks.' },
               { n: '03', title: 'Practice with AI', body: 'Play along. Ask questions in plain English. Your AI tutor knows the piece and coaches you through every challenge.' },
             ].map(s => (
               <div key={s.n} className="flex gap-4">

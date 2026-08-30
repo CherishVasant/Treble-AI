@@ -700,7 +700,7 @@ function PracticeStudioContent() {
                   />
                 ) : (
                   /* Analysis panel — vertical compact cards */
-                  <div className="overflow-y-auto h-full p-4 space-y-4">
+                  <div className="overflow-y-auto overscroll-contain h-full p-4 space-y-4">
 
                     {/* Difficulty card */}
                     {processedMetadata?.musicalInfo?.difficulty && (

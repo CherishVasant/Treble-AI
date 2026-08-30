@@ -10,9 +10,10 @@ const BACKEND_URL = process.env.BACKEND_URL ?? 'http://127.0.0.1:8000';
 
 export async function GET(
   _request: NextRequest,
-  { params }: { params: { midi: string } }
+  { params }: { params: Promise<{ midi: string }> }
 ) {
-  const midi = parseInt(params.midi, 10);
+  const { midi: midiStr } = await params;
+  const midi = parseInt(midiStr, 10);
   if (isNaN(midi) || midi < 21 || midi > 108) {
     return NextResponse.json({ error: 'Invalid MIDI number (21–108)' }, { status: 400 });
   }

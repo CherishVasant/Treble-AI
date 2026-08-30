@@ -139,7 +139,7 @@ function HowToUsePage({ onBack }: { onBack: () => void }) {
       </div>
 
       {/* Guide content */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent px-6 py-5 space-y-8">
+      <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent px-6 py-5 space-y-8">
         {HOW_TO_USE_GUIDE.map(topic => (
           <div key={topic.page}>
             {/* Page heading */}
@@ -266,7 +266,7 @@ function SettingsModal({ onClose }: { onClose: () => void }) {
               </div>
 
               {/* Scrollable body */}
-              <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent divide-y divide-border/20">
+              <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent divide-y divide-border/20">
 
                 {/* ── Profile ── */}
                 <div className="px-6 py-5 space-y-4">
@@ -633,7 +633,7 @@ export default function Sidebar() {
             <input type="text" placeholder="Search history..." value={practiceSearch} onChange={e => setPracticeSearch(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
           </div>
-          <div className="flex-1 overflow-y-auto min-h-0 space-y-4 pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+          <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 space-y-4 pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
             {groupedPractice.today.length > 0 && (
               <div className="space-y-1">
                 <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">Today</h5>
@@ -676,7 +676,7 @@ export default function Sidebar() {
             <input type="text" placeholder="Search history..." value={theorySearch} onChange={e => setTheorySearch(e.target.value)}
               className="w-full pl-8 pr-3 py-1.5 text-xs bg-card border border-border/30 text-foreground placeholder:text-muted-foreground rounded-lg focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20" />
           </div>
-          <div className="flex-1 overflow-y-auto min-h-0 space-y-1 pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+          <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 space-y-1 pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
             <h5 className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider px-3 mb-1.5">Conversations</h5>
             {filteredTheory.map(s => renderSessionRow(s, 'theory'))}
             {filteredTheory.length === 0 && (
@@ -700,7 +700,7 @@ export default function Sidebar() {
               <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/20 text-muted-foreground">{favoritesCount}</span>
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
+          <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 space-y-3 pr-1 scrollbar-thin scrollbar-thumb-border scrollbar-track-transparent">
             <h5 className="text-[10px] font-bold text-muted-foreground tracking-wider px-3">Categories</h5>
             <div className="space-y-1">
               {MUSIC_LIBRARY_GROUPS.map(g => (
@@ -842,7 +842,7 @@ export default function Sidebar() {
   return (
     <>
       {/* Desktop permanent sidebar */}
-      <aside className={`hidden md:block h-screen fixed top-0 left-0 z-30 transition-all duration-300 ${collapsed ? 'w-14' : 'w-64'}`}>
+      <aside className={`hidden md:block h-screen overflow-hidden fixed top-0 left-0 z-30 transition-all duration-300 ${collapsed ? 'w-14' : 'w-64'}`}>
         {collapsed ? iconOnlySidebar : expandedSidebar}
       </aside>
 

@@ -2,7 +2,8 @@
 Float division by zero issue.
 Scales are being synthesized at real time (recordings are not used)
 
-
+oemer - Takes longer than Audiveris and the ouptu is wrong and delayed.
+smt - not working properly for this input (something related to the type of cropping)
 
 
 
@@ -147,5 +148,4 @@ same image twice and the job lands in the same output directory.
 
 ---
 
-*Last updated: 2026-08-28*
 *Relates to: [`backend/pipeline.py`](../backend/pipeline.py), planned `backend/segment_systems.py`, `backend/merge_musicxml.py`*

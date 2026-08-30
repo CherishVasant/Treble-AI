@@ -432,7 +432,7 @@ export default function AIChat({
                       className={`px-4 py-3.5 rounded-2xl ${
                         message.role === 'user'
                           ? 'bg-primary text-white rounded-tr-none'
-                          : 'bg-card text-foreground rounded-tl-none border border-border/30'
+                          : 'bg-card text-foreground rounded-tl-none'
                       }`}
                     >
                       {message.role === 'user' ? (
@@ -523,7 +523,7 @@ export default function AIChat({
                   <Music className="w-4 h-4 text-white" />
                 </div>
                 <div className="max-w-[85%] w-full flex flex-col space-y-2">
-                  <div className="px-4 py-3.5 rounded-2xl bg-card text-foreground rounded-bl-none border border-border/30">
+                  <div className="px-4 py-3.5 rounded-2xl bg-card text-foreground rounded-bl-none">
                     <div className="flex flex-col gap-2">
                       <div className="flex gap-2 items-center">
                         <Loader2 className="w-4 h-4 animate-spin text-primary" />

@@ -67,7 +67,7 @@ type ProcessedMeta = {
 
 import { useChat } from '@/context/chat-context';
 import { useSidebar } from '@/context/sidebar-context';
-import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Play, Download } from 'lucide-react';
 
 function newUUID(): string {
   if (typeof window !== 'undefined' && window.crypto?.randomUUID) {
@@ -465,12 +465,112 @@ function PracticeStudioContent() {
   const chatContext = useMemo(() => getChatContext(uploadedFileData, processedMetadata), [uploadedFileData, processedMetadata]);
   const systemPrompt = uploadedFileData ? SYSTEM_PROMPT_WITH_SCORE : SYSTEM_PROMPT_NO_SCORE;
 
+  // ── Song hero helpers ──────────────────────────────────────────────────────
+  const heroTitle     = processedMetadata?.musicalInfo?.title     || uploadedFileData?.name  || null;
+  const heroComposer  = processedMetadata?.musicalInfo?.composer  || (processedMetadata?.metadata?.composer as string | undefined) || null;
+  const heroKey       = processedMetadata?.musicalInfo?.key_analysis?.tonal_center || processedMetadata?.musicalInfo?.key_signature || null;
+  const heroTempo     = processedMetadata?.musicalInfo?.tempo     || (processedMetadata?.metadata?.tempo ? String(processedMetadata.metadata.tempo) : null);
+  const heroDifficulty = processedMetadata?.musicalInfo?.difficulty?.difficulty_score ?? null;
+  const heroMidiUrl   = (processedMetadata as any)?.midiUrl       || null;
+
+  /** Compact single-row strip for Studio layout */
+  const studioHero = uploadedFileData ? (
+    <div className="shrink-0 flex items-center justify-between gap-4 px-4 border-b border-border/20 bg-card/15 h-[52px]">
+      <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-primary shrink-0">
+          Practice Studio
+        </span>
+        <span className="text-border/30 shrink-0">·</span>
+        <span className="text-sm font-bold text-foreground truncate">{heroTitle}</span>
+        <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-muted-foreground shrink-0">
+          {heroComposer  && <><span className="text-border/40">·</span><span>{heroComposer}</span></>}
+          {heroKey       && <><span className="text-border/40">·</span><span>{heroKey}</span></>}
+          {heroTempo     && <><span className="text-border/40">·</span><span>{heroTempo}</span></>}
+          {heroDifficulty !== null && <><span className="text-border/40">·</span><span>Difficulty {heroDifficulty} / 10</span></>}
+        </div>
+      </div>
+      <div className="flex items-center gap-2 shrink-0">
+        <a
+          href={heroMidiUrl || undefined}
+          download={heroMidiUrl ? `${heroTitle || 'score'}.mid` : undefined}
+          onClick={e => { if (!heroMidiUrl) e.preventDefault(); }}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border/30 transition-all ${
+            heroMidiUrl
+              ? 'text-muted-foreground hover:text-foreground hover:border-border/60 cursor-pointer'
+              : 'text-muted-foreground/40 cursor-not-allowed'
+          }`}
+          aria-disabled={!heroMidiUrl}
+        >
+          <Download className="w-3.5 h-3.5" />
+          Export MIDI
+        </a>
+        <button
+          onClick={() => { setRightPanelOpen(true); setActiveTab('chat'); playerRef.current?.play(); }}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-gradient-primary text-white hover:shadow-glow transition-all"
+        >
+          <Play className="w-3 h-3 fill-white" />
+          Practice
+        </button>
+      </div>
+    </div>
+  ) : null;
+
+  /** Full-width hero for Classic layout */
+  const classicHero = (
+    <div className="w-full flex items-start justify-between gap-6">
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-primary mb-1.5">
+          Practice Studio
+        </p>
+        <h1 className="text-2xl lg:text-3xl font-extrabold text-foreground mb-2 leading-tight">
+          {heroTitle || 'Upload a score to begin'}
+        </h1>
+        {(heroComposer || heroKey || heroTempo || heroDifficulty !== null) && (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+            {heroComposer  && <span>{heroComposer}</span>}
+            {heroKey       && <><span>·</span><span>{heroKey}</span></>}
+            {heroTempo     && <><span>·</span><span>{heroTempo}</span></>}
+            {heroDifficulty !== null && <><span>·</span><span>Difficulty {heroDifficulty} / 10</span></>}
+          </div>
+        )}
+      </div>
+      {uploadedFileData && (
+        <div className="flex items-center gap-3 shrink-0 pt-1">
+          <a
+            href={heroMidiUrl || undefined}
+            download={heroMidiUrl ? `${heroTitle || 'score'}.mid` : undefined}
+            onClick={e => { if (!heroMidiUrl) e.preventDefault(); }}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border transition-all ${
+              heroMidiUrl
+                ? 'border-border/40 text-muted-foreground hover:text-foreground hover:border-border/70 cursor-pointer'
+                : 'border-border/20 text-muted-foreground/40 cursor-not-allowed'
+            }`}
+            aria-disabled={!heroMidiUrl}
+          >
+            <Download className="w-4 h-4" />
+            Export MIDI
+          </a>
+          <button
+            onClick={() => playerRef.current?.play()}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-gradient-primary text-white hover:shadow-glow transition-all"
+          >
+            <Play className="w-4 h-4 fill-white" />
+            Practice
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   // ── Studio layout ─────────────────────────────────────────────────────────
   if (layoutMode === 'studio') {
     const hasAnalysis = Boolean(processedMetadata?.musicalInfo?.difficulty);
 
     return (
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+
+        {/* ── Song hero strip ── */}
+        {studioHero}
 
         {/* ── Main row: sheet music viewer + right panel ── */}
         <div className="flex flex-1 min-h-0 overflow-hidden">
@@ -806,10 +906,13 @@ function PracticeStudioContent() {
     );
   }
 
-  // ── Classic layout (unchanged) ────────────────────────────────────────────
+  // ── Classic layout ────────────────────────────────────────────────────────
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex-1 w-full space-y-6">
-      
+
+      {/* Hero header */}
+      {classicHero}
+
       {/* Row 1: Upload button & Horizontal progress tracker */}
       <div className="w-full">
         <SheetMusicUploader
@@ -924,8 +1027,8 @@ function PracticeStudioContent() {
 
       {/* Row 5: Deterministic Score Analysis Dashboard */}
       {processedMetadata?.musicalInfo?.difficulty && (
-        <div className="w-full bg-card/25 rounded-xl border border-border/30 overflow-hidden flex flex-col transition-all duration-300 animate-fade-in">
-          <div className="px-6 py-4 border-b border-border/30 flex items-center justify-between bg-card/10">
+        <div className="w-full bg-card/25 rounded-xl overflow-hidden flex flex-col transition-all duration-300 animate-fade-in">
+          <div className="px-6 py-4 flex items-center justify-between bg-card/10">
             <div className="flex items-center gap-3">
               <svg className="w-5 h-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
@@ -957,7 +1060,7 @@ function PracticeStudioContent() {
           <div className={`transition-all duration-300 ease-in-out overflow-hidden ${showAnalysis ? 'max-h-[1500px] opacity-100' : 'max-h-0 opacity-0 border-0'}`}>
             <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
               {/* Card 1: Difficulty & Melodic Register */}
-              <div className="glass rounded-xl p-6 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
+              <div className="glass rounded-xl p-6 border-0 flex flex-col justify-between transition-all duration-300">
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Difficulty</span>
@@ -1007,7 +1110,7 @@ function PracticeStudioContent() {
               </div>
 
               {/* Card 2: Key & Warm-up Scales */}
-              <div className="glass rounded-xl p-6 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
+              <div className="glass rounded-xl p-6 border-0 flex flex-col justify-between transition-all duration-300">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Key & Diatonicity</span>
@@ -1056,7 +1159,7 @@ function PracticeStudioContent() {
               </div>
 
               {/* Card 3: Harmony & Voice Leading */}
-              <div className="glass rounded-xl p-6 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
+              <div className="glass rounded-xl p-6 border-0 flex flex-col justify-between transition-all duration-300">
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Harmony & Rules</span>
@@ -1107,7 +1210,7 @@ function PracticeStudioContent() {
               </div>
 
               {/* Card 4: Fingering & Rhythm */}
-              <div className="glass rounded-xl p-6 border border-border/35 flex flex-col justify-between hover:border-primary/20 transition-all duration-300">
+              <div className="glass rounded-xl p-6 border-0 flex flex-col justify-between transition-all duration-300">
                 <div>
                   <div className="flex items-center justify-between mb-4">
                     <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Fingering & Rhythm</span>

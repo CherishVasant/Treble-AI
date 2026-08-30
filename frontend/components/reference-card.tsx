@@ -487,7 +487,7 @@ export default function ReferenceCard({
         <div className="glass p-4 rounded-xl border border-border/25 flex flex-col space-y-3">
           <div className="flex flex-col space-y-1">
             <span className="text-[10px] font-bold text-muted-foreground tracking-widest">Right Hand Fingering</span>
-            <div className="flex flex-wrap gap-3 text-sm font-semibold text-purple-300 font-mono">
+            <div className="flex flex-wrap gap-3 text-sm font-semibold text-primary font-mono">
               {rightFingers.map((f, i) => (
                 <span key={i} className="w-4 text-center">{f}</span>
               ))}
@@ -496,7 +496,7 @@ export default function ReferenceCard({
           <div className="border-t border-border/15 my-2" />
           <div className="flex flex-col space-y-1">
             <span className="text-[10px] font-bold text-muted-foreground tracking-widest">Left Hand Fingering</span>
-            <div className="flex flex-wrap gap-3 text-sm font-semibold text-purple-300 font-mono">
+            <div className="flex flex-wrap gap-3 text-sm font-semibold text-primary font-mono">
               {leftFingers.map((f, i) => (
                 <span key={i} className="w-4 text-center">{f}</span>
               ))}
@@ -509,15 +509,15 @@ export default function ReferenceCard({
     return (
       <div
         onClick={logInteraction}
-        className="bg-[#0b0c11] border border-border/30 rounded-3xl p-6 relative flex flex-col space-y-5 overflow-hidden shadow-glow/5 hover:border-primary/40 hover:shadow-glow transition-all duration-300 group select-none"
+        className="bg-card border border-border/30 rounded-3xl p-6 relative flex flex-col space-y-5 overflow-hidden shadow-glow/5 hover:border-primary/40 hover:shadow-glow transition-all duration-300 group select-none"
       >
         {/* Radial top glow */}
-        <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-purple-500/10 via-transparent to-transparent pointer-events-none z-0" />
+        <div className="absolute top-0 left-0 right-0 h-40 bg-gradient-to-b from-primary/8 via-transparent to-transparent pointer-events-none z-0" />
 
         {/* 1. Header Section */}
         <div className="relative flex justify-between items-start z-10">
           <div>
-            <h3 className="text-3xl font-extrabold text-white tracking-tight mb-0.5">
+            <h3 className="text-3xl font-extrabold text-foreground tracking-tight mb-0.5">
               {safeScaleInfo.name}
             </h3>
           </div>
@@ -540,18 +540,18 @@ export default function ReferenceCard({
             {/* Star Bookmark Button */}
             <button
               onClick={handleFavorite}
-              className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white transition-colors shrink-0"
+              className="p-2.5 rounded-xl bg-muted/40 hover:bg-muted border border-border/20 text-foreground/60 hover:text-foreground transition-colors shrink-0"
               title={isFavorited ? 'Remove bookmark' : 'Bookmark card'}
             >
-              <Star className={`w-4 h-4 ${isFavorited ? 'fill-purple-400 text-purple-400' : ''}`} />
+              <Star className={`w-4 h-4 ${isFavorited ? 'fill-yellow-400 text-yellow-400' : ''}`} />
             </button>
           </div>
         </div>
 
         {/* 3. Virtual Piano Section */}
         <div className="relative z-10 flex flex-col">
-          <div className="w-full bg-[#07080c] border border-border/40 p-4 rounded-2xl relative flex flex-col space-y-2">
-            <div className="relative h-28 w-full rounded-xl overflow-hidden border border-black/60 bg-[#16171e] select-none">
+          <div className="w-full bg-muted/30 border border-border/30 p-4 rounded-2xl relative flex flex-col space-y-2">
+            <div className="relative h-28 w-full rounded-xl overflow-hidden border border-border/40 bg-card/60 select-none">
               {/* White keys container */}
               <div className="absolute inset-0 flex">
                 {WHITE_KEYS.map((key) => {
@@ -562,15 +562,15 @@ export default function ReferenceCard({
                       key={key.note}
                       className={`relative flex-1 border-r border-black/10 last:border-0 h-full transition-all duration-150 flex flex-col justify-end pb-3 items-center ${
                         playing
-                          ? 'bg-purple-600 shadow-[0_0_15px_rgba(168,85,247,0.8)] z-10 text-white'
+                          ? 'bg-primary shadow-[0_0_15px_rgba(61,188,184,0.7)] z-10 text-white'
                           : active
-                          ? 'bg-[#f3efff] border-b-4 border-b-purple-500'
+                          ? 'bg-primary/12 border-b-4 border-b-primary'
                           : 'bg-white hover:bg-neutral-100 text-neutral-800'
                       }`}
                       style={{ borderRadius: '0 0 4px 4px' }}
                     >
                       {active && (
-                        <div className={`w-2 h-2 rounded-full transition-all duration-150 ${playing ? 'bg-white scale-125 shadow-[0_0_6px_white]' : 'bg-purple-300/85'}`} />
+                        <div className={`w-2 h-2 rounded-full transition-all duration-150 ${playing ? 'bg-white scale-125 shadow-[0_0_6px_white]' : 'bg-primary/80'}`} />
                       )}
                     </div>
                   );
@@ -587,10 +587,10 @@ export default function ReferenceCard({
                     key={key.note}
                     className={`absolute top-0 h-[60%] w-[3.8%] transition-all duration-150 border border-black/80 shadow-md ${
                       playing
-                        ? 'bg-purple-600 shadow-[0_0_15px_rgba(168,85,247,0.8)] z-30 text-white'
+                        ? 'bg-primary shadow-[0_0_15px_rgba(61,188,184,0.7)] z-30 text-white'
                         : active
-                        ? 'bg-[#2a1b4d] border border-purple-500/50 border-b-4 border-b-purple-400 z-25'
-                        : 'bg-[#181920] hover:bg-neutral-800 z-20'
+                        ? 'bg-primary/40 border border-primary/70 border-b-4 border-b-primary z-25'
+                        : 'bg-zinc-800 hover:bg-zinc-700 z-20'
                     }`}
                     style={{
                       left: leftPos,
@@ -598,7 +598,7 @@ export default function ReferenceCard({
                     }}
                   >
                     {active && (
-                      <div className={`absolute bottom-1.5 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 rounded-full transition-all duration-150 ${playing ? 'bg-white scale-125 shadow-[0_0_6px_white]' : 'bg-purple-300'}`} />
+                      <div className={`absolute bottom-1.5 left-1/2 transform -translate-x-1/2 w-1.5 h-1.5 rounded-full transition-all duration-150 ${playing ? 'bg-white scale-125 shadow-[0_0_6px_white]' : 'bg-white/80'}`} />
                     )}
                   </div>
                 );
@@ -626,7 +626,7 @@ export default function ReferenceCard({
               </h4>
               <div className="flex flex-wrap gap-x-4 gap-y-1 text-base font-bold text-foreground select-none">
                 {scaleNotesList.map((n, idx) => (
-                  <span key={idx} className="text-purple-300">{n}</span>
+                  <span key={idx} className="text-primary">{n}</span>
                 ))}
               </div>
             </div>
@@ -663,7 +663,7 @@ export default function ReferenceCard({
           {/* Related Chords */}
           <div className="flex flex-col space-y-1 border-r border-border/15 pr-2">
             <span className="text-[10px] font-bold text-muted-foreground">Related Chords</span>
-            <div className="flex flex-col space-y-0.5 text-xs text-white/80 select-none">
+            <div className="flex flex-col space-y-0.5 text-xs text-foreground/80 select-none">
               {safeScaleInfo.relatedChords.length > 0 ? (
                 safeScaleInfo.relatedChords.slice(0, 3).map((chord, idx) => (
                   <span key={idx} className="font-semibold truncate">{chord}</span>
@@ -677,7 +677,7 @@ export default function ReferenceCard({
           {/* Related Arpeggios */}
           <div className="flex flex-col space-y-1 pl-2">
             <span className="text-[10px] font-bold text-muted-foreground">Related Arpeggios</span>
-            <div className="flex flex-col space-y-0.5 text-xs text-white/80 select-none">
+            <div className="flex flex-col space-y-0.5 text-xs text-foreground/80 select-none">
               {safeScaleInfo.relatedArpeggios.length > 0 ? (
                 safeScaleInfo.relatedArpeggios.slice(0, 3).map((arpeggio, idx) => (
                   <span key={idx} className="font-semibold truncate">{arpeggio}</span>

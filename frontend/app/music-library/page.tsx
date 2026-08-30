@@ -863,7 +863,7 @@ function MusicLibraryContent() {
 
         {!loading && loadError && (
           <div className="rounded-xl border border-red-500/25 bg-red-500/10 p-6 text-sm text-foreground">
-            <h3 className="font-semibold text-red-400 mb-1">Could not connect to Database</h3>
+            <h3 className="font-semibold text-destructive mb-1">Could not connect to Database</h3>
             <p className="text-muted-foreground">{loadError}</p>
           </div>
         )}
@@ -945,13 +945,13 @@ function MusicLibraryContent() {
                     const isPlaying = playingIntervalSlug === interval.slug;
                     
                     const qualityColors: Record<string, string> = {
-                      'Perfect Consonance': 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400',
-                      'Imperfect Consonance': 'bg-amber-500/10 border-amber-500/20 text-amber-400',
-                      'Dissonant': 'bg-rose-500/10 border-rose-500/20 text-rose-400',
-                      'Perfect Consonance / Dissonant': 'bg-teal-500/10 border-teal-500/20 text-teal-400',
-                      'Highly Dissonant': 'bg-red-500/10 border-red-500/20 text-red-400'
+                      'Perfect Consonance': 'bg-emerald-500/12 border-emerald-500/30 text-emerald-700 dark:text-emerald-400',
+                      'Imperfect Consonance': 'bg-amber-500/12 border-amber-500/30 text-amber-700 dark:text-amber-400',
+                      'Dissonant': 'bg-rose-500/12 border-rose-500/30 text-rose-700 dark:text-rose-400',
+                      'Perfect Consonance / Dissonant': 'bg-teal-500/12 border-teal-500/30 text-teal-700 dark:text-teal-400',
+                      'Highly Dissonant': 'bg-red-500/12 border-red-500/30 text-red-700 dark:text-red-400'
                     };
-                    const colorClass = qualityColors[interval.quality] || 'bg-slate-500/10 border-slate-500/20 text-slate-400';
+                    const colorClass = qualityColors[interval.quality] || 'bg-muted/30 border-border/30 text-muted-foreground';
 
                     return (
                       <div
@@ -992,7 +992,7 @@ function MusicLibraryContent() {
                             <div className="flex items-center justify-center gap-3 text-2xl font-mono font-black tracking-wider text-foreground">
                               <span className="text-primary font-bold">{intervalRoot}</span>
                               <span className="text-muted-foreground/45 text-lg">➔</span>
-                              <span className="text-purple-400 font-bold">{target}</span>
+                              <span className="text-secondary font-bold">{target}</span>
                             </div>
                           </div>
 
@@ -1078,9 +1078,9 @@ function MusicLibraryContent() {
                         className="w-full h-full drop-shadow-lg overflow-visible"
                       >
                         {/* Center radial line markers for reference */}
-                        <circle cx="200" cy="200" r="175" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                        <circle cx="200" cy="200" r="130" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-                        <circle cx="200" cy="200" r="85" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
+                        <circle cx="200" cy="200" r="175" fill="none" stroke="rgba(128,128,128,0.12)" strokeWidth="1" />
+                        <circle cx="200" cy="200" r="130" fill="none" stroke="rgba(128,128,128,0.12)" strokeWidth="1" />
+                        <circle cx="200" cy="200" r="85" fill="none" stroke="rgba(128,128,128,0.12)" strokeWidth="1" />
 
                         {/* Sector Wedges */}
                         {CIRCLE_SECTORS.map((sector, i) => {
@@ -1138,9 +1138,8 @@ function MusicLibraryContent() {
                                 y={majorTextPos.y}
                                 textAnchor="middle"
                                 dominantBaseline="middle"
-                                className={`font-black text-sm select-none pointer-events-none transition-colors duration-200 ${
-                                  isMajorSelected ? 'fill-blue-400' : 'fill-white'
-                                }`}
+                                className="font-black text-sm select-none pointer-events-none"
+                                style={{ fill: isMajorSelected ? 'hsl(var(--primary))' : 'hsl(var(--foreground))' }}
                               >
                                 {sector.major}
                               </text>
@@ -1151,9 +1150,8 @@ function MusicLibraryContent() {
                                 y={minorTextPos.y}
                                 textAnchor="middle"
                                 dominantBaseline="middle"
-                                className={`font-bold text-xs select-none pointer-events-none transition-colors duration-200 ${
-                                  isMinorSelected ? 'fill-purple-400' : 'fill-muted-foreground'
-                                }`}
+                                className="font-bold text-xs select-none pointer-events-none"
+                                style={{ fill: isMinorSelected ? 'hsl(var(--secondary))' : 'hsl(var(--muted-foreground))' }}
                               >
                                 {sector.minor}
                               </text>
@@ -1193,7 +1191,8 @@ function MusicLibraryContent() {
                           x="200"
                           y="215"
                           textAnchor="middle"
-                          className="text-2xl font-black fill-white select-none"
+                          className="text-2xl font-black select-none"
+                          style={{ fill: 'hsl(var(--foreground))' }}
                         >
                           {selectedCircleKeyMode === 'major'
                             ? `${CIRCLE_SECTORS[selectedCircleSector].major} Maj`
@@ -1243,9 +1242,9 @@ function MusicLibraryContent() {
                               <div className="flex items-center gap-3">
                                 <h2 className="text-2xl font-black text-foreground tracking-tight">{keyName}</h2>
                                 <span className={`text-[10px] px-2.5 py-0.5 rounded-full font-bold border ${
-                                  isMajor 
-                                    ? 'bg-blue-500/10 border-blue-500/20 text-blue-400' 
-                                    : 'bg-purple-500/10 border-purple-500/20 text-purple-400'
+                                  isMajor
+                                    ? 'bg-primary/10 border-primary/20 text-primary'
+                                    : 'bg-secondary/10 border-secondary/20 text-secondary'
                                 }`}>
                                   {isMajor ? 'Major Key' : 'Minor Key'}
                                 </span>

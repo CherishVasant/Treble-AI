@@ -7,6 +7,7 @@ from typing import List, Dict, Any, Optional, Annotated, Sequence, TypedDict
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage, ToolMessage
 from langchain_core.tools import tool
+from langsmith import traceable
 from config import get_settings
 from reference_library import search_library
 from langgraph.graph import StateGraph, END
@@ -178,6 +179,7 @@ def search_web(query: str) -> str:
 
 class AgentService:
     @staticmethod
+    @traceable(name="Treble", run_type="chain")
     def run_agent(
         message: str,
         context: str = "",
@@ -292,7 +294,7 @@ class AgentService:
                     "HTTP-Referer": "https://github.com/Treble-AI",
                     "X-Title": f"Treble AI {agent_role}",
                 }
-            )
+            ).with_config({"run_name": "Treble"})
             
             llm_with_tools = llm.bind_tools(tools)
             

@@ -128,32 +128,6 @@ def search_serper(query: str, api_key: str) -> str:
         return f"Serper search failed: {str(e)}"
 
 
-# Brave search
-def search_brave(query: str, api_key: str) -> str:
-    try:
-        encoded_query = urllib.parse.quote(query)
-        url = f"https://api.search.brave.com/res/v1/web/search?q={encoded_query}&count=3"
-        req = urllib.request.Request(url, headers={
-            "Accept": "application/json",
-            "Accept-Encoding": "gzip",
-            "X-Subscription-Token": api_key
-        })
-        with urllib.request.urlopen(req, timeout=10) as response:
-            import gzip
-            if response.info().get('Content-Encoding') == 'gzip':
-                pagedata = gzip.decompress(response.read())
-            else:
-                pagedata = response.read()
-            res_data = json.loads(pagedata.decode("utf-8"))
-            results = res_data.get("web", {}).get("results", [])
-            formatted = []
-            for r in results:
-                formatted.append(f"Title: {r.get('title')}\nURL: {r.get('url')}\nDescription: {r.get('description')}\n")
-            return "\n".join(formatted) if formatted else "No results found on Brave Search."
-    except Exception as e:
-        return f"Brave search failed: {str(e)}"
-
-
 # Unified web search tool
 @tool
 def search_web(query: str) -> str:
@@ -163,14 +137,11 @@ def search_web(query: str) -> str:
     """
     tavily_key = os.environ.get("TAVILY_API_KEY")
     serper_key = os.environ.get("SERPER_API_KEY")
-    brave_key = os.environ.get("BRAVE_API_KEY")
-    
+
     if tavily_key:
         return search_tavily(query, tavily_key)
     elif serper_key:
         return search_serper(query, serper_key)
-    elif brave_key:
-        return search_brave(query, brave_key)
     else:
         return search_ddg(query)
 
